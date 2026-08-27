@@ -1,15 +1,37 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+type SupabaseConfigurationInput = {
+  url?: string;
+  publishableKey?: string;
+};
 
-if (!supabaseUrl || !supabasePublishableKey) {
-  throw new Error("Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.");
+export function getSupabaseConfiguration({ url, publishableKey }: SupabaseConfigurationInput) {
+  const normalizedUrl = url?.trim();
+  const normalizedPublishableKey = publishableKey?.trim();
+
+  return {
+    url: normalizedUrl,
+    publishableKey: normalizedPublishableKey,
+    isConfigured: Boolean(normalizedUrl && normalizedPublishableKey),
+  };
 }
 
-export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+const configuration = getSupabaseConfiguration({
+  url: import.meta.env.VITE_SUPABASE_URL as string | undefined,
+  publishableKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined,
 });
+
+export const isSupabaseConfigured = configuration.isConfigured;
+
+// The app displays an explicit setup notice before any protected view mounts.
+// These inert placeholders prevent a missing Vercel variable from throwing during module import.
+export const supabase = createClient(
+  configuration.url ?? "https://tripsforge-supabase-unconfigured.invalid",
+  configuration.publishableKey ?? "sb_publishable_unconfigured",
+  {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  }
+);
 
 export function getSupabaseErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "Something went wrong. Please try again.";
