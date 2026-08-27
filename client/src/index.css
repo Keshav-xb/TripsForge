@@ -1,0 +1,14 @@
+/* Monsoon Atlas global system: editorial serif, rainforest ink, parchment ground, and Mango Route accents. */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline { --font-display: "DM Serif Display", Georgia, serif; --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif; --color-background: var(--background); --color-foreground: var(--foreground); --color-card: var(--card); --color-card-foreground: var(--card-foreground); --color-popover: var(--popover); --color-popover-foreground: var(--popover-foreground); --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground); --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground); --color-border: var(--border); --color-input: var(--input); --color-ring: var(--ring); --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) + 4px); }
+
+:root { --radius: 0.9rem; --background: #fffdf8; --foreground: #123a35; --card: #fffdf8; --card-foreground: #123a35; --popover: #fffdf8; --popover-foreground: #123a35; --primary: #123a35; --primary-foreground: #fffdf8; --muted: #f2eddf; --muted-foreground: #637d75; --border: rgba(18,58,53,.12); --input: rgba(18,58,53,.15); --ring: #e6651b; }
+
+@layer base { * { @apply border-border outline-ring/50; } html { scroll-behavior: smooth; } body { @apply bg-background text-foreground font-sans; } button:not(:disabled), [role="button"]:not([aria-disabled="true"]), [type="button"]:not(:disabled), [type="submit"]:not(:disabled), [type="reset"]:not(:disabled), a[href], select:not(:disabled), input:not(:disabled) { @apply cursor-pointer; } ::selection { background: #ffd39e; color: #123a35; } }
+
+@layer components { .atlas-label { font-family: "Manrope", ui-sans-serif, system-ui, sans-serif; font-size: .65rem; line-height: 1; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; } .route-thread { border-left: 2px dashed #e6651b; transform: rotate(-28deg); } }
+
+@media (prefers-reduced-motion: no-preference) { .route-thread { animation: route-sway 6s ease-in-out infinite; } }
+@keyframes route-sway { 0%, 100% { transform: rotate(-28deg) translateY(0); } 50% { transform: rotate(-24deg) translateY(-4px); } }
