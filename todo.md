@@ -37,4 +37,4 @@
 - [x] Save a post-verification release checkpoint after the completed Supabase browser flow.
 - [x] Verify a separate Supabase sign-in after sign-out, then recheck the protected trip library.
 - [x] Save a final release checkpoint after the completed end-to-end Supabase browser verification.
-- [ ] Synchronize the verified Supabase release and required new files to the connected GitHub repository’s current branch.
+- [x] Synchronize the verified Supabase release and required new files to the connected GitHub repository’s current branch.
