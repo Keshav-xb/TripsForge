@@ -22,6 +22,7 @@ export type Activity = {
   duration: string;
   distance: string;
   marker: number;
+  location?: { lat: number; lng: number };
 };
 
 export type PlanInputs = {
@@ -72,14 +73,14 @@ export const INDIAN_DESTINATIONS: Destination[] = [
   {
     name: "Jaipur", region: "Rajasthan", image: "/assets/hero-jaipur.jpg", price: 11900, bestTime: "Oct — Mar", category: "Culture & food", mapLabel: "Pink City circuit", themes: ["History", "Food", "Architecture", "Shopping", "Photography", "Culture"], description: "Courtyards, craft studios and desert light woven into one deliberate route.",
     activities: [
-      { time: "08:30", title: "Masala chai at Sahu", description: "A spice-laced local start near the old city lanes.", category: "Food", cost: 120, duration: "35 min", distance: "0 km" },
-      { time: "09:30", title: "Amber Fort ramparts", description: "Climb through mirrored halls and sunlit courtyards before the crowds.", category: "History", cost: 200, duration: "2 hr", distance: "11.4 km" },
-      { time: "12:30", title: "Panna Meena ka Kund", description: "A geometric stepwell made for slow photographs and cool shade.", category: "Architecture", cost: 0, duration: "35 min", distance: "1.8 km" },
-      { time: "14:00", title: "Rajasthani thali lunch", description: "A relaxed thali with gatte, ker and freshly made rotis.", category: "Food", cost: 520, duration: "1 hr", distance: "8.2 km" },
-      { time: "16:00", title: "City Palace galleries", description: "Royal textiles, ceremonial courtyards and blue-painted doorways.", category: "Culture", cost: 700, duration: "1.5 hr", distance: "2.1 km" },
-      { time: "18:30", title: "Hawa Mahal blue hour", description: "See the honeycomb façade take on its softest evening colour.", category: "Photography", cost: 0, duration: "45 min", distance: "0.6 km" },
-      { time: "20:00", title: "Johari Bazaar browse", description: "A focused hour for block prints, silver and hand-made keepsakes.", category: "Shopping", cost: 0, duration: "1 hr", distance: "0.4 km" },
-      { time: "21:15", title: "Courtyard dinner", description: "Regional small plates in a softly lit heritage haveli.", category: "Food", cost: 900, duration: "1.5 hr", distance: "1.2 km" },
+      { time: "08:30", title: "Masala chai at Sahu", description: "A spice-laced local start near the old city lanes.", category: "Food", cost: 120, duration: "35 min", distance: "0 km", location: { lat: 26.9209, lng: 75.8232 } },
+      { time: "09:30", title: "Amber Fort ramparts", description: "Climb through mirrored halls and sunlit courtyards before the crowds.", category: "History", cost: 200, duration: "2 hr", distance: "11.4 km", location: { lat: 26.9855, lng: 75.8513 } },
+      { time: "12:30", title: "Panna Meena ka Kund", description: "A geometric stepwell made for slow photographs and cool shade.", category: "Architecture", cost: 0, duration: "35 min", distance: "1.8 km", location: { lat: 26.9877, lng: 75.8541 } },
+      { time: "14:00", title: "Rajasthani thali lunch", description: "A relaxed thali with gatte, ker and freshly made rotis.", category: "Food", cost: 520, duration: "1 hr", distance: "8.2 km", location: { lat: 26.9271, lng: 75.8244 } },
+      { time: "16:00", title: "City Palace galleries", description: "Royal textiles, ceremonial courtyards and blue-painted doorways.", category: "Culture", cost: 700, duration: "1.5 hr", distance: "2.1 km", location: { lat: 26.9258, lng: 75.8237 } },
+      { time: "18:30", title: "Hawa Mahal blue hour", description: "See the honeycomb façade take on its softest evening colour.", category: "Photography", cost: 0, duration: "45 min", distance: "0.6 km", location: { lat: 26.9239, lng: 75.8267 } },
+      { time: "20:00", title: "Johari Bazaar browse", description: "A focused hour for block prints, silver and hand-made keepsakes.", category: "Shopping", cost: 0, duration: "1 hr", distance: "0.4 km", location: { lat: 26.9219, lng: 75.8285 } },
+      { time: "21:15", title: "Courtyard dinner", description: "Regional small plates in a softly lit heritage haveli.", category: "Food", cost: 900, duration: "1.5 hr", distance: "1.2 km", location: { lat: 26.9209, lng: 75.8232 } },
     ]
   },
   {

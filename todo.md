@@ -1,0 +1,40 @@
+- [x] Replace visible TripForge product-name references with TripsForge and update page metadata.
+- [x] Verify the renamed brand in the running experience and save a checkpoint.
+- [x] Deliver the clean TripsForge compass-route logo as a PNG.
+- [x] Package and deliver the complete TripsForge source repository as a ZIP archive.
+- [x] Create and deliver a GitHub-ready TripsForge source ZIP under 24 MB.
+- [x] Upload the complete TripsForge source to the selected GitHub repository.
+- [x] Configure the GitHub repository to deploy the TripsForge frontend correctly on Vercel.
+- [x] Assess and prioritize the gaps between the current TripsForge demo and a launch-ready expert travel product.
+- [x] Confirm the production scope and enable the secure account and database foundation for TripsForge.
+- [x] Add a schema, data helpers, and protected API procedures for saved trips and public share links.
+- [x] Add sign-in-aware global navigation and a personal saved-trips library.
+- [x] Persist itinerary changes, implement a functional share link, and generate a printable trip export.
+- [x] Add retryable saved-trips library error states and deletion failure feedback.
+- [x] Add clear loading and recovery states when a saved itinerary cannot be opened.
+- [x] Complete a real signed-in TripsForge account journey: save, reopen, share, and export an itinerary.
+- [x] Add live Google Maps integration, live road-distance estimates, and a resilient illustrative fallback for activity routes.
+- [x] Replace the unavailable browser map script with a secure server-rendered Google route map and verify its live route output.
+- [x] Add stable activity coordinates for the primary Jaipur route, with text geocoding retained as a fallback for other destinations.
+- [x] Choose managed full-stack hosting rather than a separate Vercel backend for database-backed trip persistence.
+- [x] Save and publish the owned-authentication release after real signed-in browser verification.
+- [x] Replace the visitor-facing Manus OAuth flow with owned email-and-password credentials and secure sessions.
+- [x] Add TripsForge sign-up, sign-in, sign-out, and account access screens.
+- [x] Revalidate saved-trip privacy, sharing, and exports through a real TripsForge-owned browser session.
+- [x] Remove all visitor-facing local and Manus authentication paths and replace them with Supabase Auth.
+- [x] Configure Supabase environment variables and implement email verification, password recovery, reset, persistent sessions, and profile display.
+- [x] Store saved trips with Supabase user IDs and apply row-level security so users can access only their own private trips.
+- [x] Verify Supabase-backed sign-up, sign-in, protected trips, sharing, export, and Vercel deployment requirements.
+- [x] Add Vercel frontend build and SPA routing configuration for the Supabase-enabled TripsForge client.
+- [x] Fix Supabase email-confirmation and recovery links that incorrectly return users to localhost.
+- [x] Add a user-controlled resend-confirmation email action for pending Supabase accounts.
+- [x] Diagnose and fix the reported TripsForge development-server disconnects during Supabase verification.
+- [x] Reproduce or document the reported preview disconnect source and verify whether any application-level fix is required.
+- [x] Diagnose and resolve the reported missing Supabase confirmation-email delivery by switching to the approved temporary no-confirmation configuration.
+- [x] Support temporary immediate Supabase account activation without email confirmation while retaining private saved-trip protection.
+- [x] Restore the Supabase Email provider while leaving only Confirm Email disabled for temporary immediate registration.
+- [x] Fix the repeated saved-itinerary restore loop discovered after a successful Supabase save.
+- [x] Save a post-verification release checkpoint after the completed Supabase browser flow.
+- [x] Verify a separate Supabase sign-in after sign-out, then recheck the protected trip library.
+- [x] Save a final release checkpoint after the completed end-to-end Supabase browser verification.
+- [ ] Synchronize the verified Supabase release and required new files to the connected GitHub repository’s current branch.
