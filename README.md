@@ -27,4 +27,4 @@ Website imagery and the TripsForge compass-route logo are located in `client/pub
 
 ## Deployment note
 
-The project is a Vite React application and can be deployed to a compatible static or Node-based environment after the repository dependencies are installed.
+The project is a Vite React single-page application. A root-level `vercel.json` explicitly configures Vercel to build only the frontend with `pnpm run build:vercel`, serve `dist/public`, and rewrite client-side routes to `index.html`. After pushing the configuration, trigger a new Vercel deployment from the `main` branch.
