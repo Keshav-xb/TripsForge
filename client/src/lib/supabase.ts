@@ -40,5 +40,6 @@ export function getSupabaseErrorMessage(error: unknown) {
   if (/user already registered/i.test(message)) return "An account already exists for this email. Try signing in instead.";
   if (/password should be at least/i.test(message)) return "Choose a password with at least 8 characters.";
   if (/rate limit/i.test(message)) return "Too many attempts. Please wait a moment and try again.";
+  if (message === "AUTH_REQUEST_TIMEOUT") return "Supabase is taking too long to respond. Check your connection and try again.";
   return message;
 }

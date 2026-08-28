@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getSupabaseErrorMessage, supabase } from "@/lib/supabase";
+import { withAuthRequestTimeout } from "@/lib/authRequest";
 import { accountRedirectUrl } from "@/lib/accountRedirects";
 import { BrandMark } from "@/components/SiteHeader";
 
@@ -61,14 +62,14 @@ export default function Account() {
 
     try {
       if (view === "signUp") {
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await withAuthRequestTimeout(supabase.auth.signUp({
           email,
           password,
           options: {
             data: { display_name: name.trim() },
             emailRedirectTo: signUpRedirectTo,
           },
-        });
+        }));
 
         if (error) throw error;
 
@@ -81,18 +82,18 @@ export default function Account() {
           );
         }
       } else if (view === "signIn") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await withAuthRequestTimeout(supabase.auth.signInWithPassword({ email, password }));
         if (error) throw error;
         toast.success("Welcome back to TripsForge.");
         navigate(destination);
       } else if (view === "recovery") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        const { error } = await withAuthRequestTimeout(supabase.auth.resetPasswordForEmail(email, {
           redirectTo: accountRedirectUrl({ mode: "reset" }),
-        });
+        }));
         if (error) throw error;
         setNotice("If an account exists for this email, a reset link is on its way.");
       } else {
-        const { error } = await supabase.auth.updateUser({ password });
+        const { error } = await withAuthRequestTimeout(supabase.auth.updateUser({ password }));
         if (error) throw error;
         setPassword("");
         setNotice("Your password has been updated. You can now continue planning.");
