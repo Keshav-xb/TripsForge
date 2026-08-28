@@ -211,8 +211,8 @@ export default function Account() {
           ) : (
             <>
               <div className="flex rounded-full bg-[#f3eee3] p-1">
-                <button onClick={() => { setView("signUp"); setNotice(null); }} className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition-colors ${view === "signUp" ? "bg-[#fffdf8] text-[#123a35] shadow-sm" : "text-[#668078]"}`}>Create account</button>
-                <button onClick={() => { setView("signIn"); setNotice(null); }} className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition-colors ${view === "signIn" ? "bg-[#fffdf8] text-[#123a35] shadow-sm" : "text-[#668078]"}`}>Sign in</button>
+                <button onClick={() => { setView("signUp"); setNotice(null); setSubmitting(false); }} className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition-colors ${view === "signUp" ? "bg-[#fffdf8] text-[#123a35] shadow-sm" : "text-[#668078]"}`}>Create account</button>
+                <button onClick={() => { setView("signIn"); setNotice(null); setSubmitting(false); }} className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition-colors ${view === "signIn" ? "bg-[#fffdf8] text-[#123a35] shadow-sm" : "text-[#668078]"}`}>Sign in</button>
               </div>
               <div className="mt-9"><p className="atlas-label text-[#e6651b]">{panelLabel}</p><h2 className="mt-3 font-display text-4xl tracking-[-.06em]">{panelTitle}</h2></div>
               <form onSubmit={submit} className="mt-8 grid gap-5">
@@ -230,8 +230,8 @@ export default function Account() {
                 {notice && <p className="rounded-xl bg-[#e8f0e9] px-4 py-3 text-sm leading-6 text-[#355752]">{notice}</p>}
                 <button disabled={submitting} className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-[#123a35] px-6 py-3.5 text-sm font-bold text-white transition hover:bg-[#1d514a] disabled:opacity-60"><Compass className="h-4 w-4 text-[#ffb34b]" /> {submitting ? "Please wait…" : submitLabel}</button>
               </form>
-              {view === "signIn" && <button onClick={() => { setView("recovery"); setNotice(null); }} className="mt-5 block text-sm font-bold text-[#e6651b] hover:underline">Forgot your password?</button>}
-              {view === "recovery" && <button onClick={() => { setView("signIn"); setNotice(null); }} className="mt-5 text-sm font-bold text-[#e6651b] hover:underline">Back to sign in</button>}
+              {view === "signIn" && <button onClick={() => { setView("recovery"); setNotice(null); setSubmitting(false); }} className="mt-5 block text-sm font-bold text-[#e6651b] hover:underline">Forgot your password?</button>}
+              {view === "recovery" && <button onClick={() => { setView("signIn"); setNotice(null); setSubmitting(false); }} className="mt-5 text-sm font-bold text-[#e6651b] hover:underline">Back to sign in</button>}
               <p className="mt-6 text-xs leading-5 text-[#71877f]">New accounts can sign in immediately while temporary immediate sign-up mode is enabled. Your password is handled by Supabase Auth and is never stored by TripsForge.</p>
             </>
           )}
