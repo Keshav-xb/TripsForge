@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Compass, Eye, EyeOff, LockKeyhole, Mail, UserRound } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
@@ -46,6 +46,7 @@ export default function Account() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const authRequestId = useRef(0);
   const destination = useMemo(() => safeDestination(initial.get("next")), [initial]);
   const signUpRedirectTo = accountRedirectUrl({ next: destination });
 
@@ -55,8 +56,14 @@ export default function Account() {
     }
   }, [auth.isAuthenticated, destination, initial, navigate, view]);
 
+  const cancelPendingAuth = () => {
+    authRequestId.current += 1;
+    setSubmitting(false);
+  };
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    const requestId = ++authRequestId.current;
     setSubmitting(true);
     setNotice(null);
 
@@ -72,6 +79,7 @@ export default function Account() {
         }));
 
         if (error) throw error;
+        if (requestId !== authRequestId.current) return;
 
         if (data.session) {
           toast.success("Your TripsForge account is ready.");
@@ -84,6 +92,7 @@ export default function Account() {
       } else if (view === "signIn") {
         const { error } = await withAuthRequestTimeout(supabase.auth.signInWithPassword({ email, password }));
         if (error) throw error;
+        if (requestId !== authRequestId.current) return;
         toast.success("Welcome back to TripsForge.");
         navigate(destination);
       } else if (view === "recovery") {
@@ -91,18 +100,20 @@ export default function Account() {
           redirectTo: accountRedirectUrl({ mode: "reset" }),
         }));
         if (error) throw error;
+        if (requestId !== authRequestId.current) return;
         setNotice("If an account exists for this email, a reset link is on its way.");
       } else {
         const { error } = await withAuthRequestTimeout(supabase.auth.updateUser({ password }));
         if (error) throw error;
+        if (requestId !== authRequestId.current) return;
         setPassword("");
         setNotice("Your password has been updated. You can now continue planning.");
         toast.success("Password updated.");
       }
     } catch (error) {
-      toast.error(getSupabaseErrorMessage(error));
+      if (requestId === authRequestId.current) toast.error(getSupabaseErrorMessage(error));
     } finally {
-      setSubmitting(false);
+      if (requestId === authRequestId.current) setSubmitting(false);
     }
   };
 
@@ -211,8 +222,8 @@ export default function Account() {
           ) : (
             <>
               <div className="flex rounded-full bg-[#f3eee3] p-1">
-                <button onClick={() => { setView("signUp"); setNotice(null); setSubmitting(false); }} className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition-colors ${view === "signUp" ? "bg-[#fffdf8] text-[#123a35] shadow-sm" : "text-[#668078]"}`}>Create account</button>
-                <button onClick={() => { setView("signIn"); setNotice(null); setSubmitting(false); }} className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition-colors ${view === "signIn" ? "bg-[#fffdf8] text-[#123a35] shadow-sm" : "text-[#668078]"}`}>Sign in</button>
+                <button onClick={() => { cancelPendingAuth(); setView("signUp"); setNotice(null); }} className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition-colors ${view === "signUp" ? "bg-[#fffdf8] text-[#123a35] shadow-sm" : "text-[#668078]"}`}>Create account</button>
+                <button onClick={() => { cancelPendingAuth(); setView("signIn"); setNotice(null); }} className={`flex-1 rounded-full px-4 py-2 text-sm font-bold transition-colors ${view === "signIn" ? "bg-[#fffdf8] text-[#123a35] shadow-sm" : "text-[#668078]"}`}>Sign in</button>
               </div>
               <div className="mt-9"><p className="atlas-label text-[#e6651b]">{panelLabel}</p><h2 className="mt-3 font-display text-4xl tracking-[-.06em]">{panelTitle}</h2></div>
               <form onSubmit={submit} className="mt-8 grid gap-5">
@@ -230,8 +241,8 @@ export default function Account() {
                 {notice && <p className="rounded-xl bg-[#e8f0e9] px-4 py-3 text-sm leading-6 text-[#355752]">{notice}</p>}
                 <button disabled={submitting} className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-[#123a35] px-6 py-3.5 text-sm font-bold text-white transition hover:bg-[#1d514a] disabled:opacity-60"><Compass className="h-4 w-4 text-[#ffb34b]" /> {submitting ? "Please wait…" : submitLabel}</button>
               </form>
-              {view === "signIn" && <button onClick={() => { setView("recovery"); setNotice(null); setSubmitting(false); }} className="mt-5 block text-sm font-bold text-[#e6651b] hover:underline">Forgot your password?</button>}
-              {view === "recovery" && <button onClick={() => { setView("signIn"); setNotice(null); setSubmitting(false); }} className="mt-5 text-sm font-bold text-[#e6651b] hover:underline">Back to sign in</button>}
+              {view === "signIn" && <button onClick={() => { cancelPendingAuth(); setView("recovery"); setNotice(null); }} className="mt-5 block text-sm font-bold text-[#e6651b] hover:underline">Forgot your password?</button>}
+              {view === "recovery" && <button onClick={() => { cancelPendingAuth(); setView("signIn"); setNotice(null); }} className="mt-5 text-sm font-bold text-[#e6651b] hover:underline">Back to sign in</button>}
               <p className="mt-6 text-xs leading-5 text-[#71877f]">New accounts can sign in immediately while temporary immediate sign-up mode is enabled. Your password is handled by Supabase Auth and is never stored by TripsForge.</p>
             </>
           )}
