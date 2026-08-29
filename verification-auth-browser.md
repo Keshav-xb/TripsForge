@@ -71,3 +71,15 @@
 - The committed asset URLs returned HTTP 200 with the expected `image/png` or `image/jpeg` content types.
 - Desktop and mobile managed-preview screenshots after the asset commit show the compass logo and TripsForge wordmark visibly in both Home and Account headers.
 - GitHub main is synchronized at commit `37a4f829d46e20015e0e667de0cdaf6c48762671` (`Fix public logo asset delivery`).
+
+## Destination image repair
+
+- The five recovered approved destination images (Jaipur, Goa, Manali, Kerala, and Srinagar) were normalized to correctly named JPEG assets and committed under `destination-assets/`.
+- Destination data now uses immutable public GitHub URLs pinned to commit `3307af91` so image delivery does not depend on Manus storage or mutable branch-cache behavior.
+- Desktop and mobile Explore-page previews show all seven destination cards with loaded imagery and no white broken-image boxes.
+- The active project test suite, TypeScript validation, and Vercel build pass after the destination URL repair.
+
+## Final destination image verification
+
+- After switching all five destination image references to immutable commit-SHA URLs, HTTP checks returned `200 image/jpeg` for Jaipur, Goa, Manali, Kerala, and Srinagar.
+- The final desktop and mobile Explore-page screenshots show all seven destination cards with their imagery loaded; no white broken-image boxes remain.

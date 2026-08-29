@@ -78,3 +78,11 @@
 - [x] Diagnose and fix the broken TripsForge logo asset reference that renders as a missing image.
 - [x] Verify the repaired logo in the browser and production build, then synchronize the fix to GitHub.
 - [x] Synchronize the latest logo-repair checkpoint records and any remaining changes to the existing GitHub main branch.
+- [x] Fix broken destination image references so destination cards load reliably on Vercel without white broken-image boxes.
+- [x] Verify destination imagery on desktop and mobile, then synchronize the repair to GitHub.
+- [x] Replace all destination card image URLs with a stable immutable production-safe asset source that returns 200 for every destination.
+- [x] Re-run HTTP validation for every final destination image URL and confirm the expected image content types.
+- [x] Re-verify the Explore destination cards on desktop and mobile after the final assets are live, then confirm the corrected GitHub remote branch.
+- [ ] Commit and push the immutable destination-image URL update and regression-test changes to GitHub main.
+- [ ] Confirm the GitHub remote head and recheck all five committed destination URLs return 200 image/jpeg.
+- [ ] Reconfirm the Explore page on desktop and mobile against the pushed fix and record the final remote commit SHA.

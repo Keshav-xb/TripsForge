@@ -35,7 +35,7 @@ describe("TripsForge brand asset", () => {
     expect(document).not.toContain("/manus-storage/");
     expect(destinations).not.toContain("/manus-storage/");
     for (const destination of ["jaipur", "goa", "manali", "kerala", "srinagar"]) {
-      expect(destinations).toContain(`https://raw.githubusercontent.com/Keshav-xb/TripsForge/main/destination-assets/${destination}.jpg`);
+      expect(destinations).toContain(`https://raw.githubusercontent.com/Keshav-xb/TripsForge/3307af91cdc5a51ff45fabc25f69aaf07b6e3942/destination-assets/${destination}.jpg`);
     }
     expect(header).toContain("brand-wordmark");
     expect(footer).toContain("brand-wordmark");
