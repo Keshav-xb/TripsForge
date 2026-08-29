@@ -1,4 +1,3 @@
--- Run this migration in the Supabase SQL Editor before using saved trips.
 create table if not exists public.saved_trips (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
