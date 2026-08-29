@@ -8,7 +8,8 @@
 
 @layer base { * { @apply border-border outline-ring/50; } html { scroll-behavior: smooth; } body { @apply bg-background text-foreground font-sans; } button:not(:disabled), [role="button"]:not([aria-disabled="true"]), [type="button"]:not(:disabled), [type="submit"]:not(:disabled), [type="reset"]:not(:disabled), a[href], select:not(:disabled), input:not(:disabled) { @apply cursor-pointer; } ::selection { background: #ffd39e; color: #123a35; } }
 
-@layer components { .atlas-label { font-family: "Manrope", ui-sans-serif, system-ui, sans-serif; font-size: .65rem; line-height: 1; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; } .route-thread { border-left: 2px dashed #e6651b; transform: rotate(-28deg); } }
+@layer components { .atlas-label { font-family: "Manrope", ui-sans-serif, system-ui, sans-serif; font-size: .65rem; line-height: 1; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; } .route-thread { border-left: 2px dashed #e6651b; transform: rotate(-28deg); } .brand-wordmark { font-family: "Bodoni Moda", "DM Serif Display", Georgia, serif; font-size: 1.46rem; font-optical-sizing: auto; font-weight: 700; letter-spacing: -.075em; line-height: .9; white-space: nowrap; display: inline-block; text-rendering: geometricPrecision; -webkit-font-smoothing: antialiased; } }
+@media (max-width: 639px) { .brand-wordmark { font-size: 1.32rem; letter-spacing: -.065em; } }
 
 @media (prefers-reduced-motion: no-preference) { .route-thread { animation: route-sway 6s ease-in-out infinite; } }
 @keyframes route-sway { 0%, 100% { transform: rotate(-28deg) translateY(0); } 50% { transform: rotate(-24deg) translateY(-4px); } }

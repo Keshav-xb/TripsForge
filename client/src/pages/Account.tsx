@@ -182,7 +182,7 @@ export default function Account() {
       <div className="mx-auto flex max-w-6xl justify-between">
         <Link href="/" className="flex items-center gap-2.5">
           <BrandMark />
-          <span className="font-display text-[1.45rem] tracking-[-.06em]">TripsForge</span>
+          <span className="brand-wordmark">TripsForge</span>
         </Link>
         <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-[#55716a] transition-colors hover:text-[#e6651b]">
           <ArrowLeft className="h-4 w-4" /> Back to routes

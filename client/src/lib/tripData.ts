@@ -71,7 +71,7 @@ export type Destination = {
 
 export const INDIAN_DESTINATIONS: Destination[] = [
   {
-    name: "Jaipur", region: "Rajasthan", image: "/assets/hero-jaipur.jpg", price: 11900, bestTime: "Oct — Mar", category: "Culture & food", mapLabel: "Pink City circuit", themes: ["History", "Food", "Architecture", "Shopping", "Photography", "Culture"], description: "Courtyards, craft studios and desert light woven into one deliberate route.",
+    name: "Jaipur", region: "Rajasthan", image: "/manus-storage/tripforge-hero-jaipur_1a3ec5fc.jpg", price: 11900, bestTime: "Oct — Mar", category: "Culture & food", mapLabel: "Pink City circuit", themes: ["History", "Food", "Architecture", "Shopping", "Photography", "Culture"], description: "Courtyards, craft studios and desert light woven into one deliberate route.",
     activities: [
       { time: "08:30", title: "Masala chai at Sahu", description: "A spice-laced local start near the old city lanes.", category: "Food", cost: 120, duration: "35 min", distance: "0 km", location: { lat: 26.9209, lng: 75.8232 } },
       { time: "09:30", title: "Amber Fort ramparts", description: "Climb through mirrored halls and sunlit courtyards before the crowds.", category: "History", cost: 200, duration: "2 hr", distance: "11.4 km", location: { lat: 26.9855, lng: 75.8513 } },
@@ -84,7 +84,7 @@ export const INDIAN_DESTINATIONS: Destination[] = [
     ]
   },
   {
-    name: "Goa", region: "Goa", image: "/assets/goa-coast.jpg", price: 14800, bestTime: "Nov — Feb", category: "Beaches & slow days", mapLabel: "Coastal loop", themes: ["Beaches", "Food", "Nature", "Nightlife", "Photography"], description: "Salt air, quiet coves and a generous pace from one shoreline to the next.",
+    name: "Goa", region: "Goa", image: "/manus-storage/tripforge-goa-coast_1aa1b67d.jpg", price: 14800, bestTime: "Nov — Feb", category: "Beaches & slow days", mapLabel: "Coastal loop", themes: ["Beaches", "Food", "Nature", "Nightlife", "Photography"], description: "Salt air, quiet coves and a generous pace from one shoreline to the next.",
     activities: [
       { time: "08:00", title: "Beachside breakfast", description: "Poee, fruit and strong coffee where the palms meet the sand.", category: "Food", cost: 320, duration: "50 min", distance: "0 km" },
       { time: "09:30", title: "Kayak the Nerul backwaters", description: "Paddle quietly beneath mangroves with a local naturalist.", category: "Nature", cost: 950, duration: "1.5 hr", distance: "4.4 km" },
@@ -96,7 +96,7 @@ export const INDIAN_DESTINATIONS: Destination[] = [
     ]
   },
   {
-    name: "Manali", region: "Himachal Pradesh", image: "/assets/manali.jpg", price: 13600, bestTime: "Mar — Jun", category: "Mountain adventure", mapLabel: "Kullu valley traverse", themes: ["Nature", "Adventure", "Photography", "Family", "Food"], description: "Cedar trails, glacial rivers and a mountain-day rhythm with room to breathe.",
+    name: "Manali", region: "Himachal Pradesh", image: "/manus-storage/tripforge-manali_d6cddf27.jpg", price: 13600, bestTime: "Mar — Jun", category: "Mountain adventure", mapLabel: "Kullu valley traverse", themes: ["Nature", "Adventure", "Photography", "Family", "Food"], description: "Cedar trails, glacial rivers and a mountain-day rhythm with room to breathe.",
     activities: [
       { time: "07:30", title: "Mountain breakfast", description: "Warm siddu and tea before the valley wakes fully.", category: "Food", cost: 250, duration: "40 min", distance: "0 km" },
       { time: "09:00", title: "Jogini Falls trail", description: "A steady forest climb with mountain views opening in stages.", category: "Nature", cost: 0, duration: "2.5 hr", distance: "5.1 km" },
@@ -108,7 +108,7 @@ export const INDIAN_DESTINATIONS: Destination[] = [
     ]
   },
   {
-    name: "Kerala", region: "Kerala", image: "/assets/kerala.jpg", price: 15400, bestTime: "Sep — Mar", category: "Nature & wellness", mapLabel: "Backwater passage", themes: ["Nature", "Food", "Culture", "Family", "Photography"], description: "Backwater mornings, spice-rich kitchens and unhurried village channels.",
+    name: "Kerala", region: "Kerala", image: "/manus-storage/tripforge-kerala_5283885d.jpg", price: 15400, bestTime: "Sep — Mar", category: "Nature & wellness", mapLabel: "Backwater passage", themes: ["Nature", "Food", "Culture", "Family", "Photography"], description: "Backwater mornings, spice-rich kitchens and unhurried village channels.",
     activities: [
       { time: "07:30", title: "Filter coffee & appam", description: "A gentle breakfast with local fruit and coconut stew.", category: "Food", cost: 240, duration: "45 min", distance: "0 km" },
       { time: "09:00", title: "Backwater canoe ride", description: "Glide through palm-fringed channels with a local boatman.", category: "Nature", cost: 1100, duration: "2 hr", distance: "1.1 km" },
@@ -121,7 +121,7 @@ export const INDIAN_DESTINATIONS: Destination[] = [
   },
   { name: "Udaipur", region: "Rajasthan", image: "https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=1000&q=85", price: 12700, bestTime: "Oct — Mar", category: "Romantic lakes", mapLabel: "Lake city loop", themes: ["Architecture", "Culture", "Food", "Photography"], description: "Lakeside palaces and whitewashed alleys for a romantic, unhurried circuit.", activities: [] },
   { name: "Rishikesh", region: "Uttarakhand", image: "https://images.unsplash.com/photo-1626621331169-5f34be280ed9?auto=format&fit=crop&w=1000&q=85", price: 9800, bestTime: "Sep — Nov", category: "Adventure & nature", mapLabel: "Ganga river line", themes: ["Adventure", "Nature", "Food", "Culture"], description: "River mornings, forest air and a pulse of adventure in every bend.", activities: [] },
-  { name: "Srinagar", region: "Kashmir", image: "/assets/srinagar.jpg", price: 17600, bestTime: "Apr — Oct", category: "Lakes & mountains", mapLabel: "Dal Lake circuit", themes: ["Nature", "Photography", "Food", "Family"], description: "A gentle lakeside route through gardens, mountain views and old-city flavour.", activities: [] },
+  { name: "Srinagar", region: "Kashmir", image: "/manus-storage/tripforge-srinagar_67b338d0.jpg", price: 17600, bestTime: "Apr — Oct", category: "Lakes & mountains", mapLabel: "Dal Lake circuit", themes: ["Nature", "Photography", "Food", "Family"], description: "A gentle lakeside route through gardens, mountain views and old-city flavour.", activities: [] },
 ];
 
 const fallbackActivities: Omit<Activity, "id" | "marker">[] = [

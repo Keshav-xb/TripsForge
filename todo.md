@@ -38,3 +38,40 @@
 - [x] Verify a separate Supabase sign-in after sign-out, then recheck the protected trip library.
 - [x] Save a final release checkpoint after the completed end-to-end Supabase browser verification.
 - [x] Synchronize the verified Supabase release and required new files to the connected GitHub repository’s current branch.
+- [x] Diagnose and fix the reported white screen in the Vercel deployment without changing hosting configuration.
+- [x] Verify the latest protected Vercel deployment shows the full app or the configuration notice rather than a white screen.
+- [x] Confirm Vercel has the three required TripsForge Supabase environment variables in the applicable deployment environments.
+- [x] Diagnose and fix sign-in and sign-up forms that remain stuck on “Please wait” without a response.
+- [x] Re-test sign-in and sign-up in the browser and confirm each resolves to success or a clear error.
+- [x] Reset the shared submitting state when switching between sign-in and create-account views.
+- [x] Capture fresh browser/network evidence for successful or clearly failed Supabase auth requests.
+- [x] Make pending Supabase auth requests cancellation-safe so switching views ignores stale results and clears the visible loading state.
+- [x] Submit the Create account form with a safe test path and confirm it succeeds or shows a clear Supabase error.
+- [x] Capture fresh network evidence for the post-fix sign-in and sign-up requests.
+- [x] Recheck switching views during a pending auth request and confirm the new view does not show stale “Please wait.”
+- [x] Perform a post-fix browser Create account submission using a controlled test account or safe failing path and record the observable result.
+- [x] Capture fresh post-fix network evidence for both sign-in and sign-up requests with sensitive fields redacted.
+- [x] Reproduce an actively pending auth request, switch from Sign in to Create account, and capture that the new view is immediately usable.
+- [x] Capture an inspectable post-fix browser result for a Create account submission.
+- [x] Capture redacted post-fix network logs for both sign-in and Create account requests.
+- [x] Capture an inspectable pending-request view switch showing Create account is usable without stale loading text.
+- [x] Perform and capture a post-fix Create account browser submission result.
+- [x] Capture a post-fix Supabase sign-up network request with sensitive fields redacted.
+- [x] Capture a genuinely pending auth request followed by a view switch showing no stale “Please wait.”
+- [x] Refine the existing TripsForge logo as a transparent PNG with a restrained premium 3D finish while preserving the original mark.
+- [x] Replace the project logo reference with the refined transparent asset and verify header visibility across desktop and mobile.
+- [x] Upgrade the existing TripsForge logo treatment with sharper, more premium high-tech 3D detailing while preserving the original mark and transparent background.
+- [x] Refine the TripsForge wordmark into a more premium, classic, distinctive lockup that avoids generic AI-generated styling.
+- [x] Optimize the logo and wordmark for crisp browser and mobile rendering, then verify desktop and mobile previews.
+- [x] Apply the refined brand-wordmark styling to the Account page and any remaining TripsForge brand-text surfaces.
+- [x] Re-run desktop and mobile verification after updating all remaining brand-text surfaces.
+- [x] Create a dedicated premium TripsForge social-share image with the existing logo identity and readable metadata-safe composition.
+- [x] Export optimized Apple touch icon assets from the new premium logo design.
+- [x] Configure Open Graph, Twitter/X, and Apple touch icon metadata and validate the production build.
+- [x] Compose and visually review a final 1200x630 social-share image that visibly includes the approved TripsForge logo and exact wordmark.
+- [x] Update social metadata image URLs to absolute canonical URLs derived from VITE_APP_URL and add Twitter URL metadata.
+- [x] Re-validate the finalized social metadata and Apple touch icon references in the production build.
+- [x] Normalize the social image URLs so they are absolute and do not depend on VITE_APP_URL trailing-slash formatting.
+- [x] Re-upload the finalized social-share image with a `.jpg` path matching its actual JPEG format and update metadata.
+- [x] Re-run production-build validation against the corrected canonical social image and Apple touch icon references.
+- [x] Commit and push all completed TripsForge branding, social-share, Apple touch icon, and metadata changes to the existing GitHub repository on the current branch.
