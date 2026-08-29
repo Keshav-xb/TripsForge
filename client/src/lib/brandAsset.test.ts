@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const headerAsset = "/manus-storage/tripforge-mark-hightech-premium-768_55f8bc1a.png";
-const faviconAsset = "/manus-storage/tripforge-mark-hightech-premium-512_e142fe9f.png";
-const socialAsset = "https://tripsforge.vercel.app/manus-storage/tripsforge-social-og-final_2027626d.jpg";
-const appleIcon180 = "/manus-storage/apple-touch-icon-180_44ca4b77.png";
-const appleIcon152 = "/manus-storage/apple-touch-icon-152_946dbc77.png";
-const appleIcon120 = "/manus-storage/apple-touch-icon-120_a0a70a13.png";
+const headerAsset = "https://raw.githubusercontent.com/Keshav-xb/TripsForge/main/brand-assets/tripforge-mark-hightech-premium-768.png";
+const faviconAsset = "https://raw.githubusercontent.com/Keshav-xb/TripsForge/main/brand-assets/tripforge-mark-hightech-premium-512.png";
+const socialAsset = "https://raw.githubusercontent.com/Keshav-xb/TripsForge/main/brand-assets/tripsforge-social-og-final.jpg";
+const appleIcon180 = "https://raw.githubusercontent.com/Keshav-xb/TripsForge/main/brand-assets/apple-touch-icon-180.png";
+const appleIcon152 = "https://raw.githubusercontent.com/Keshav-xb/TripsForge/main/brand-assets/apple-touch-icon-152.png";
+const appleIcon120 = "https://raw.githubusercontent.com/Keshav-xb/TripsForge/main/brand-assets/apple-touch-icon-120.png";
 const legacyAsset = "/manus-storage/tripforge-mark_1e8ee249.png";
 
 describe("TripsForge brand asset", () => {
@@ -30,6 +30,8 @@ describe("TripsForge brand asset", () => {
     expect(header).not.toContain(legacyAsset);
     expect(document).not.toContain(legacyAsset);
     expect(document).not.toContain("tripforge-mark-premium-transparent-final-clean_dfa3931d.png");
+    expect(header).not.toContain("/manus-storage/");
+    expect(document).not.toContain("/manus-storage/");
     expect(header).toContain("brand-wordmark");
     expect(footer).toContain("brand-wordmark");
     expect(account).toContain("brand-wordmark");
