@@ -83,3 +83,9 @@
 
 - After switching all five destination image references to immutable commit-SHA URLs, HTTP checks returned `200 image/jpeg` for Jaipur, Goa, Manali, Kerala, and Srinagar.
 - The final desktop and mobile Explore-page screenshots show all seven destination cards with their imagery loaded; no white broken-image boxes remain.
+
+## Post-push destination verification
+
+- The immutable destination URL update was pushed to GitHub main in commit `b1737a4b10b32625663b1394332512ef77ee445b`.
+- After that push, all five committed destination URLs returned `200 image/jpeg`.
+- Final desktop and mobile Explore-page previews after the push show Jaipur, Goa, Manali, Kerala, Udaipur, Rishikesh, and Srinagar imagery loaded with no white broken-image boxes.
