@@ -17,6 +17,7 @@ describe("TripsForge brand asset", () => {
     const footer = readFileSync(resolve(process.cwd(), "client/src/components/SiteFooter.tsx"), "utf8");
     const account = readFileSync(resolve(process.cwd(), "client/src/pages/Account.tsx"), "utf8");
     const styles = readFileSync(resolve(process.cwd(), "client/src/index.css"), "utf8");
+    const destinations = readFileSync(resolve(process.cwd(), "client/src/lib/tripData.ts"), "utf8");
 
     expect(header).toContain(headerAsset);
     expect(document).toContain(faviconAsset);
@@ -32,6 +33,10 @@ describe("TripsForge brand asset", () => {
     expect(document).not.toContain("tripforge-mark-premium-transparent-final-clean_dfa3931d.png");
     expect(header).not.toContain("/manus-storage/");
     expect(document).not.toContain("/manus-storage/");
+    expect(destinations).not.toContain("/manus-storage/");
+    for (const destination of ["jaipur", "goa", "manali", "kerala", "srinagar"]) {
+      expect(destinations).toContain(`https://raw.githubusercontent.com/Keshav-xb/TripsForge/main/destination-assets/${destination}.jpg`);
+    }
     expect(header).toContain("brand-wordmark");
     expect(footer).toContain("brand-wordmark");
     expect(account).toContain("brand-wordmark");

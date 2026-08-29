@@ -74,6 +74,7 @@
 - [x] Normalize the social image URLs so they are absolute and do not depend on VITE_APP_URL trailing-slash formatting.
 - [x] Re-upload the finalized social-share image with a `.jpg` path matching its actual JPEG format and update metadata.
 - [x] Re-run production-build validation against the corrected canonical social image and Apple touch icon references.
-- [ ] Commit and push all completed TripsForge branding, social-share, Apple touch icon, and metadata changes to the existing GitHub repository on the current branch.
-- [ ] Diagnose and fix the broken TripsForge logo asset reference that renders as a missing image.
-- [ ] Verify the repaired logo in the browser and production build, then synchronize the fix to GitHub.
+- [x] Commit and push all completed TripsForge branding, social-share, Apple touch icon, and metadata changes to the existing GitHub repository on the current branch.
+- [x] Diagnose and fix the broken TripsForge logo asset reference that renders as a missing image.
+- [x] Verify the repaired logo in the browser and production build, then synchronize the fix to GitHub.
+- [x] Synchronize the latest logo-repair checkpoint records and any remaining changes to the existing GitHub main branch.

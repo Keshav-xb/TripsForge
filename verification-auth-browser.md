@@ -63,3 +63,11 @@
 - The production Vercel build resolves `og:url`, `og:image`, and `twitter:image` to absolute `https://tripsforge.vercel.app/...` URLs and includes the 180px, 152px, and 120px Apple touch icon links.
 - The final social asset is now uploaded with a `.jpg` storage path matching its actual JPEG bytes and the `image/jpeg` metadata declaration; the built HTML references that exact absolute URL.
 - Final validation passed with 15 tests, TypeScript, and the Vercel build.
+
+## Broken logo repair
+
+- The reported missing logo was traced to Manus-only `/manus-storage/...` URLs that are not served by the GitHub-to-Vercel deployment.
+- The verified logo, favicon, Apple touch icons, and social-share image were committed under `brand-assets/` in the public `Keshav-xb/TripsForge` repository and referenced through GitHub raw URLs.
+- The committed asset URLs returned HTTP 200 with the expected `image/png` or `image/jpeg` content types.
+- Desktop and mobile managed-preview screenshots after the asset commit show the compass logo and TripsForge wordmark visibly in both Home and Account headers.
+- GitHub main is synchronized at commit `37a4f829d46e20015e0e667de0cdaf6c48762671` (`Fix public logo asset delivery`).
