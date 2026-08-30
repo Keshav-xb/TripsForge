@@ -86,3 +86,11 @@
 - [x] Commit and push the immutable destination-image URL update and regression-test changes to GitHub main.
 - [x] Confirm the GitHub remote head and recheck all five committed destination URLs return 200 image/jpeg.
 - [x] Reconfirm the Explore page on desktop and mobile against the pushed fix and record the final remote commit SHA.
+- [x] Add a route-aware Optimize My Day action to the itinerary experience.
+- [x] Show the optimization rationale and a before/after comparison with an undo path.
+- [x] Respect itinerary pace, budget, interests, and available activity data without changing unrelated planner behavior.
+- [x] Add regression coverage and verify the Adaptive Concierge flow on desktop and mobile.
+- [x] Exercise the Adaptive Concierge preview, apply, and undo flow and record the observable state changes.
+- [x] Add focused regression coverage for preview/apply/undo state behavior.
+- [x] Re-verify desktop and mobile presentation after the full Concierge interaction coverage is complete.
+- [x] Keep Optimize my day and Undo usable for unsigned visitors without redirecting to Account; persist changes when a user is signed in and preserve the local itinerary otherwise.

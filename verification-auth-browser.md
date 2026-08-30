@@ -89,3 +89,22 @@
 - The immutable destination URL update was pushed to GitHub main in commit `b1737a4b10b32625663b1394332512ef77ee445b`.
 - After that push, all five committed destination URLs returned `200 image/jpeg`.
 - Final desktop and mobile Explore-page previews after the push show Jaipur, Goa, Manali, Kerala, Udaipur, Rishikesh, and Srinagar imagery loaded with no white broken-image boxes.
+
+## Adaptive Concierge review
+
+- The itinerary page now exposes an `Optimize my day` action alongside the existing day controls.
+- Desktop review shows the action row fits naturally beneath the selected day and retains the existing map, budget, save, share, and export hierarchy.
+- Mobile review shows the action row wrapping into readable full-width controls without clipping the itinerary or sticky route map.
+- The optimization model provides a reversible preview before applying a reordered day and persists the applied route through the existing saved-trip path.
+
+## Adaptive Concierge interaction coverage
+
+The Concierge transition sequence is covered by regression tests: the selected day is optimized from a preview result, the applied order replaces only the selected day, and the undo transition restores the exact prior day snapshot. The UI contract test also verifies the preview heading, current-versus-suggested comparison, rationale copy, Apply action, persistence call, and Undo control. Final desktop and mobile itinerary previews show the Optimize my day control fitting cleanly beside the existing day actions without layout clipping.
+
+## Adaptive Concierge end-to-end exercise
+
+A real Chromium session opened the Jaipur itinerary and found the `Optimize my day` control. The preview state displayed `A smoother route is ready.`, `Current order`, `Suggested order`, the rationale copy, and `Apply optimized day`. Applying the change stayed on the itinerary for an unsigned visitor and displayed `Day 1 optimized for this session`; selecting `Undo` restored the previous day order and removed the applied-state banner. This also confirmed the fix that keeps unsigned optimization local instead of redirecting to Account.
+
+## Post-interaction responsive recheck
+
+After the real preview, apply, and undo sequence, the itinerary was rechecked at desktop and mobile widths. The Optimize my day control remains visible with the existing day actions; the itinerary, map, budget summary, and trip summary remain intact; and the mobile layout wraps the controls without clipping or overflow.
