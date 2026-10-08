@@ -56,6 +56,16 @@ export type ForgedTrip = {
   score: number;
 };
 
+export type DiscoveredPlace = {
+  id: string;
+  name: string;
+  address?: string;
+  rating?: number;
+  priceLevel?: number;
+  category: Interest | "Local pick";
+  location: { lat: number; lng: number };
+};
+
 export type Destination = {
   name: string;
   region: string;
@@ -132,6 +142,8 @@ const fallbackActivities: Omit<Activity, "id" | "marker">[] = [
   { time: "15:00", title: "Neighbourhood discovery", description: "Independent time for small shops, stories and local texture.", category: "Shopping", cost: 0, duration: "1.5 hr", distance: "1.7 km" },
   { time: "18:30", title: "Golden-hour viewpoint", description: "A scenic pause before your evening opens up.", category: "Photography", cost: 0, duration: "1 hr", distance: "4.5 km" },
   { time: "20:00", title: "Dinner with a sense of place", description: "A warm local table to close the day.", category: "Food", cost: 800, duration: "1.5 hr", distance: "1.4 km" },
+  { time: "11:30", title: "Independent craft studio", description: "Meet a local maker and see the destination through their work.", category: "Culture", cost: 350, duration: "1 hr", distance: "2.8 km" },
+  { time: "17:00", title: "Twilight neighbourhood walk", description: "A slower route through a distinctive local quarter before dinner.", category: "Nature", cost: 0, duration: "1 hr", distance: "2.5 km" },
 ];
 
 export const defaultPlan: PlanInputs = {
@@ -161,14 +173,18 @@ export function getTripDays(startDate: string, endDate: string) {
 export function buildTrip(plan: PlanInputs): ForgedTrip {
   const destination = getDestination(plan.destination);
   const dayCount = getTripDays(plan.startDate, plan.endDate);
-  const templates = destination.activities.length ? destination.activities : fallbackActivities;
+  const templates = destination.activities.length ? [...destination.activities, ...fallbackActivities] : fallbackActivities;
   const selectedThemes = new Set(plan.interests);
   const mealAndChosen = templates.filter((activity) => activity.category === "Food" || selectedThemes.has(activity.category as Interest));
-  const routePool = mealAndChosen.length >= 5 ? mealAndChosen : templates;
+  const routePool = [...mealAndChosen, ...templates.filter((activity) => !mealAndChosen.includes(activity))];
   const targetActivities = plan.travelStyle === "Relaxed" ? 4 : plan.travelStyle === "Packed" ? 6 : 5;
+  const usedTitles = new Set<string>();
+  let generatedActivityIndex = 0;
   const days: DayPlan[] = Array.from({ length: dayCount }, (_, dayIndex) => {
     const activities = Array.from({ length: targetActivities }, (_, activityIndex) => {
-      const source = routePool[(dayIndex * targetActivities + activityIndex) % routePool.length];
+      const source = routePool.find((candidate) => !usedTitles.has(candidate.title)) ?? routePool[generatedActivityIndex % routePool.length];
+      usedTitles.add(source.title);
+      generatedActivityIndex += 1;
       return { ...source, id: `${dayIndex}-${activityIndex}-${source.title.replaceAll(" ", "-")}`, marker: activityIndex + 1 };
     });
     const first = activities[0]?.category.toLowerCase() ?? "local";
@@ -177,4 +193,39 @@ export function buildTrip(plan: PlanInputs): ForgedTrip {
   const total = Math.max(8000, plan.budget);
   const budget = { transportation: Math.round(total * 0.18), hotels: Math.round(total * 0.32), food: Math.round(total * 0.2), activities: Math.round(total * 0.18), miscellaneous: Math.round(total * 0.12), total };
   return { destination, plan, days, budget, totalDistance: Math.round(dayCount * (plan.travelStyle === "Packed" ? 21.4 : plan.travelStyle === "Relaxed" ? 11.8 : 16.7)), travelTime: `${dayCount * (plan.travelStyle === "Packed" ? 2 : plan.travelStyle === "Relaxed" ? 1 : 1.5)}h ${plan.travelStyle === "Balanced" ? "30m" : ""}`.trim(), score: 92 + Math.min(6, plan.interests.length) };
+}
+
+export function diversifyTripWithPlaces(trip: ForgedTrip, places: DiscoveredPlace[]): ForgedTrip {
+  const usedTitles = new Set<string>();
+  const placeActivities = places.map((place, index): Activity => ({
+    id: `live-${place.id}`,
+    time: "",
+    title: place.name,
+    description: place.address ? `A live place selected near your route: ${place.address}.` : "A live place selected near your route.",
+    category: place.category,
+    cost: place.priceLevel ? place.priceLevel * 350 : 0,
+    duration: place.category === "Food" ? "1 hr" : place.category === "Shopping" ? "1.5 hr" : "2 hr",
+    distance: "nearby",
+    marker: index + 1,
+    location: place.location,
+  }));
+  let nextPlace = 0;
+
+  const days = trip.days.map(day => ({
+    ...day,
+    activities: day.activities.map(activity => {
+      const titleKey = activity.title.trim().toLocaleLowerCase();
+      if (!usedTitles.has(titleKey)) {
+        usedTitles.add(titleKey);
+        return activity;
+      }
+      while (nextPlace < placeActivities.length && usedTitles.has(placeActivities[nextPlace].title.trim().toLocaleLowerCase())) nextPlace += 1;
+      const replacement = placeActivities[nextPlace++];
+      if (!replacement) return activity;
+      usedTitles.add(replacement.title.trim().toLocaleLowerCase());
+      return { ...replacement, time: activity.time, marker: activity.marker };
+    }),
+  }));
+
+  return { ...trip, days };
 }

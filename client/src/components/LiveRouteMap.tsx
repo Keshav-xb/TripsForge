@@ -2,13 +2,14 @@ import { Coffee, Crosshair, Landmark, Loader2, MapPinned, Search, ShoppingBag, S
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { MapView } from "@/components/Map";
 import RouteMap from "@/components/RouteMap";
-import type { Activity, Destination } from "@/lib/tripData";
+import type { Activity, Destination, DiscoveredPlace, Interest } from "@/lib/tripData";
 
 type LiveRouteMapProps = {
   destination: Destination;
   activities: Activity[];
   selectedId?: string;
   onSelect: (activityId: string) => void;
+  onPlacesDiscovered?: (places: DiscoveredPlace[]) => void;
   route?: { available: boolean; distanceKm?: number; duration?: string; mapImage?: string | null };
 };
 
@@ -27,12 +28,22 @@ const categories: { id: DiscoveryCategory; label: string; icon: typeof Utensils 
   { id: "park", label: "Outdoors", icon: Trees },
 ];
 
+function mapPlaceCategory(place: google.maps.places.PlaceResult): Interest | "Local pick" {
+  const types = place.types ?? [];
+  if (types.includes("restaurant") || types.includes("food") || types.includes("meal_takeaway")) return "Food";
+  if (types.includes("shopping_mall") || types.includes("store") || types.includes("clothing_store")) return "Shopping";
+  if (types.includes("park") || types.includes("natural_feature") || types.includes("campground")) return "Nature";
+  if (types.includes("museum") || types.includes("art_gallery") || types.includes("church")) return "Culture";
+  if (types.includes("tourist_attraction") || types.includes("hindu_temple")) return "History";
+  return "Local pick";
+}
+
 function formatPlaceMeta(place: DiscoveryPlace) {
   const parts = [place.rating ? `${place.rating.toFixed(1)}★` : null, place.user_ratings_total ? `${place.user_ratings_total.toLocaleString()} reviews` : null, place.price_level ? "₹".repeat(place.price_level) : null].filter(Boolean);
   return parts.join(" · ");
 }
 
-export default function LiveRouteMap({ destination, activities, selectedId, onSelect, route }: LiveRouteMapProps) {
+export default function LiveRouteMap({ destination, activities, selectedId, onSelect, onPlacesDiscovered, route }: LiveRouteMapProps) {
   const [mapError, setMapError] = useState(false);
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<DiscoveryCategory>("restaurant");
@@ -42,6 +53,7 @@ export default function LiveRouteMap({ destination, activities, selectedId, onSe
   const mapRef = useRef<google.maps.Map | null>(null);
   const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
   const placeMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const placesAppliedRef = useRef(false);
 
   const clearPlaceMarkers = () => {
     placeMarkersRef.current.forEach(marker => {
@@ -54,6 +66,21 @@ export default function LiveRouteMap({ destination, activities, selectedId, onSe
     const validPlaces = results.filter((place): place is DiscoveryPlace => Boolean(place.place_id && place.name && place.geometry?.location));
     setPlaces(validPlaces.slice(0, 12));
     setSelectedPlace(null);
+    if (!placesAppliedRef.current && onPlacesDiscovered) {
+      const discoveredPlaces: DiscoveredPlace[] = validPlaces.slice(0, 12).map(place => ({
+        id: place.place_id,
+        name: place.name,
+        address: place.vicinity || place.formatted_address,
+        rating: place.rating,
+        priceLevel: place.price_level,
+        category: mapPlaceCategory(place),
+        location: place.geometry!.location!.toJSON(),
+      }));
+      if (discoveredPlaces.length) {
+        placesAppliedRef.current = true;
+        onPlacesDiscovered(discoveredPlaces);
+      }
+    }
     clearPlaceMarkers();
 
     const googleMaps = window.google;
