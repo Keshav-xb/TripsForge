@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { makeRequest, type DirectionsResult } from "./_core/map";
 import { ENV } from "./_core/env";
+import { invokeLLM } from "./_core/llm";
 import { publicProcedure, router } from "./_core/trpc";
 
 const routeStopSchema = z.object({ title: z.string().trim().min(2).max(180), location: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).optional() });
+const simulatorInterpretationSchema = z.object({ budgetDelta: z.number().int().min(-1000000).max(1000000), dayDelta: z.number().int().min(-5).max(5), destination: z.string().nullable(), transportation: z.enum(["flight", "train", "bus", "car"]).nullable(), travelStyle: z.enum(["Backpacking", "Budget", "Relaxed", "Balanced", "Packed", "Comfortable", "Luxury"]).nullable(), rationale: z.string().max(240) });
 
 async function createStaticRouteImage(route: DirectionsResult["routes"][number], stops: Array<z.infer<typeof routeStopSchema>>) {
   if (!ENV.forgeApiUrl || !ENV.forgeApiKey) return null;
@@ -16,6 +18,21 @@ async function createStaticRouteImage(route: DirectionsResult["routes"][number],
 }
 
 export const appRouter = router({
+  simulator: router({
+    interpret: publicProcedure.input(z.object({ instruction: z.string().trim().min(3).max(500), currentDestination: z.string().trim().min(2).max(120), currentStyle: z.string().trim().min(2).max(40) })).mutation(async ({ input }) => {
+      const response = await invokeLLM({
+        messages: [
+          { role: "system", content: "You interpret travel what-if instructions. Return only the requested changes, never invent live prices, availability, or facts. Use 0/null when a field is not requested. Keep the rationale short." },
+          { role: "user", content: `Current destination: ${input.currentDestination}\nCurrent style: ${input.currentStyle}\nInstruction: ${input.instruction}` },
+        ],
+        response_format: { type: "json_schema", json_schema: { name: "trip_simulation_controls", strict: true, schema: { type: "object", properties: { budgetDelta: { type: "integer" }, dayDelta: { type: "integer" }, destination: { type: ["string", "null"] }, transportation: { type: ["string", "null"], enum: ["flight", "train", "bus", "car", null] }, travelStyle: { type: ["string", "null"], enum: ["Backpacking", "Budget", "Relaxed", "Balanced", "Packed", "Comfortable", "Luxury", null] }, rationale: { type: "string" } }, required: ["budgetDelta", "dayDelta", "destination", "transportation", "travelStyle", "rationale"], additionalProperties: false } } },
+        max_tokens: 300,
+      });
+      const content = response.choices[0]?.message.content;
+      const parsed = typeof content === "string" ? JSON.parse(content) : null;
+      return simulatorInterpretationSchema.parse(parsed);
+    }),
+  }),
   route: router({
     preview: publicProcedure.input(z.object({ destination: z.string().trim().min(2).max(120), stops: z.array(routeStopSchema).min(2).max(8) })).query(async ({ input }) => {
       try {
