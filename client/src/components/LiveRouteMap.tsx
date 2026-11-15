@@ -9,20 +9,22 @@ type LiveRouteMapProps = {
   selectedId?: string;
   onSelect: (activityId: string) => void;
   onPlacesDiscovered?: (places: DiscoveredPlace[]) => void;
-  route?: { available: boolean; distanceKm?: number; duration?: string; geometry?: string | null; mode?: "driving" | "walking" | "bicycling" };
+  route?: { available: boolean; distanceKm?: number; duration?: string; geometry?: string | null; mode?: "driving" | "walking" | "bicycling"; resolvedStops?: Array<{ id?: string; title: string; location?: { lat: number; lng: number }; geocoded?: boolean; formattedAddress?: string }> };
   mode?: "driving" | "walking" | "bicycling";
   onModeChange?: (mode: "driving" | "walking" | "bicycling") => void;
 };
 
 export default function LiveRouteMap({ destination, activities, selectedId, onSelect, route, mode = "driving", onModeChange }: LiveRouteMapProps) {
-  const markers = useMemo<MapMarker[]>(() => activities.flatMap(activity =>
-    activity.location ? [{
+  const markers = useMemo<MapMarker[]>(() => activities.flatMap(activity => {
+    const resolved = route?.resolvedStops?.find(stop => stop.id === activity.id || (!stop.id && stop.title === activity.title));
+    const position = resolved?.location ?? activity.location;
+    return position ? [{
       id: activity.id,
       label: activity.title,
-      position: activity.location,
-      description: activity.time ? `${activity.time} · ${activity.description}` : activity.description,
-    }] : []
-  ), [activities]);
+      position,
+      description: [activity.time, activity.description, resolved?.formattedAddress].filter(Boolean).join(" · "),
+    }] : [];
+  }), [activities, route?.resolvedStops]);
   const handleMarkerClick = useCallback((id: string) => onSelect(id), [onSelect]);
 
   return (
@@ -46,7 +48,7 @@ export default function LiveRouteMap({ destination, activities, selectedId, onSe
         ))}
       </div>
       <div className="absolute bottom-3 left-3 rounded-xl bg-[#123a35]/95 px-3 py-2 text-xs font-bold text-white shadow-sm">
-        {route?.available && route.distanceKm ? `${route.distanceKm} km · ${route.duration ?? "route estimate"}` : markers.length ? `${markers.length} itinerary stops · select a pin for details` : "Map view · add location data to show itinerary pins"}
+        {route?.available && route.distanceKm ? `${route.distanceKm} km · ${route.duration ?? "route estimate"}` : route?.resolvedStops?.length ? `${markers.length} of ${activities.length} itinerary stops mapped` : markers.length ? `${markers.length} itinerary stops · select a pin for details` : "Map view · resolving itinerary stops"}
       </div>
     </section>
   );

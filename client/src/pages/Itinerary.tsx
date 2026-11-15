@@ -214,14 +214,17 @@ export default function Itinerary() {
   const routeStops = useMemo(
     () => [
       {
+        id: "trip-start",
         title: trip.plan.startLocation,
         location: trip.plan.startLocationPoint,
       },
       ...day.activities.map(activity => ({
+        id: activity.id,
         title: activity.title,
         location: activity.location,
+        geocode: true,
       })),
-      { title: trip.destination.name, location: trip.destination.location },
+      { id: "trip-destination", title: trip.destination.name, location: trip.destination.location },
     ],
     [
       day.activities,
