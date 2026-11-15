@@ -4,7 +4,7 @@ import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 
-const links = [{ label: "How it works", href: "/#how-it-works" }, { label: "Explore", href: "/explore" }, { label: "My itinerary", href: "/itinerary" }];
+const links = [{ label: "How it works", href: "/#how-it-works" }, { label: "Explore", href: "/explore" }, { label: "Explore Routes", href: "/routes" }, { label: "My itinerary", href: "/itinerary" }];
 
 export function BrandMark() {
   return <img src="https://raw.githubusercontent.com/Keshav-xb/TripsForge/main/brand-assets/tripforge-mark-hightech-premium-768.png" alt="TripsForge compass mark" className="h-10 w-10 object-contain drop-shadow-[0_4px_6px_rgba(18,58,53,.2)]" decoding="async" />;
