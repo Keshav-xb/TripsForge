@@ -28,7 +28,7 @@ async function photon(url: URL) {
   return response.json();
 }
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  const path = new URL(req.url ?? "", "https://tripsforge.local").pathname.replace(/^\\/api\\/trpc\\//, "");
+  const path = new URL(req.url ?? "", "https://tripsforge.local").pathname.replace(/^\/api\/trpc\//, "");
   try {
     const input = inputOf(req);
     if (path === "location.search") {
