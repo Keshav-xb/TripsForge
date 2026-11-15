@@ -1,93 +1,42 @@
-/// <reference types="@types/google.maps" />
-
-import { useEffect, useRef } from "react";
-import { usePersistFn } from "@/hooks/usePersistFn";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 
-declare global {
-  interface Window {
-    google?: typeof google;
-  }
-}
-
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-function loadMapScript() {
-  return new Promise<boolean>(resolve => {
-    if (!API_KEY) {
-      console.error("VITE_GOOGLE_MAPS_API_KEY is not configured.");
-      resolve(false);
-      return;
-    }
-
-    if (window.google?.maps) {
-      resolve(true);
-      return;
-    }
-
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[data-tripsforge-google-maps="true"]'
-    );
-    if (existing) {
-      existing.addEventListener("load", () => resolve(true), { once: true });
-      existing.addEventListener("error", () => resolve(false), { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.dataset.tripsforgeGoogleMaps = "true";
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(API_KEY)}&v=weekly&libraries=marker,places,geocoding,geometry`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.head.appendChild(script);
-  });
-}
-
+type Point = { lat: number; lng: number };
 interface MapViewProps {
   className?: string;
-  initialCenter?: google.maps.LatLngLiteral;
+  initialCenter?: Point;
   initialZoom?: number;
-  onMapReady?: (map: google.maps.Map) => void;
+  onMapReady?: (map: never) => void;
   onMapError?: () => void;
 }
 
+/** Lightweight, keyless OpenStreetMap view. The iframe uses OSM's public map embed. */
 export function MapView({
   className,
-  initialCenter = { lat: 37.7749, lng: -122.4194 },
-  initialZoom = 12,
-  onMapReady,
-  onMapError,
+  initialCenter = { lat: 20, lng: 0 },
+  initialZoom = 3,
 }: MapViewProps) {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<google.maps.Map | null>(null);
-
-  const init = usePersistFn(async () => {
-    const loaded = await loadMapScript();
-    if (!loaded || !window.google) {
-      onMapError?.();
-      return;
-    }
-    if (!mapContainer.current) {
-      console.error("Map container not found");
-      return;
-    }
-    map.current = new window.google.maps.Map(mapContainer.current, {
-      zoom: initialZoom,
-      center: initialCenter,
-      mapTypeControl: true,
-      fullscreenControl: true,
-      zoomControl: true,
-      streetViewControl: true,
-      mapId: "DEMO_MAP_ID",
+  const src = useMemo(() => {
+    const span = 360 / Math.pow(2, Math.max(1, Math.min(18, initialZoom))) * 3;
+    const left = Math.max(-180, initialCenter.lng - span);
+    const right = Math.min(180, initialCenter.lng + span);
+    const bottom = Math.max(-85, initialCenter.lat - span / 2);
+    const top = Math.min(85, initialCenter.lat + span / 2);
+    const params = new URLSearchParams({
+      bbox: `${left},${bottom},${right},${top}`,
+      layer: "mapnik",
+      marker: `${initialCenter.lat},${initialCenter.lng}`,
     });
-    onMapReady?.(map.current);
-  });
+    return `https://www.openstreetmap.org/export/embed.html?${params.toString()}`;
+  }, [initialCenter.lat, initialCenter.lng, initialZoom]);
 
-  useEffect(() => {
-    void init();
-  }, [init]);
-
-  return <div ref={mapContainer} className={cn("w-full h-[500px]", className)} />;
+  return (
+    <iframe
+      title="OpenStreetMap"
+      src={src}
+      className={cn("h-[500px] w-full border-0", className)}
+      loading="lazy"
+      referrerPolicy="no-referrer-when-downgrade"
+    />
+  );
 }
