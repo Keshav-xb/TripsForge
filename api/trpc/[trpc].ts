@@ -6,6 +6,55 @@ type PhotonFeature = {
   properties: { osm_id?: number; osm_type?: string; name?: string; street?: string; city?: string; state?: string; country?: string; postcode?: string; type?: string };
 };
 
+type OverpassElement = {
+  type: string;
+  id: number;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: Record<string, string>;
+};
+
+async function nearbyPlaces(input: { lat: number; lng: number; category: string; radius?: number }) {
+  const lat = Number(input.lat), lng = Number(input.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    throw new Error("INVALID_SEARCH_COORDINATES");
+  }
+  const radius = Math.min(10000, Math.max(500, Number(input.radius) || 5000));
+  const filters: Record<string, string> = {
+    hospital: '["amenity"="hospital"]',
+    police: '["amenity"="police"]',
+    pharmacy: '["amenity"="pharmacy"]',
+    attraction: '["tourism"~"attraction|museum|viewpoint"]',
+  };
+  const filter = filters[input.category] ?? filters.hospital;
+  const query = `[out:json][timeout:20];(node${filter}(around:${radius},${lat},${lng});way${filter}(around:${radius},${lat},${lng});relation${filter}(around:${radius},${lat},${lng}););out center tags;`;
+  const response = await fetch("https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (travel planning MVP)" },
+    body: new URLSearchParams({ data: query }),
+    signal: AbortSignal.timeout(25000),
+  });
+  if (!response.ok) throw new Error(`OVERPASS_HTTP_${response.status}`);
+  const data = await response.json() as { elements?: OverpassElement[] };
+  return (data.elements ?? []).flatMap(element => {
+    const point = element.center ?? (element.lat !== undefined && element.lon !== undefined ? { lat: element.lat, lon: element.lon } : undefined);
+    if (!point) return [];
+    const tags = element.tags ?? {};
+    const name = tags.name ?? tags["name:en"] ?? tags.official_name;
+    if (!name) return [];
+    const address = [tags["addr:street"], tags["addr:city"] ?? tags["addr:town"]].filter(Boolean).join(", ");
+    return [{
+      id: `${element.type}-${element.id}`,
+      name,
+      category: input.category,
+      address,
+      location: { lat: point.lat, lng: point.lon },
+      source: "OpenStreetMap",
+    }];
+  }).slice(0, 50);
+}
+
 function inputOf(req: IncomingMessage) {
   const raw = new URL(req.url ?? "", "https://tripsforge.local").searchParams.get("input");
   const parsed = raw ? JSON.parse(raw) : {};
@@ -78,6 +127,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         countryCode: "",
         types: [p.type ?? "place"],
       }));
+    }
+    if (path === "places.nearby") {
+      const places = await nearbyPlaces(input as { lat: number; lng: number; category: string; radius?: number });
+      return send(res, 200, trpcData({ provider: "OpenStreetMap / Overpass", retrievedAt: new Date().toISOString(), places }));
     }
     if (path === "route.preview") {
       const stops = Array.isArray(input.stops) ? input.stops as Array<{ title: string; location?: Point }> : [];
