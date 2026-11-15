@@ -43,26 +43,25 @@ async function createStaticRouteImage(
   route: DirectionsResult["routes"][number],
   stops: Array<z.infer<typeof routeStopSchema>>
 ) {
-  if (!ENV.forgeApiUrl || !ENV.forgeApiKey) return null;
-  const url = new URL(
-    `${ENV.forgeApiUrl.replace(/\/+$/, "")}/v1/maps/proxy/maps/api/staticmap`
-  );
-  url.searchParams.set("key", ENV.forgeApiKey);
+  if (!ENV.googleMapsApiKey) return null;
+  const url = new URL("https://maps.googleapis.com/maps/api/staticmap");
+  url.searchParams.set("key", ENV.googleMapsApiKey);
   url.searchParams.set("size", "640x400");
   url.searchParams.set("scale", "1");
   url.searchParams.set("maptype", "roadmap");
-  if (route.overview_polyline?.points)
+  if (route.overview_polyline?.points) {
     url.searchParams.set(
       "path",
       `color:0xe6651b|weight:5|enc:${route.overview_polyline.points}`
     );
-  stops.forEach((stop, index) =>
+  }
+  stops.forEach((stop, index) => {
     url.searchParams.append(
       "markers",
       `color:0x123a35|label:${index + 1}|${stop.location ? `${stop.location.lat},${stop.location.lng}` : stop.title}`
-    )
-  );
-  const response = await fetch(url);
+    );
+  });
+  const response = await fetch(url, { signal: AbortSignal.timeout(12_000) });
   if (!response.ok) return null;
   return `data:${response.headers.get("content-type") || "image/png"};base64,${Buffer.from(await response.arrayBuffer()).toString("base64")}`;
 }
