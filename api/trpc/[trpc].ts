@@ -133,27 +133,65 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return send(res, 200, trpcData({ provider: "OpenStreetMap / Overpass", retrievedAt: new Date().toISOString(), places }));
     }
     if (path === "route.preview") {
-      const stops = Array.isArray(input.stops) ? input.stops as Array<{ title: string; location?: Point }> : [];
-      if (stops.length < 2 || stops.some(stop => !stop.location)) throw new Error("ROUTE_REQUIRES_COORDINATES");
+      const rawStops = Array.isArray(input.stops) ? input.stops as Array<{ id?: string; title: string; location?: Point }> : [];
+      if (rawStops.length < 2) throw new Error("ROUTE_REQUIRES_TWO_STOPS");
+      const destination = String(input.destination ?? "");
+      const stops = await Promise.all(rawStops.map(async stop => {
+        if (stop.location && Number.isFinite(stop.location.lat) && Number.isFinite(stop.location.lng)) {
+          return { ...stop, location: stop.location, geocoded: false };
+        }
+        const query = [stop.title, destination].filter(Boolean).join(", ");
+        if (!query.trim()) return { ...stop, geocoded: false };
+        try {
+          const url = new URL("https://photon.komoot.io/api/");
+          url.searchParams.set("q", query);
+          url.searchParams.set("limit", "1");
+          if (rawStops.find(item => item.title === destination)?.location) {
+            const center = rawStops.find(item => item.title === destination)!.location!;
+            url.searchParams.set("lat", String(center.lat));
+            url.searchParams.set("lon", String(center.lng));
+          }
+          const data = await photon(url) as { features?: PhotonFeature[] };
+          const feature = data.features?.[0];
+          if (!feature) return { ...stop, geocoded: false };
+          return {
+            ...stop,
+            location: { lat: feature.geometry.coordinates[1], lng: feature.geometry.coordinates[0] },
+            geocoded: true,
+            formattedAddress: label(feature.properties),
+          };
+        } catch {
+          return { ...stop, geocoded: false };
+        }
+      }));
+      const unresolvedStops = stops.filter(stop => !stop.location);
+      if (unresolvedStops.length) {
+        return send(res, 200, trpcData({
+          available: false, provider: "OpenStreetMap / Photon",
+          status: "UNRESOLVED_STOPS", unresolvedStops: unresolvedStops.map(stop => stop.title),
+          resolvedStops: stops,
+        }));
+      }
       const routerBase = input.mode === "walking" ? "https://routing.openstreetmap.de/routed-foot" : input.mode === "bicycling" ? "https://routing.openstreetmap.de/routed-bike" : "https://router.project-osrm.org";
       const coords = stops.map(stop => `${stop.location!.lng},${stop.location!.lat}`).join(";");
       const url = new URL(`${routerBase}/route/v1/driving/${coords}`);
       url.searchParams.set("overview", "full");
       url.searchParams.set("geometries", "polyline");
       url.searchParams.set("steps", "false");
-      const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
       if (!response.ok) throw new Error(`OSRM_HTTP_${response.status}`);
       const result = await response.json() as { code: string; routes?: Array<{ distance: number; duration: number; geometry: string }>; waypoints?: Array<{ waypoint_index: number }> };
       const route = result.routes?.[0];
-      if (result.code !== "Ok" || !route) return send(res, 200, trpcData({ available: false, provider: "OpenStreetMap routing", status: result.code }));
+      if (result.code !== "Ok" || !route) return send(res, 200, trpcData({ available: false, provider: "OpenStreetMap routing", status: result.code, resolvedStops: stops }));
       const hours = Math.floor(route.duration / 3600);
       const minutes = Math.round((route.duration % 3600) / 60);
       return send(res, 200, trpcData({
         available: true, provider: "OSRM / OpenStreetMap", retrievedAt: new Date().toISOString(),
         mode: input.mode ?? "driving", distanceKm: Math.round(route.distance / 100) / 10,
         duration: hours ? `${hours}h ${minutes}m` : `${minutes}m`,
-        durationSeconds: route.duration, warnings: [], summary: "OpenStreetMap route estimate",
+        durationSeconds: route.duration, warnings: [], summary: "Road-network route estimate",
         geometry: route.geometry, waypointOrder: (result.waypoints ?? []).map(point => point.waypoint_index), alternatives: [],
+        resolvedStops: stops,
       }));
     }
     return send(res, 404, { error: { json: { message: "TRAVEL_PROCEDURE_NOT_FOUND" } } });
