@@ -142,6 +142,27 @@ create table if not exists public.saved_destinations (
   unique (user_id, location_id, collection_name)
 );
 
+-- Keep all child references inside the same trip. A client cannot attach
+-- another trip's day, itinerary item or booking by guessing its UUID.
+alter table public.trip_days add constraint trip_days_id_trip_unique unique (id, trip_id);
+alter table public.trip_items add constraint trip_items_id_trip_unique unique (id, trip_id);
+alter table public.trip_bookings add constraint trip_bookings_id_trip_unique unique (id, trip_id);
+
+alter table public.trip_items drop constraint if exists trip_items_day_id_fkey;
+alter table public.trip_items add constraint trip_items_day_trip_fkey
+  foreign key (day_id, trip_id) references public.trip_days(id, trip_id)
+  on delete set null (day_id);
+
+alter table public.trip_bookings drop constraint if exists trip_bookings_item_id_fkey;
+alter table public.trip_bookings add constraint trip_bookings_item_trip_fkey
+  foreign key (item_id, trip_id) references public.trip_items(id, trip_id)
+  on delete set null (item_id);
+
+alter table public.trip_expenses drop constraint if exists trip_expenses_booking_id_fkey;
+alter table public.trip_expenses add constraint trip_expenses_booking_trip_fkey
+  foreign key (booking_id, trip_id) references public.trip_bookings(id, trip_id)
+  on delete set null (booking_id);
+
 create index if not exists trips_owner_updated_idx on public.trips(owner_id, updated_at desc);
 create index if not exists trip_members_user_idx on public.trip_members(user_id, trip_id);
 create index if not exists trip_days_trip_date_idx on public.trip_days(trip_id, trip_date);
