@@ -1,6 +1,5 @@
 import { MapPinned } from "lucide-react";
 import { MapView } from "@/components/Map";
-import RouteMap from "@/components/RouteMap";
 import type { Activity, Destination, DiscoveredPlace } from "@/lib/tripData";
 
 type LiveRouteMapProps = {
@@ -29,7 +28,6 @@ export default function LiveRouteMap({ destination, activities, selectedId, onSe
       <div className="absolute bottom-3 left-3 rounded-xl bg-[#123a35]/95 px-3 py-2 text-xs font-bold text-white shadow-sm">
         {route?.available && route.distanceKm ? `${route.distanceKm} km · ${route.duration ?? "route estimate"}` : "Map view · route details shown in your itinerary"}
       </div>
-      <div className="sr-only"><RouteMap destination={destination} activities={activities} selectedId={selectedId} onSelect={onSelect} /></div>
     </section>
   );
 }
