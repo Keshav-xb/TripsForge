@@ -25,6 +25,15 @@ pnpm build
 
 Website imagery and the TripsForge compass-route logo are located in `client/public/assets/`. Their references have been updated from managed storage paths to local `/assets/...` paths, so the exported project remains self-contained when run outside Manus.
 
+## Google Maps configuration
+
+The map UI and travel location/routing endpoints now use Google Maps directly. Configure these environment variables:
+
+- `VITE_GOOGLE_MAPS_API_KEY`: browser key used by the Maps JavaScript API. Restrict it by HTTP referrer to your TripsForge domains and enable Maps JavaScript API and Places API.
+- `GOOGLE_MAPS_API_KEY`: server-only key used by Vercel for Places Autocomplete, Geocoding, Directions, and Static Maps. Restrict it to the required APIs and, where possible, your server environment.
+
+Enable billing and the required Google Maps Platform APIs in the Google Cloud project. Do not expose the server key through a `VITE_` variable. The frontend map will show its fallback state until the browser key is configured; location search and route preview will return a configuration error until the server key is configured.
+
 ## Deployment note
 
 The project is a Vite React single-page application. A root-level `vercel.json` explicitly configures Vercel to build only the frontend with `pnpm run build:vercel`, serve `dist/public`, and rewrite client-side routes to `index.html`. After pushing the configuration, trigger a new Vercel deployment from the `main` branch.
