@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 type Point = { lat: number; lng: number };
+const EMPTY_MARKERS: MapMarker[] = [];
 export type MapMarker = { id: string; label: string; position: Point; description?: string };
 
 type LeafletMap = {
@@ -82,7 +83,7 @@ export function MapView({
   className,
   initialCenter = { lat: 20, lng: 0 },
   initialZoom = 3,
-  markers = [],
+  markers = EMPTY_MARKERS,
   routeGeometry,
   selectedMarkerId,
   onMarkerClick,
