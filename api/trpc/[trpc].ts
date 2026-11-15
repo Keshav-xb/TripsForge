@@ -82,9 +82,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (path === "route.preview") {
       const stops = Array.isArray(input.stops) ? input.stops as Array<{ title: string; location?: Point }> : [];
       if (stops.length < 2 || stops.some(stop => !stop.location)) throw new Error("ROUTE_REQUIRES_COORDINATES");
-      const profile = input.mode === "walking" ? "walking" : input.mode === "bicycling" ? "cycling" : "driving";
+      const routerBase = input.mode === "walking" ? "https://routing.openstreetmap.de/routed-foot" : input.mode === "bicycling" ? "https://routing.openstreetmap.de/routed-bike" : "https://router.project-osrm.org";
       const coords = stops.map(stop => `${stop.location!.lng},${stop.location!.lat}`).join(";");
-      const url = new URL(`https://router.project-osrm.org/route/v1/${profile}/${coords}`);
+      const url = new URL(`${routerBase}/route/v1/driving/${coords}`);
       url.searchParams.set("overview", "full");
       url.searchParams.set("geometries", "polyline");
       url.searchParams.set("steps", "false");
