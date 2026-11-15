@@ -222,6 +222,7 @@ export default function Itinerary() {
         id: activity.id,
         title: activity.title,
         location: activity.location,
+        geocode: true,
       })),
       { id: "trip-destination", title: trip.destination.name, location: trip.destination.location },
     ],
