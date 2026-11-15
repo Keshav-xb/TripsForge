@@ -82,10 +82,11 @@ export default function LocationSearch({
       (query.data?.results.length || query.isError) ? (
         <div className="absolute inset-x-0 top-[4.8rem] z-30 overflow-hidden rounded-2xl border border-[#123a35]/12 bg-[#fffdf8] shadow-[0_20px_40px_-24px_rgba(18,58,53,.6)]">
           {query.isError ? (
-            <p className="p-4 text-xs font-semibold leading-5 text-[#8a6a51]">
-              Location search is temporarily unavailable. You can keep typing
-              and try again.
-            </p>
+          <p className="p-4 text-xs font-semibold leading-5 text-[#8a6a51]">
+            Live location search is not connected in this deployment yet. Add
+            the server-side Maps proxy credentials in Vercel, then reload this
+            page.
+          </p>
           ) : (
             query.data?.results.map(item => (
               <button
