@@ -13,7 +13,7 @@ Create a production frontend build with `pnpm build:vercel`.
 
 ## Maps, search, and routing
 
-TripsForge's map display uses OpenStreetMap embeds. Location search and geocoding use the public Photon service, and route estimates use the public OSRM demo router. No Google Maps API key or billing account is required.
+TripsForge's interactive maps use Leaflet with OpenStreetMap tiles. Location search and geocoding use the public Photon service, route estimates use public OSRM routers, and nearby hospitals, police stations, pharmacies, and attractions are discovered through the Overpass API. No Google Maps API key or billing account is required.
 
 These public services are suitable for an MVP and low-volume testing, not guaranteed high-availability production infrastructure. Respect provider usage policies, cache repeated searches, and move to a contracted provider or self-hosted services before significant traffic. OpenStreetMap map data is © OpenStreetMap contributors.
 
