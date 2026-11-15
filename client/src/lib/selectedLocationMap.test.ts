@@ -14,7 +14,7 @@ describe("selected destination map", () => {
     }
   });
 
-  it("connects the planner selection to the interactive map component", () => {
+  it("renders the selected destination with OpenStreetMap without an API key", () => {
     const planner = readFileSync(resolve(process.cwd(), "client/src/pages/Planner.tsx"), "utf8");
     const map = readFileSync(resolve(process.cwd(), "client/src/components/SelectedLocationMap.tsx"), "utf8");
     const loader = readFileSync(resolve(process.cwd(), "client/src/components/Map.tsx"), "utf8");
@@ -22,9 +22,7 @@ describe("selected destination map", () => {
     expect(planner).toContain("<SelectedLocationMap key={selectedDestination.name} destination={selectedDestination} />");
     expect(map).toContain("<MapView");
     expect(map).toContain("initialCenter={destination.location}");
-    expect(map).toContain("AdvancedMarkerElement");
-    expect(map).toContain("onMapError={() => setMapError(true)}");
-    expect(loader).toContain("MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}");
-    expect(loader).toContain("crossOrigin = \"anonymous\"");
+    expect(loader).toContain("www.openstreetmap.org/export/embed.html");
+    expect(loader).not.toContain("GOOGLE_MAPS_API_KEY");
   });
 });
