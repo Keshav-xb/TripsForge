@@ -2,6 +2,6 @@
   "buildCommand": "pnpm build:vercel",
   "outputDirectory": "dist/public",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!api/trpc(?:/|$)).*)", "destination": "/index.html" }
   ]
 }
