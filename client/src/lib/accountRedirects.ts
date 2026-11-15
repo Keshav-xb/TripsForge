@@ -12,7 +12,7 @@ const safeAppOrigin = () => {
     }
   }
 
-  return window.location.origin;
+  return typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
 };
 
 export function accountRedirectUrl(options: { next?: string; mode?: "reset" } = {}) {

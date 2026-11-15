@@ -1,0 +1,114 @@
+import { MapPin, Loader2, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { trpc } from "@/lib/trpc";
+
+type LocationValue = {
+  label: string;
+  lat: number;
+  lng: number;
+  placeId?: string;
+};
+
+type Props = {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  onSelect: (value: LocationValue) => void;
+};
+
+export default function LocationSearch({
+  label,
+  value,
+  placeholder,
+  onChange,
+  onSelect,
+}: Props) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const query = trpc.location.search.useQuery(
+    { query: search },
+    { enabled: search.trim().length >= 2, staleTime: 60_000, retry: false }
+  );
+  const utils = trpc.useUtils();
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(value.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+
+  const choose = async (item: { description: string; placeId: string }) => {
+    try {
+      const result = await utils.location.resolve.fetch({
+        query: item.description,
+        placeId: item.placeId,
+      });
+      onSelect({
+        label: result.formattedAddress,
+        lat: result.location.lat,
+        lng: result.location.lng,
+        placeId: result.placeId,
+      });
+      setOpen(false);
+    } catch {
+      // Keep the typed value visible; the planner will show a validation error if it cannot resolve it.
+    }
+  };
+
+  return (
+    <label className="relative grid gap-2 text-sm font-bold">
+      {label}
+      <div className="relative">
+        <MapPin className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#e6651b]" />
+        <input
+          value={value}
+          onFocus={() => setOpen(true)}
+          onChange={event => {
+            onChange(event.target.value);
+            setOpen(true);
+          }}
+          placeholder={placeholder}
+          autoComplete="off"
+          className="w-full rounded-2xl border border-[#123a35]/15 bg-[#fffdf8] py-4 pl-11 pr-10 text-base font-medium outline-none focus:ring-2 focus:ring-[#e6651b]"
+        />
+        {query.isFetching ? (
+          <Loader2 className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#e6651b]" />
+        ) : (
+          <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9badA8]" />
+        )}
+      </div>
+      {open &&
+      search.trim().length >= 2 &&
+      (query.data?.results.length || query.isError) ? (
+        <div className="absolute inset-x-0 top-[4.8rem] z-30 overflow-hidden rounded-2xl border border-[#123a35]/12 bg-[#fffdf8] shadow-[0_20px_40px_-24px_rgba(18,58,53,.6)]">
+          {query.isError ? (
+            <p className="p-4 text-xs font-semibold leading-5 text-[#8a6a51]">
+              Location search is temporarily unavailable. You can keep typing
+              and try again.
+            </p>
+          ) : (
+            query.data?.results.map(item => (
+              <button
+                type="button"
+                key={item.placeId}
+                onMouseDown={event => event.preventDefault()}
+                onClick={() => void choose(item)}
+                className="flex w-full items-start gap-3 border-b border-[#123a35]/8 px-4 py-3 text-left last:border-0 hover:bg-[#f2eddf]"
+              >
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#e6651b]" />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-bold text-[#123a35]">
+                    {item.name}
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs font-medium text-[#6d847d]">
+                    {item.secondary || item.description}
+                  </span>
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      ) : null}
+    </label>
+  );
+}
