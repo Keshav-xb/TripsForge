@@ -1,18 +1,12 @@
-import express from "express";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import { createHTTPHandler } from "@trpc/server/adapters/standalone";
 import { appRouter } from "../../server/routers";
-import { createContext } from "../../server/_core/context";
 
-const app = express();
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
-app.use(
-  createExpressMiddleware({
-    router: appRouter,
-    createContext,
-  })
-);
+const trpcHandler = createHTTPHandler({
+  router: appRouter,
+  basePath: "/api/trpc/",
+  createContext: ({ req, res }) => ({ req, res } as any),
+});
 
 export default function handler(req: any, res: any) {
-  return app(req, res);
+  return trpcHandler(req, res);
 }
