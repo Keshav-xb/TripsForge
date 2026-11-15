@@ -133,11 +133,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return send(res, 200, trpcData({ provider: "OpenStreetMap / Overpass", retrievedAt: new Date().toISOString(), places }));
     }
     if (path === "route.preview") {
-      const rawStops = Array.isArray(input.stops) ? input.stops as Array<{ id?: string; title: string; location?: Point }> : [];
+      const rawStops = Array.isArray(input.stops) ? input.stops as Array<{ id?: string; title: string; location?: Point; geocode?: boolean }> : [];
       if (rawStops.length < 2) throw new Error("ROUTE_REQUIRES_TWO_STOPS");
       const destination = String(input.destination ?? "");
       const stops = await Promise.all(rawStops.map(async stop => {
-        if (stop.location && Number.isFinite(stop.location.lat) && Number.isFinite(stop.location.lng)) {
+        if (!stop.geocode && stop.location && Number.isFinite(stop.location.lat) && Number.isFinite(stop.location.lng)) {
           return { ...stop, location: stop.location, geocoded: false };
         }
         const query = [stop.title, destination].filter(Boolean).join(", ");
