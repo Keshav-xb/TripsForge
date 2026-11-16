@@ -42,6 +42,21 @@ create table if not exists public.trip_invitations (
   created_at timestamptz not null default now()
 );
 
+-- The travel party is separate from account collaborators. A traveller can
+-- be listed without having a TripsForge account or workspace permissions.
+create table if not exists public.trip_travellers (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips(id) on delete cascade,
+  linked_user_id uuid references auth.users(id) on delete set null,
+  display_name text not null check (char_length(display_name) between 1 and 120),
+  traveller_type text not null default 'adult' check (traveller_type in ('adult','child','infant')),
+  notes text,
+  sort_order integer not null default 0,
+  added_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.trip_days (
   id uuid primary key default gen_random_uuid(),
   trip_id uuid not null references public.trips(id) on delete cascade,
@@ -165,6 +180,7 @@ alter table public.trip_expenses add constraint trip_expenses_booking_trip_fkey
 
 create index if not exists trips_owner_updated_idx on public.trips(owner_id, updated_at desc);
 create index if not exists trip_members_user_idx on public.trip_members(user_id, trip_id);
+create index if not exists trip_travellers_trip_order_idx on public.trip_travellers(trip_id, sort_order);
 create index if not exists trip_days_trip_date_idx on public.trip_days(trip_id, trip_date);
 create index if not exists trip_items_trip_day_order_idx on public.trip_items(trip_id, day_id, sort_order);
 create index if not exists trip_bookings_trip_status_idx on public.trip_bookings(trip_id, status);
@@ -226,7 +242,7 @@ do $$
 declare
   table_name text;
 begin
-  foreach table_name in array array['trips','trip_days','trip_items','trip_bookings'] loop
+  foreach table_name in array array['trips','trip_travellers','trip_days','trip_items','trip_bookings'] loop
     execute format('drop trigger if exists %I on public.%I', table_name || '_updated_at', table_name);
     execute format('create trigger %I before update on public.%I for each row execute procedure public.set_trip_workspace_updated_at()', table_name || '_updated_at', table_name);
   end loop;
@@ -236,6 +252,7 @@ $$;
 alter table public.trips enable row level security;
 alter table public.trip_members enable row level security;
 alter table public.trip_invitations enable row level security;
+alter table public.trip_travellers enable row level security;
 alter table public.trip_days enable row level security;
 alter table public.trip_items enable row level security;
 alter table public.trip_bookings enable row level security;
@@ -245,12 +262,12 @@ alter table public.user_travel_preferences enable row level security;
 alter table public.saved_destinations enable row level security;
 
 revoke all on public.trips, public.trip_members, public.trip_invitations,
-  public.trip_days, public.trip_items, public.trip_bookings, public.trip_expenses,
+  public.trip_travellers, public.trip_travellers, public.trip_days, public.trip_items, public.trip_bookings, public.trip_expenses,
   public.trip_documents, public.user_travel_preferences, public.saved_destinations
 from anon, authenticated;
 
 grant select, insert, update, delete on public.trips, public.trip_members,
-  public.trip_days, public.trip_items, public.trip_bookings, public.trip_expenses,
+  public.trip_travellers, public.trip_days, public.trip_items, public.trip_bookings, public.trip_expenses,
   public.trip_documents, public.user_travel_preferences, public.saved_destinations
 to authenticated;
 -- Invitations are deliberately server-only: raw invite tokens must never be readable by clients.
@@ -273,6 +290,15 @@ create policy "Owners can change trip members" on public.trip_members
 for update to authenticated using (public.is_trip_owner(trip_id)) with check (public.is_trip_owner(trip_id));
 create policy "Owners can remove trip members" on public.trip_members
 for delete to authenticated using (public.is_trip_owner(trip_id));
+
+create policy "Trip members can read travellers" on public.trip_travellers
+for select to authenticated using (public.is_trip_member(trip_id));
+create policy "Editors can add travellers" on public.trip_travellers
+for insert to authenticated with check (public.can_edit_trip(trip_id));
+create policy "Editors can update travellers" on public.trip_travellers
+for update to authenticated using (public.can_edit_trip(trip_id)) with check (public.can_edit_trip(trip_id));
+create policy "Editors can delete travellers" on public.trip_travellers
+for delete to authenticated using (public.can_edit_trip(trip_id));
 
 create policy "Trip members can read trip days" on public.trip_days
 for select to authenticated using (public.is_trip_member(trip_id));
