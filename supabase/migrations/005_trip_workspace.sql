@@ -262,7 +262,7 @@ alter table public.user_travel_preferences enable row level security;
 alter table public.saved_destinations enable row level security;
 
 revoke all on public.trips, public.trip_members, public.trip_invitations,
-  public.trip_travellers, public.trip_travellers, public.trip_days, public.trip_items, public.trip_bookings, public.trip_expenses,
+  public.trip_travellers, public.trip_days, public.trip_items, public.trip_bookings, public.trip_expenses,
   public.trip_documents, public.user_travel_preferences, public.saved_destinations
 from anon, authenticated;
 
