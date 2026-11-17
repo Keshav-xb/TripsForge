@@ -1,5 +1,5 @@
 import { ArrowRight, Compass, Globe2, MapPin, Search, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
@@ -36,6 +36,8 @@ export default function Explore() {
         : [],
     [selectedPlace]
   );
+
+  const handleMapError = useCallback(() => setMapError(true), []);
 
   const selectPlace = (place: SelectedPlace) => {
     setSelectedPlace(place);
@@ -111,7 +113,7 @@ export default function Explore() {
                   initialCenter={selectedPlace ? { lat: selectedPlace.lat, lng: selectedPlace.lng } : WORLD_CENTER}
                   initialZoom={selectedPlace ? 11 : 2}
                   markers={markers}
-                  onMapError={() => setMapError(true)}
+                  onMapError={handleMapError}
                   className="h-[420px] sm:h-[560px]"
                 />
               )}
