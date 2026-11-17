@@ -26,6 +26,7 @@ export default function LocationSearch({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [resolveError, setResolveError] = useState(false);
   const query = trpc.location.search.useQuery(
     { query: search },
     { enabled: search.trim().length >= 2, staleTime: 60_000, retry: false }
@@ -38,6 +39,7 @@ export default function LocationSearch({
   }, [value]);
 
   const choose = async (item: { description: string; placeId: string }) => {
+    setResolveError(false);
     try {
       const result = await utils.location.resolve.fetch({
         query: item.description,
@@ -51,7 +53,7 @@ export default function LocationSearch({
       });
       setOpen(false);
     } catch {
-      // Keep the typed value visible; the planner will show a validation error if it cannot resolve it.
+      setResolveError(true);
     }
   };
 
@@ -83,7 +85,7 @@ export default function LocationSearch({
         <div className="absolute inset-x-0 top-[4.8rem] z-30 overflow-hidden rounded-2xl border border-[#123a35]/12 bg-[#fffdf8] shadow-[0_20px_40px_-24px_rgba(18,58,53,.6)]">
           {query.isError ? (
           <p className="p-4 text-xs font-semibold leading-5 text-[#8a6a51]">
-            OpenStreetMap search is temporarily unavailable. Try again in a moment.
+            Location search is temporarily unavailable. Try again in a moment.
           </p>
           ) : (
             query.data?.results.map(item => (
@@ -108,6 +110,7 @@ export default function LocationSearch({
           )}
         </div>
       ) : null}
+      {resolveError && <p role="alert" className="text-xs font-semibold leading-5 text-[#8a4f3d]">We could not resolve that place. Select another result or try again.</p>}
     </label>
   );
 }
