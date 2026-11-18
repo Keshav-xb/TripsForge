@@ -577,7 +577,7 @@ export const defaultPlan: PlanInputs = {
   endDate: "2026-10-19",
   adults: 2,
   children: 0,
-  budget: 20000,
+  budget: 0,
   currency: "INR",
   budgetLevel: "Balanced",
   interests: ["History", "Food", "Architecture"],
@@ -692,7 +692,7 @@ export function buildTrip(plan: PlanInputs): ForgedTrip {
       activities,
     };
   });
-  const total = Math.max(8000, plan.budget);
+  const total = Math.max(0, plan.budget);
   const budget = {
     transportation: Math.round(total * 0.18),
     hotels: Math.round(total * 0.32),
