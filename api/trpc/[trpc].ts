@@ -135,7 +135,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
     if (path === "places.nearby") {
       const places = await nearbyPlaces(input as { lat: number; lng: number; category: string; radius?: number });
-      return send(res, 200, trpcData({ provider: "OpenStreetMap / Overpass", retrievedAt: new Date().toISOString(), places }));
+      return send(req, res, 200, trpcData({ provider: "OpenStreetMap / Overpass", retrievedAt: new Date().toISOString(), places }));
     }
     if (path === "route.preview") {
       const rawStops = Array.isArray(input.stops) ? input.stops as Array<{ id?: string; title: string; location?: Point; geocode?: boolean }> : [];
