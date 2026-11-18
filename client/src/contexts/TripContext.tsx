@@ -1,12 +1,13 @@
 /** Monsoon Atlas state: a compact client-only trip dossier that can later be replaced by real planning APIs. */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { buildTrip, defaultPlan, type ForgedTrip, type PlanInputs } from "@/lib/tripData";
+import type { TransportLeg } from "@/lib/transportLegs";
 
 type TripContextValue = {
   plan: PlanInputs;
   trip: ForgedTrip;
   isGenerating: boolean;
-  forgeTrip: (nextPlan: PlanInputs) => void;
+  forgeTrip: (nextPlan: PlanInputs, transportLegs?: TransportLeg[]) => void;
   finishGeneration: () => void;
   updateTrip: (nextTrip: ForgedTrip) => void;
 };
@@ -17,7 +18,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
   const [plan, setPlan] = useState(defaultPlan);
   const [trip, setTrip] = useState(() => buildTrip(defaultPlan));
   const [isGenerating, setIsGenerating] = useState(false);
-  const forgeTrip = useCallback((nextPlan: PlanInputs) => { setPlan(nextPlan); setTrip(buildTrip(nextPlan)); setIsGenerating(true); }, []);
+  const forgeTrip = useCallback((nextPlan: PlanInputs, transportLegs: TransportLeg[] = []) => { setPlan(nextPlan); setTrip({ ...buildTrip(nextPlan), transportLegs }); setIsGenerating(true); }, []);
   const finishGeneration = useCallback(() => setIsGenerating(false), []);
   const updateTrip = useCallback((nextTrip: ForgedTrip) => setTrip(nextTrip), []);
   const value = useMemo(() => ({
