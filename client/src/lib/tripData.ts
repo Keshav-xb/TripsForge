@@ -618,12 +618,33 @@ export function getTripDays(startDate: string, endDate: string) {
 }
 
 export function buildTrip(plan: PlanInputs): ForgedTrip {
-  const destination = {
-    ...getDestination(plan.destination),
-    name: plan.destination,
-    location:
-      plan.destinationLocation ?? getDestination(plan.destination).location,
-  };
+  const knownDestination = INDIAN_DESTINATIONS.find(
+    destination =>
+      destination.name.trim().toLocaleLowerCase() ===
+      plan.destination.trim().toLocaleLowerCase()
+  );
+  // Never borrow another city's landmarks, route title, or coordinates for an
+  // unlisted destination. Use neutral draft content until place discovery is
+  // connected to itinerary generation.
+  const destination: Destination = knownDestination
+    ? {
+        ...knownDestination,
+        name: plan.destination,
+        location: plan.destinationLocation ?? knownDestination.location,
+      }
+    : {
+        name: plan.destination,
+        region: "Selected destination",
+        image: "",
+        price: 0,
+        bestTime: "Check local seasonal conditions",
+        description: "A draft route ready to be personalized with verified local places.",
+        category: "Explore",
+        mapLabel: "local discovery route",
+        themes: plan.interests,
+        location: plan.destinationLocation ?? { lat: 0, lng: 0 },
+        activities: [],
+      };
   const dayCount = getTripDays(plan.startDate, plan.endDate);
   const templates = destination.activities.length
     ? [...destination.activities, ...fallbackActivities]
