@@ -6,7 +6,7 @@ import SiteFooter from "@/components/SiteFooter";
 import { MapView, type MapMarker } from "@/components/Map";
 import LocationSearch from "@/components/LocationSearch";
 import { calculateAllBudgetScenarios, type BudgetCategory, type BudgetCostItem, type BudgetQuantityRule } from "@/lib/tripBudget";
-import { createEmptyTransportLeg, type TransportLeg, type TransportMode } from "@/lib/transportLegs";
+import { createEmptyTransportLeg, getTransportLegTotal, validateTransportLegs, type TransportLeg, type TransportMode } from "@/lib/transportLegs";
 import { useTrip } from "@/contexts/TripContext";
 import { defaultPlan, type Interest, type PlanInputs } from "@/lib/tripData";
 
@@ -49,7 +49,7 @@ export default function JourneyStudio() {
   }));
   const [error, setError] = useState("");
   const [transportLegs, setTransportLegs] = useState<TransportLeg[]>(() => [createEmptyTransportLeg(plan.startLocation || defaultPlan.startLocation, destination)]);
-  const transportTotal = transportLegs.reduce((sum, leg) => sum + (leg.enabled && Number.isFinite(leg.unitCost) ? Math.max(0, leg.unitCost) : 0), 0);
+  const transportTotal = getTransportLegTotal(transportLegs);
   const updateTransportLeg = (id: string, updates: Partial<TransportLeg>) => setTransportLegs(legs => legs.map(leg => leg.id === id ? { ...leg, ...updates } : leg));
   const [infants, setInfants] = useState(0);
   const [rooms, setRooms] = useState(1);
@@ -86,6 +86,8 @@ export default function JourneyStudio() {
     if (!draft.startLocation.trim() || !draft.startLocationPoint) return setError("Choose your departure city from the location suggestions.");
     if (!draft.startDate || !draft.endDate || draft.endDate <= draft.startDate) return setError("Choose an end date after your start date.");
     if (draft.adults + draft.children < 1) return setError("Add at least one traveller.");
+    const legErrors = validateTransportLegs(transportLegs);
+    if (legErrors.length) return setError(legErrors[0]);
     setError("");
     forgeTrip(draft);
     navigate("/itinerary");
@@ -186,7 +188,7 @@ export default function JourneyStudio() {
                 <p className="mt-1 text-sm text-white/70">{money(currentBudget.perPerson, draft.currency)} per traveller · {draft.adults + draft.children + infants} travellers · {Math.max(0, Math.round((new Date(draft.endDate + "T12:00:00").getTime() - new Date(draft.startDate + "T12:00:00").getTime()) / 86400000))} nights</p>
               </div>
               <div className="mt-4 space-y-2">
-                {budgetItems.map(item => <div key={item.id} className="grid grid-cols-[auto_minmax(0,1fr)_minmax(92px,120px)] items-center gap-2 rounded-xl bg-white p-3">
+                {budgetItems.filter(item => item.category !== "transport").map(item => <div key={item.id} className="grid grid-cols-[auto_minmax(0,1fr)_minmax(92px,120px)] items-center gap-2 rounded-xl bg-white p-3">
                   <input type="checkbox" checked={item.enabled} onChange={e => updateBudgetItem(item.id, { enabled: e.target.checked })} aria-label={`Include ${item.label}`} className="h-4 w-4 accent-[#123a35]" />
                   <div className="min-w-0"><p className="truncate text-sm font-bold">{item.label}</p><p className="text-[11px] text-[#87958f]">{item.quantityRule.replaceAll("_"," ")} · traveller estimate</p></div>
                   <label className="grid gap-1 text-[10px] font-bold uppercase text-[#71857e]">Unit price
