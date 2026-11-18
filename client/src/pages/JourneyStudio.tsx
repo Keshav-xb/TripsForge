@@ -6,6 +6,7 @@ import SiteFooter from "@/components/SiteFooter";
 import { MapView, type MapMarker } from "@/components/Map";
 import LocationSearch from "@/components/LocationSearch";
 import { calculateAllBudgetScenarios, type BudgetCategory, type BudgetCostItem, type BudgetQuantityRule } from "@/lib/tripBudget";
+import { createEmptyTransportLeg, getTransportLegTotal, validateTransportLegs, type TransportLeg, type TransportMode } from "@/lib/transportLegs";
 import { useTrip } from "@/contexts/TripContext";
 import { defaultPlan, type Interest, type PlanInputs } from "@/lib/tripData";
 
@@ -47,6 +48,9 @@ export default function JourneyStudio() {
     endDate: dateOffset(33),
   }));
   const [error, setError] = useState("");
+  const [transportLegs, setTransportLegs] = useState<TransportLeg[]>(() => [createEmptyTransportLeg(plan.startLocation || defaultPlan.startLocation, destination)]);
+  const transportTotal = getTransportLegTotal(transportLegs);
+  const updateTransportLeg = (id: string, updates: Partial<TransportLeg>) => setTransportLegs(legs => legs.map(leg => leg.id === id ? { ...leg, ...updates } : leg));
   const [infants, setInfants] = useState(0);
   const [rooms, setRooms] = useState(1);
   const [budgetItems, setBudgetItems] = useState<BudgetCostItem[]>(() => budgetDefaults.map(item => ({
@@ -69,8 +73,8 @@ export default function JourneyStudio() {
     infants,
     rooms,
     currency: draft.currency,
-    items: budgetItems,
-  }), [draft.startDate, draft.endDate, draft.adults, draft.children, draft.currency, infants, rooms, budgetItems]);
+    items: budgetItems.map(item => item.category === "transport" ? { ...item, unitCost: transportTotal, enabled: transportTotal > 0 } : item),
+  }), [draft.startDate, draft.endDate, draft.adults, draft.children, draft.currency, infants, rooms, budgetItems, transportTotal]);
   const currentBudget = budgetScenarios[activeScenario];
   const updateBudgetItem = (id: string, updates: Partial<BudgetCostItem>) =>
     setBudgetItems(items => items.map(item => item.id === id ? { ...item, ...updates } : item));
@@ -82,6 +86,8 @@ export default function JourneyStudio() {
     if (!draft.startLocation.trim() || !draft.startLocationPoint) return setError("Choose your departure city from the location suggestions.");
     if (!draft.startDate || !draft.endDate || draft.endDate <= draft.startDate) return setError("Choose an end date after your start date.");
     if (draft.adults + draft.children < 1) return setError("Add at least one traveller.");
+    const legErrors = validateTransportLegs(transportLegs);
+    if (legErrors.length) return setError(legErrors[0]);
     setError("");
     forgeTrip(draft);
     navigate("/itinerary");
@@ -109,7 +115,7 @@ export default function JourneyStudio() {
           <section className="space-y-6 rounded-[2rem] border border-[#123a35]/8 bg-[#fffdf8] p-5 shadow-sm sm:p-8">
             <div>
               <label className="mb-2 block text-sm font-bold">Destination</label>
-              <div className="flex items-center gap-3 rounded-2xl border border-[#123a35]/15 bg-white px-4 py-4"><MapPin className="h-5 w-5 shrink-0 text-[#e6651b]" /><input value={draft.destination} onChange={e => patch({ destination: e.target.value })} className="min-w-0 flex-1 bg-transparent font-semibold outline-none" aria-label="Destination" /></div>
+              <div className="flex items-center gap-3 rounded-2xl border border-[#123a35]/15 bg-white px-4 py-4"><MapPin className="h-5 w-5 shrink-0 text-[#e6651b]" /><input value={draft.destination} onChange={e => { patch({ destination: e.target.value }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: e.target.value } : leg)); }} className="min-w-0 flex-1 bg-transparent font-semibold outline-none" aria-label="Destination" /></div>
               {hasCoordinates && <p className="mt-2 text-xs text-[#71857e]">Map location attached · {lat.toFixed(4)}, {lng.toFixed(4)}</p>}
             </div>
             <div>
@@ -118,11 +124,8 @@ export default function JourneyStudio() {
                 label="Departure city"
                 value={draft.startLocation}
                 placeholder="Search your departure city"
-                onChange={startLocation => patch({ startLocation, startLocationPoint: undefined })}
-                onSelect={location => patch({
-                  startLocation: location.label,
-                  startLocationPoint: { lat: location.lat, lng: location.lng },
-                })}
+                onChange={startLocation => { patch({ startLocation, startLocationPoint: undefined }); setTransportLegs(legs => legs.map((leg, index) => index === 0 ? { ...leg, origin: startLocation } : leg)); }}
+                onSelect={location => { patch({ startLocation: location.label, startLocationPoint: { lat: location.lat, lng: location.lng } }); setTransportLegs(legs => legs.map((leg, index) => index === 0 ? { ...leg, origin: location.label } : leg)); }}
               />
               <p className="mt-2 text-xs text-[#71857e]">Required. Select a suggested place so TripsForge can estimate the journey from your actual starting point.</p>
               {draft.startLocationPoint && <p className="mt-1 text-xs font-semibold text-[#28745c]">Departure location selected · {draft.startLocationPoint.lat.toFixed(4)}, {draft.startLocationPoint.lng.toFixed(4)}</p>}
@@ -147,6 +150,26 @@ export default function JourneyStudio() {
               <div className="mt-3 flex flex-wrap gap-2">{(["Budget", "Balanced", "Premium"] as const).map(level => <button type="button" key={level} onClick={() => patch({ budgetLevel: level })} className={`rounded-full border px-4 py-2 text-sm font-semibold ${draft.budgetLevel === level ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{level}</button>)}</div>
             </div>
             <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h2 className="font-display text-2xl">Journey transport legs</h2><p className="mt-1 text-sm text-[#71857e]">Break the route into separately priced segments.</p></div>
+                <button type="button" onClick={() => setTransportLegs(legs => [...legs, createEmptyTransportLeg(legs.at(-1)?.destination || draft.startLocation, draft.destination)])} className="rounded-xl bg-[#123a35] px-3 py-2 text-sm font-bold text-white">Add leg +</button>
+              </div>
+              <div className="mt-4 space-y-3">
+                {transportLegs.map((leg, index) => <div key={leg.id} className="rounded-xl border border-[#123a35]/10 bg-white p-3">
+                  <div className="mb-2 flex items-center justify-between"><p className="text-sm font-bold">Leg {index + 1}</p><div className="flex items-center gap-3"><label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={leg.enabled} onChange={e => updateTransportLeg(leg.id, { enabled: e.target.checked })}/> Include</label>{transportLegs.length > 1 && <button type="button" onClick={() => setTransportLegs(legs => legs.filter(item => item.id !== leg.id))} className="text-xs font-semibold text-red-600">Remove</button>}</div></div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="grid gap-1 text-xs font-semibold">From<input value={leg.origin} onChange={e => updateTransportLeg(leg.id, { origin: e.target.value })} placeholder="Origin" className="min-w-0 rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
+                    <label className="grid gap-1 text-xs font-semibold">To<input value={leg.destination} onChange={e => updateTransportLeg(leg.id, { destination: e.target.value })} placeholder="Destination" className="min-w-0 rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
+                    <label className="grid gap-1 text-xs font-semibold">Mode<select value={leg.mode} onChange={e => updateTransportLeg(leg.id, { mode: e.target.value as TransportMode })} className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"><option value="flight">Flight</option><option value="train">Train</option><option value="bus">Bus</option><option value="car">Car / taxi</option><option value="ferry">Ferry</option><option value="other">Other</option></select></label>
+                    <label className="grid gap-1 text-xs font-semibold">Travel date<input type="date" value={leg.travelDate} onChange={e => updateTransportLeg(leg.id, { travelDate: e.target.value })} className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
+                    <label className="grid gap-1 text-xs font-semibold sm:col-span-2">Estimated total for this leg ({draft.currency})<input type="number" min="0" value={leg.unitCost || ""} onChange={e => updateTransportLeg(leg.id, { unitCost: Math.max(0, Number(e.target.value) || 0) })} placeholder="Enter a quote or estimate" className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
+                  </div>
+                  <p className="mt-2 text-[11px] text-[#87958f]">Traveller-entered amount for this segment. Not a live fare or availability result.</p>
+                </div>)}
+              </div>
+              <p className="mt-3 text-sm font-bold">Transport total: {money(transportTotal, draft.currency)}</p>
+            </div>
+            <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div><h2 className="font-display text-2xl">Trip cost breakdown</h2><p className="mt-1 text-sm text-[#71857e]">Enter any known prices. Totals recalculate as you edit.</p></div>
                 <select aria-label="Budget currency" value={draft.currency} onChange={e => { patch({ currency: e.target.value }); setBudgetItems(items => items.map(item => ({ ...item, currency: e.target.value }))); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-2 text-sm font-semibold">
@@ -162,7 +185,7 @@ export default function JourneyStudio() {
                 <p className="mt-1 text-sm text-white/70">{money(currentBudget.perPerson, draft.currency)} per traveller · {draft.adults + draft.children + infants} travellers · {Math.max(0, Math.round((new Date(draft.endDate + "T12:00:00").getTime() - new Date(draft.startDate + "T12:00:00").getTime()) / 86400000))} nights</p>
               </div>
               <div className="mt-4 space-y-2">
-                {budgetItems.map(item => <div key={item.id} className="grid grid-cols-[auto_minmax(0,1fr)_minmax(92px,120px)] items-center gap-2 rounded-xl bg-white p-3">
+                {budgetItems.filter(item => item.category !== "transport").map(item => <div key={item.id} className="grid grid-cols-[auto_minmax(0,1fr)_minmax(92px,120px)] items-center gap-2 rounded-xl bg-white p-3">
                   <input type="checkbox" checked={item.enabled} onChange={e => updateBudgetItem(item.id, { enabled: e.target.checked })} aria-label={`Include ${item.label}`} className="h-4 w-4 accent-[#123a35]" />
                   <div className="min-w-0"><p className="truncate text-sm font-bold">{item.label}</p><p className="text-[11px] text-[#87958f]">{item.quantityRule.replaceAll("_"," ")} · traveller estimate</p></div>
                   <label className="grid gap-1 text-[10px] font-bold uppercase text-[#71857e]">Unit price
@@ -174,7 +197,7 @@ export default function JourneyStudio() {
                 <span>Priced category coverage: {currentBudget.pricedCategoryCoverage}%</span>
                 <span>{currentBudget.unpricedCategories.length} categories still unpriced</span>
               </div>
-              <p className="mt-2 text-xs leading-5 text-[#87958f]">These are traveller-entered planning amounts, not live supplier quotes. Flights, transfers and other transport legs are currently one editable placeholder category. Live fares and hotel rates are not connected yet.</p>
+              <p className="mt-2 text-xs leading-5 text-[#87958f]">These are traveller-entered planning amounts, not live supplier quotes. Transport legs above are separate traveller-entered estimates. Live fares, timetables and bookable availability are not connected yet.</p>
             </div>
             <div>
               <h2 className="mb-3 font-display text-2xl">What do you want from this trip?</h2>
