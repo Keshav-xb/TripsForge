@@ -171,7 +171,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       }));
       const unresolvedStops = stops.filter(stop => !stop.location);
       if (unresolvedStops.length) {
-        return send(res, 200, trpcData({
+        return send(req, res, 200, trpcData({
           available: false, provider: "OpenStreetMap / Photon",
           status: "UNRESOLVED_STOPS", unresolvedStops: unresolvedStops.map(stop => stop.title),
           resolvedStops: stops,
@@ -187,10 +187,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (!response.ok) throw new Error(`OSRM_HTTP_${response.status}`);
       const result = await response.json() as { code: string; routes?: Array<{ distance: number; duration: number; geometry: string }>; waypoints?: Array<{ waypoint_index: number }> };
       const route = result.routes?.[0];
-      if (result.code !== "Ok" || !route) return send(res, 200, trpcData({ available: false, provider: "OpenStreetMap routing", status: result.code, resolvedStops: stops }));
+      if (result.code !== "Ok" || !route) return send(req, res, 200, trpcData({ available: false, provider: "OpenStreetMap routing", status: result.code, resolvedStops: stops }));
       const hours = Math.floor(route.duration / 3600);
       const minutes = Math.round((route.duration % 3600) / 60);
-      return send(res, 200, trpcData({
+      return send(req, res, 200, trpcData({
         available: true, provider: "OSRM / OpenStreetMap", retrievedAt: new Date().toISOString(),
         mode: input.mode ?? "driving", distanceKm: Math.round(route.distance / 100) / 10,
         duration: hours ? `${hours}h ${minutes}m` : `${minutes}m`,
@@ -199,10 +199,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         resolvedStops: stops,
       }));
     }
-    return send(res, 404, { error: { json: { message: "TRAVEL_PROCEDURE_NOT_FOUND" } } });
+    return send(req, res, 404, { error: { json: { message: "TRAVEL_PROCEDURE_NOT_FOUND" } } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "TRAVEL_REQUEST_FAILED";
     const status = message === "LOCATION_NOT_FOUND" ? 404 : 502;
-    return send(res, status, { error: { json: { message, code: status === 404 ? "NOT_FOUND" : "BAD_GATEWAY", data: { httpStatus: status } } } });
+    return send(req, res, status, { error: { json: { message, code: status === 404 ? "NOT_FOUND" : "BAD_GATEWAY", data: { httpStatus: status } } } });
   }
 }
