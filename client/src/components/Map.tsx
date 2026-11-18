@@ -36,7 +36,7 @@ function loadLeaflet() {
   if (typeof window === "undefined") return Promise.reject(new Error("Map requires a browser"));
   if (window.L) return Promise.resolve();
   if (!leafletLoader) {
-    leafletLoader = new Promise((resolve, reject) => {
+    leafletLoader = new Promise<void>((resolve, reject) => {
       if (!document.querySelector('link[data-leaflet-css]')) {
         const link = document.createElement("link");
         link.rel = "stylesheet";
@@ -96,14 +96,16 @@ export function MapView({
     let cancelled = false;
     let map: LeafletMap | null = null;
     loadLeaflet().then(() => {
-      if (cancelled || !elementRef.current || !window.L) return;
+      const element = elementRef.current;
       const L = window.L;
-      map = L.map(elementRef.current, { scrollWheelZoom: false, zoomControl: true }).setView([initialCenter.lat, initialCenter.lng], initialZoom);
-      mapRef.current = map;
+      if (cancelled || !element || !L) return;
+      const activeMap = L.map(element, { scrollWheelZoom: false, zoomControl: true }).setView([initialCenter.lat, initialCenter.lng], initialZoom);
+      map = activeMap;
+      mapRef.current = activeMap;
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(map);
+      }).addTo(activeMap);
       const bounds: [number, number][] = [];
       if (routeGeometry) {
         const routePoints = decodePolyline(routeGeometry);
@@ -126,7 +128,7 @@ export function MapView({
         pin.bindPopup(`<strong>${index + 1}. ${marker.label.replace(/[&<>"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char] ?? char))}</strong>${marker.description ? `<br/>${marker.description.replace(/[&<>"]/g, "")}` : ""}`);
         pin.on("click", () => onMarkerClick?.(marker.id));
       });
-      if (bounds.length > 1) map.fitBounds(L.latLngBounds(bounds), { padding: [32, 32] });
+      if (bounds.length > 1) activeMap.fitBounds(L.latLngBounds(bounds), { padding: [32, 32] });
     }).catch(() => { if (!cancelled) onMapError?.(); });
     return () => { cancelled = true; map?.remove(); mapRef.current = null; };
   }, [initialCenter.lat, initialCenter.lng, initialZoom, markers, routeGeometry, selectedMarkerId, onMarkerClick, onMapError]);
