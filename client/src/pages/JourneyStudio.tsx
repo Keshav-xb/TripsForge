@@ -5,10 +5,25 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { MapView, type MapMarker } from "@/components/Map";
 import LocationSearch from "@/components/LocationSearch";
+import { calculateAllBudgetScenarios, type BudgetCategory, type BudgetCostItem, type BudgetQuantityRule } from "@/lib/tripBudget";
 import { useTrip } from "@/contexts/TripContext";
 import { defaultPlan, type Interest, type PlanInputs } from "@/lib/tripData";
 
 const interests: Interest[] = ["Nature", "Food", "History", "Adventure", "Shopping", "Nightlife", "Photography", "Culture", "Beaches", "Architecture", "Family"];
+const budgetDefaults: Array<{ category: BudgetCategory; label: string; rule: BudgetQuantityRule }> = [
+  { category: "transport", label: "Transport (all journey legs)", rule: "per_trip" },
+  { category: "accommodation", label: "Accommodation", rule: "per_room_per_night" },
+  { category: "food", label: "Meals and drinks", rule: "per_person_per_night" },
+  { category: "activities", label: "Attractions and experiences", rule: "per_person" },
+  { category: "visa", label: "Visa and entry permits", rule: "per_person" },
+  { category: "insurance", label: "Travel insurance", rule: "per_person" },
+  { category: "connectivity", label: "SIM / eSIM and connectivity", rule: "per_person" },
+  { category: "shopping", label: "Shopping and souvenirs", rule: "per_person" },
+  { category: "tips", label: "Tips and service charges", rule: "per_trip" },
+  { category: "miscellaneous", label: "Other expenses", rule: "per_trip" },
+  { category: "contingency", label: "Emergency contingency", rule: "per_trip" },
+];
+const money = (amount: number, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
 const dateOffset = (days: number) => {
   const date = new Date();
   date.setDate(date.getDate() + days);
@@ -32,6 +47,33 @@ export default function JourneyStudio() {
     endDate: dateOffset(33),
   }));
   const [error, setError] = useState("");
+  const [infants, setInfants] = useState(0);
+  const [rooms, setRooms] = useState(1);
+  const [budgetItems, setBudgetItems] = useState<BudgetCostItem[]>(() => budgetDefaults.map(item => ({
+    id: item.category,
+    label: item.label,
+    category: item.category,
+    enabled: true,
+    unitCost: 0,
+    quantityRule: item.rule,
+    sourceType: "traveller_input",
+    sourceLabel: "Traveller-entered estimate",
+    currency: defaultPlan.currency,
+  })));
+  const [activeScenario, setActiveScenario] = useState<"economy" | "expected" | "comfort">("expected");
+  const budgetScenarios = useMemo(() => calculateAllBudgetScenarios({
+    startDate: draft.startDate,
+    endDate: draft.endDate,
+    adults: draft.adults,
+    children: draft.children,
+    infants,
+    rooms,
+    currency: draft.currency,
+    items: budgetItems,
+  }), [draft.startDate, draft.endDate, draft.adults, draft.children, draft.currency, infants, rooms, budgetItems]);
+  const currentBudget = budgetScenarios[activeScenario];
+  const updateBudgetItem = (id: string, updates: Partial<BudgetCostItem>) =>
+    setBudgetItems(items => items.map(item => item.id === id ? { ...item, ...updates } : item));
   const markers = useMemo<MapMarker[]>(() => hasCoordinates ? [{ id: "destination", label: destination, position: { lat, lng }, description: "Your selected destination" }] : [], [destination, hasCoordinates, lat, lng]);
   const patch = (values: Partial<PlanInputs>) => setDraft(current => ({ ...current, ...values }));
   const toggleInterest = (interest: Interest) => patch({ interests: draft.interests.includes(interest) ? draft.interests.filter(item => item !== interest) : [...draft.interests, interest] });
@@ -94,7 +136,7 @@ export default function JourneyStudio() {
             </div>
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><Users className="h-5 w-5 text-[#e6651b]" /> Travellers</h2>
-              <div className="grid gap-3 sm:grid-cols-2">{counter("Adults", draft.adults, adults => patch({ adults }), 1)}{counter("Children", draft.children, children => patch({ children }), 0)}</div>
+              <div className="grid gap-3 sm:grid-cols-2">{counter("Adults", draft.adults, adults => patch({ adults }), 1)}{counter("Children", draft.children, children => patch({ children }), 0)}{counter("Infants", infants, setInfants, 0)}{counter("Rooms", rooms, setRooms, 1)}</div>
             </div>
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><Wallet className="h-5 w-5 text-[#e6651b]" /> Budget</h2>
@@ -103,6 +145,36 @@ export default function JourneyStudio() {
                 <label className="grid gap-2 text-sm font-semibold">Travel style<select value={draft.travelStyle} onChange={e => patch({ travelStyle: e.target.value as PlanInputs["travelStyle"] })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3"><option>Relaxed</option><option>Balanced</option><option>Packed</option></select></label>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">{(["Budget", "Balanced", "Premium"] as const).map(level => <button type="button" key={level} onClick={() => patch({ budgetLevel: level })} className={`rounded-full border px-4 py-2 text-sm font-semibold ${draft.budgetLevel === level ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{level}</button>)}</div>
+            </div>
+            <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div><h2 className="font-display text-2xl">Trip cost breakdown</h2><p className="mt-1 text-sm text-[#71857e]">Enter any known prices. Totals recalculate as you edit.</p></div>
+                <select aria-label="Budget currency" value={draft.currency} onChange={e => { patch({ currency: e.target.value }); setBudgetItems(items => items.map(item => ({ ...item, currency: e.target.value }))); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-2 text-sm font-semibold">
+                  {["INR","USD","EUR","GBP","AED","SGD","CAD","AUD"].map(currency => <option key={currency}>{currency}</option>)}
+                </select>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {(["economy","expected","comfort"] as const).map(scenario => <button type="button" key={scenario} onClick={() => setActiveScenario(scenario)} className={`rounded-xl border px-2 py-3 text-sm font-bold capitalize ${activeScenario === scenario ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{scenario}</button>)}
+              </div>
+              <div className="mt-4 rounded-2xl bg-[#123a35] p-4 text-white">
+                <p className="text-xs font-bold uppercase tracking-wider text-white/65">Current trip estimate · {activeScenario}</p>
+                <p className="mt-1 text-3xl font-black tabular-nums">{money(currentBudget.total, draft.currency)}</p>
+                <p className="mt-1 text-sm text-white/70">{money(currentBudget.perPerson, draft.currency)} per traveller · {draft.adults + draft.children + infants} travellers · {Math.max(0, Math.round((new Date(draft.endDate + "T12:00:00").getTime() - new Date(draft.startDate + "T12:00:00").getTime()) / 86400000))} nights</p>
+              </div>
+              <div className="mt-4 space-y-2">
+                {budgetItems.map(item => <div key={item.id} className="grid grid-cols-[auto_minmax(0,1fr)_minmax(92px,120px)] items-center gap-2 rounded-xl bg-white p-3">
+                  <input type="checkbox" checked={item.enabled} onChange={e => updateBudgetItem(item.id, { enabled: e.target.checked })} aria-label={`Include ${item.label}`} className="h-4 w-4 accent-[#123a35]" />
+                  <div className="min-w-0"><p className="truncate text-sm font-bold">{item.label}</p><p className="text-[11px] text-[#87958f]">{item.quantityRule.replaceAll("_"," ")} · traveller estimate</p></div>
+                  <label className="grid gap-1 text-[10px] font-bold uppercase text-[#71857e]">Unit price
+                    <input type="number" min="0" step="1" value={item.unitCost || ""} placeholder="Add price" onChange={e => updateBudgetItem(item.id, { unitCost: Math.max(0, Number(e.target.value) || 0) })} className="w-full rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm font-semibold text-[#123a35]" />
+                  </label>
+                </div>)}
+              </div>
+              <div className="mt-4 flex flex-wrap justify-between gap-2 text-xs text-[#71857e]">
+                <span>Priced category coverage: {currentBudget.pricedCategoryCoverage}%</span>
+                <span>{currentBudget.unpricedCategories.length} categories still unpriced</span>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-[#87958f]">These are traveller-entered planning amounts, not live supplier quotes. Flights, transfers and other transport legs are currently one editable placeholder category. Live fares and hotel rates are not connected yet.</p>
             </div>
             <div>
               <h2 className="mb-3 font-display text-2xl">What do you want from this trip?</h2>
