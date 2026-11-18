@@ -52,7 +52,7 @@ export default function Explore() {
       destination: selectedPlace.label,
       destinationLocation: { lat: selectedPlace.lat, lng: selectedPlace.lng },
     });
-    setLocation("/planner");
+    setLocation(`/journey?name=${encodeURIComponent(selectedPlace.label)}&lat=${selectedPlace.lat}&lng=${selectedPlace.lng}`);
   };
 
   return (
@@ -177,7 +177,7 @@ export default function Explore() {
                     <ul className="mt-2 list-disc space-y-1 pl-5">
                       <li>Worldwide place search through the configured provider.</li>
                       <li>Map preview of the selected location.</li>
-                      <li>Send the selected destination into the existing planner.</li>
+                      <li>Carry the selected destination into Journey Studio.</li>
                     </ul>
                   </div>
                 </div>
