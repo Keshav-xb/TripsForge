@@ -4,6 +4,8 @@ import { useLocation } from "wouter";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { MapView, type MapMarker } from "@/components/Map";
+import { useTrip } from "@/contexts/TripContext";
+import { defaultPlan } from "@/lib/tripData";
 
 type Place = {
   id: string;
@@ -20,6 +22,7 @@ type NearbyResponse = {
 
 export default function DestinationDetail() {
   const [, setLocation] = useLocation();
+  const { forgeTrip } = useTrip();
   const params = new URLSearchParams(window.location.search);
   const name = params.get("name") ?? "Selected destination";
   const lat = Number(params.get("lat"));
@@ -106,7 +109,7 @@ export default function DestinationDetail() {
               <p className="text-xs font-black uppercase tracking-[.16em] text-[#ffbd70]">Ready when you are</p>
               <h2 className="mt-3 font-display text-3xl">Make this your next journey.</h2>
               <p className="mt-2 text-sm leading-6 text-white/70">Build an itinerary around this destination and tailor it to your dates and travel style.</p>
-              <button onClick={() => setLocation(`/planner?destination=${encodeURIComponent(name)}&lat=${lat}&lng=${lng}`)} className="mt-5 inline-flex w-full items-center justify-between rounded-xl bg-[#ffbd70] px-4 py-3 font-bold text-[#123a35]">Plan a trip here <Navigation className="h-4 w-4" /></button>
+              <button onClick={() => { forgeTrip({ ...defaultPlan, destination: name, destinationLocation: { lat, lng } }); setLocation("/planner"); }} className="mt-5 inline-flex w-full items-center justify-between rounded-xl bg-[#ffbd70] px-4 py-3 font-bold text-[#123a35]">Plan a trip here <Navigation className="h-4 w-4" /></button>
             </div>
           </aside>
         </section>
