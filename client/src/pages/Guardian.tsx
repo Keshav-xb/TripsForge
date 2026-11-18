@@ -16,7 +16,7 @@ const weatherLabel = (code: number | null) => code === null ? "Forecast unavaila
 export default function Guardian() {
   const auth = useAuth();
   const { trip } = useTrip();
-  const [location, setLocation] = useState<google.maps.LatLngLiteral | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationState, setLocationState] = useState<"idle" | "requesting" | "granted" | "denied">("idle");
   const [contacts, setContacts] = useState<GuardianContact[]>([]);
   const [contactName, setContactName] = useState("");
