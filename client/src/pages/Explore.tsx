@@ -70,7 +70,7 @@ export default function Explore() {
             <p className="mt-6 max-w-2xl text-lg leading-8 text-[#5d7771]">
               Search for a city, country, town or landmark. Select a real place to locate it on the map and start planning from there.
             </p>
-            <div className="mt-8 max-w-2xl rounded-[1.5rem] border border-[#123a35]/10 bg-[#fffdf8] p-4 shadow-[0_18px_50px_-38px_rgba(18,58,53,.6)] sm:p-5">
+            <div className="relative z-[1000] mt-8 max-w-2xl rounded-[1.5rem] border border-[#123a35]/10 bg-[#fffdf8] p-4 shadow-[0_18px_50px_-38px_rgba(18,58,53,.6)] sm:p-5">
               <div className="mb-3 flex items-center gap-2 text-sm font-black text-[#123a35]">
                 <Search className="h-4 w-4 text-[#e6651b]" /> Search anywhere
               </div>
@@ -91,7 +91,7 @@ export default function Explore() {
           </div>
         </section>
 
-        <section className="px-5 py-8 lg:px-10 lg:py-12">
+        <section className="relative z-0 px-5 py-8 lg:px-10 lg:py-12">
           <div className="mx-auto grid max-w-[1440px] gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
             <div className="overflow-hidden rounded-[1.7rem] border border-[#123a35]/10 bg-[#eaf1ed]">
               <div className="flex items-center justify-between gap-3 border-b border-[#123a35]/10 bg-white px-4 py-3">
