@@ -58,8 +58,8 @@ export default function LocationSearch({
   };
 
   return (
-    <label className="relative grid gap-2 text-sm font-bold">
-      {label}
+    <div className="relative grid gap-2 text-sm font-bold">
+      <span>{label}</span>
       <div className="relative">
         <MapPin className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#e6651b]" />
         <input
@@ -82,7 +82,7 @@ export default function LocationSearch({
       {open &&
       search.trim().length >= 2 &&
       (query.data?.results.length || query.isError) ? (
-        <div className="absolute inset-x-0 top-[4.8rem] z-30 overflow-hidden rounded-2xl border border-[#123a35]/12 bg-[#fffdf8] shadow-[0_20px_40px_-24px_rgba(18,58,53,.6)]">
+        <div className="absolute inset-x-0 top-[4.8rem] z-[1100] overflow-hidden rounded-2xl border border-[#123a35]/12 bg-[#fffdf8] shadow-[0_20px_40px_-24px_rgba(18,58,53,.6)]">
           {query.isError ? (
           <p className="p-4 text-xs font-semibold leading-5 text-[#8a6a51]">
             Location search is temporarily unavailable. Try again in a moment.
@@ -92,7 +92,6 @@ export default function LocationSearch({
               <button
                 type="button"
                 key={item.placeId}
-                onMouseDown={event => event.preventDefault()}
                 onClick={() => void choose(item)}
                 className="flex w-full items-start gap-3 border-b border-[#123a35]/8 px-4 py-3 text-left last:border-0 hover:bg-[#f2eddf]"
               >
@@ -111,6 +110,6 @@ export default function LocationSearch({
         </div>
       ) : null}
       {resolveError && <p role="alert" className="text-xs font-semibold leading-5 text-[#8a4f3d]">We could not resolve that place. Select another result or try again.</p>}
-    </label>
+    </div>
   );
 }
