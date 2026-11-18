@@ -124,7 +124,7 @@ export function MapView({
           weight: 3,
           fillColor: selected ? "#123a35" : "#e6651b",
           fillOpacity: 1,
-        }).addTo(map);
+        }).addTo(activeMap);
         pin.bindPopup(`<strong>${index + 1}. ${marker.label.replace(/[&<>"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char] ?? char))}</strong>${marker.description ? `<br/>${marker.description.replace(/[&<>"]/g, "")}` : ""}`);
         pin.on("click", () => onMarkerClick?.(marker.id));
       });
