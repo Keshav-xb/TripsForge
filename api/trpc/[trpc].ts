@@ -55,17 +55,21 @@ async function nearbyPlaces(input: { lat: number; lng: number; category: string;
   }).slice(0, 50);
 }
 
-function inputOf(req: IncomingMessage) {
-  const raw = new URL(req.url ?? "", "https://tripsforge.local").searchParams.get("input");
+function requestData(req: IncomingMessage) {
+  const params = new URL(req.url ?? "", "https://tripsforge.local").searchParams;
+  const raw = params.get("input");
   const parsed = raw ? JSON.parse(raw) : {};
-  return parsed.json ?? parsed;
+  const batched = params.get("batch") === "1";
+  const payload = batched ? (parsed["0"] ?? parsed) : parsed;
+  return { input: payload.json ?? payload, batched };
 }
-function send(res: ServerResponse, status: number, value: unknown) {
+function send(req: IncomingMessage, res: ServerResponse, status: number, value: unknown) {
+  const batched = new URL(req.url ?? "", "https://tripsforge.local").searchParams.get("batch") === "1";
   res.statusCode = status;
   res.setHeader("content-type", "application/json");
   res.setHeader("cache-control", "public, max-age=60, s-maxage=300");
   res.setHeader("access-control-allow-origin", "*");
-  res.end(JSON.stringify(value));
+  res.end(JSON.stringify(batched ? [value] : value));
 }
 function trpcData(value: unknown) { return { result: { data: { json: value } } }; }
 function label(p: PhotonFeature["properties"]) {
@@ -79,13 +83,13 @@ async function photon(url: URL) {
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const path = new URL(req.url ?? "", "https://tripsforge.local").pathname.replace(/^\/api\/trpc\//, "");
   try {
-    const input = inputOf(req);
+    const { input } = requestData(req);
     if (path === "location.search") {
       const url = new URL("https://photon.komoot.io/api/");
       url.searchParams.set("q", String(input.query ?? ""));
       url.searchParams.set("limit", "8");
       const data = await photon(url) as { features?: PhotonFeature[] };
-      return send(res, 200, trpcData({
+      return send(req, res, 200, trpcData({
         provider: "OpenStreetMap / Photon",
         retrievedAt: new Date().toISOString(),
         results: (data.features ?? []).map(feature => ({
