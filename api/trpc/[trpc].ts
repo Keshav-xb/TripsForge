@@ -95,6 +95,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         results: (data.features ?? []).map(feature => ({
           placeId: feature.properties.osm_type && feature.properties.osm_id ? `${feature.properties.osm_type}:${feature.properties.osm_id}` : "",
           description: label(feature.properties),
+          location: { lat: feature.geometry.coordinates[1], lng: feature.geometry.coordinates[0] },
           name: feature.properties.name ?? label(feature.properties),
           secondary: [feature.properties.city, feature.properties.state, feature.properties.country].filter(Boolean).join(", "),
         })).filter(item => item.description),
