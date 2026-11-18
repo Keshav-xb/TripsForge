@@ -625,7 +625,9 @@ export default function Itinerary() {
               ))}
             </ol>
             <p className="mt-3 text-xs leading-5 text-[#87958f]">Transport amounts are traveller-entered estimates, not live supplier fares.</p>
-          </section>        <section className="mt-7 grid gap-5 md:grid-cols-3">
+          </section>
+        )}
+        <section className="mt-7 grid gap-5 md:grid-cols-3">
           <Metric
             label="Estimated total"
             value={formatInr(trip.budget.total)}
