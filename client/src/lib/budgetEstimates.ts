@@ -38,7 +38,7 @@ export type BudgetEstimate = {
 
 export function estimateMinimumBudget(plan: PlanInputs): BudgetEstimate {
   const key = plan.destination.trim().toLocaleLowerCase();
-  const match = profiles.find(item => item.names.includes(key));
+  const match = profiles.find(item => item.names.some(name => key === name || key.startsWith(`${name},`) || key.startsWith(`${name} `)));
   if (!match) return null;
   const days = getTripDays(plan.startDate, plan.endDate);
   const travellers = Math.max(1, plan.adults + plan.children);
