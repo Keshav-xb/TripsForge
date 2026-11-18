@@ -85,7 +85,7 @@ export default function Explore() {
                 onSelect={selectPlace}
               />
               <p className="mt-3 text-xs leading-5 text-[#71857e]">
-                Search results and coordinates are provided by the connected Google Maps location service. Coverage and detail depend on provider data.
+                Search results and coordinates are provided by OpenStreetMap / Photon. Coverage and detail depend on provider data.
               </p>
             </div>
           </div>
