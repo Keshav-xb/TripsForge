@@ -89,7 +89,7 @@ export default function JourneyStudio() {
     const legErrors = validateTransportLegs(transportLegs);
     if (legErrors.length) return setError(legErrors[0]);
     setError("");
-    forgeTrip(draft);
+    forgeTrip(draft, transportLegs);
     navigate("/itinerary");
   };
   const counter = (label: string, value: number, onChange: (value: number) => void, minimum: number) => (
