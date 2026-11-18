@@ -31,30 +31,25 @@ export default function LocationSearch({
     { query: search },
     { enabled: search.trim().length >= 2, staleTime: 60_000, retry: false }
   );
-  const utils = trpc.useUtils();
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(value.trim()), 250);
     return () => window.clearTimeout(timer);
   }, [value]);
 
-  const choose = async (item: { description: string; placeId: string }) => {
+  const choose = (item: { description: string; placeId: string; name?: string; location?: { lat: number; lng: number } }) => {
     setResolveError(false);
-    try {
-      const result = await utils.location.resolve.fetch({
-        query: item.description,
-        placeId: item.placeId,
-      });
-      onSelect({
-        label: result.formattedAddress,
-        lat: result.location.lat,
-        lng: result.location.lng,
-        placeId: result.placeId,
-      });
-      setOpen(false);
-    } catch {
+    if (!item.location || !Number.isFinite(item.location.lat) || !Number.isFinite(item.location.lng)) {
       setResolveError(true);
+      return;
     }
+    onSelect({
+      label: item.description || item.name || "Selected destination",
+      lat: item.location.lat,
+      lng: item.location.lng,
+      placeId: item.placeId,
+    });
+    setOpen(false);
   };
 
   return (
@@ -88,7 +83,7 @@ export default function LocationSearch({
             Location search is temporarily unavailable. Try again in a moment.
           </p>
           ) : (
-            query.data?.results.map(item => (
+            (query.data?.results as Array<{ placeId: string; description: string; name?: string; secondary?: string; location?: { lat: number; lng: number } }> | undefined)?.map(item => (
               <button
                 type="button"
                 key={item.placeId}
