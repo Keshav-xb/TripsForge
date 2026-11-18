@@ -4,6 +4,7 @@ import { ArrowRight, CalendarDays, Compass, MapPin, Minus, Plus, Sparkles, Users
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { MapView, type MapMarker } from "@/components/Map";
+import LocationSearch from "@/components/LocationSearch";
 import { useTrip } from "@/contexts/TripContext";
 import { defaultPlan, type Interest, type PlanInputs } from "@/lib/tripData";
 
@@ -36,6 +37,7 @@ export default function JourneyStudio() {
   const toggleInterest = (interest: Interest) => patch({ interests: draft.interests.includes(interest) ? draft.interests.filter(item => item !== interest) : [...draft.interests, interest] });
   const submit = () => {
     if (!draft.destination.trim()) return setError("Choose a destination first.");
+    if (!draft.startLocation.trim() || !draft.startLocationPoint) return setError("Choose your departure city from the location suggestions.");
     if (!draft.startDate || !draft.endDate || draft.endDate <= draft.startDate) return setError("Choose an end date after your start date.");
     if (draft.adults + draft.children < 1) return setError("Add at least one traveller.");
     setError("");
@@ -67,6 +69,21 @@ export default function JourneyStudio() {
               <label className="mb-2 block text-sm font-bold">Destination</label>
               <div className="flex items-center gap-3 rounded-2xl border border-[#123a35]/15 bg-white px-4 py-4"><MapPin className="h-5 w-5 shrink-0 text-[#e6651b]" /><input value={draft.destination} onChange={e => patch({ destination: e.target.value })} className="min-w-0 flex-1 bg-transparent font-semibold outline-none" aria-label="Destination" /></div>
               {hasCoordinates && <p className="mt-2 text-xs text-[#71857e]">Map location attached · {lat.toFixed(4)}, {lng.toFixed(4)}</p>}
+            </div>
+            <div>
+              <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><MapPin className="h-5 w-5 text-[#e6651b]" /> Starting point</h2>
+              <LocationSearch
+                label="Departure city"
+                value={draft.startLocation}
+                placeholder="Search your departure city"
+                onChange={startLocation => patch({ startLocation, startLocationPoint: undefined })}
+                onSelect={location => patch({
+                  startLocation: location.label,
+                  startLocationPoint: { lat: location.lat, lng: location.lng },
+                })}
+              />
+              <p className="mt-2 text-xs text-[#71857e]">Required. Select a suggested place so TripsForge can estimate the journey from your actual starting point.</p>
+              {draft.startLocationPoint && <p className="mt-1 text-xs font-semibold text-[#28745c]">Departure location selected · {draft.startLocationPoint.lat.toFixed(4)}, {draft.startLocationPoint.lng.toFixed(4)}</p>}
             </div>
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><CalendarDays className="h-5 w-5 text-[#e6651b]" /> Travel dates</h2>
