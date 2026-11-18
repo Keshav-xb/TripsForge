@@ -103,7 +103,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (path === "location.resolve") {
       let feature: PhotonFeature | undefined;
       const placeId = String(input.placeId ?? "");
-      if (/^[NRW]:\\d+$/.test(placeId)) {
+      if (/^[NRW]:\d+$/.test(placeId)) {
         const [osm_type, osm_id] = placeId.split(":");
         const url = new URL("https://photon.komoot.io/api/");
         url.searchParams.set("osm_id", osm_id);
@@ -120,7 +120,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       }
       if (!feature) throw new Error("LOCATION_NOT_FOUND");
       const p = feature.properties;
-      return send(res, 200, trpcData({
+      return send(req, res, 200, trpcData({
         provider: "OpenStreetMap / Photon",
         retrievedAt: new Date().toISOString(),
         placeId: p.osm_type && p.osm_id ? `${p.osm_type}:${p.osm_id}` : "",
