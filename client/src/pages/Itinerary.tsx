@@ -42,6 +42,7 @@ import {
 } from "@/lib/supabaseTrips";
 import { getSupabaseErrorMessage } from "@/lib/supabase";
 import { shouldRestoreSavedTrip } from "@/lib/savedTripRestore";
+import type { TransportLeg } from "@/lib/transportLegs";
 import {
   diversifyTripWithPlaces,
   formatDateRange,
@@ -412,13 +413,14 @@ export default function Itinerary() {
             "'": "&#39;",
           })[character] ?? character
       );
+    const transport = (trip.transportLegs ?? []).filter(leg => leg.enabled).map((leg, index) => `<li><strong>Leg ${index + 1}: ${escape(leg.origin)} → ${escape(leg.destination)}</strong><br>${escape(leg.mode)} · ${escape(leg.travelDate || "Date not set")} · ${escape(formatInr(leg.unitCost))} traveller estimate</li>`).join("");
     const days = trip.days
       .map(
         item =>
           `<section><h2>Day ${item.day}: ${escape(item.title)}</h2><p>${escape(item.subtitle)}</p><ol>${item.activities.map(activity => `<li><strong>${escape(activity.time)} — ${escape(activity.title)}</strong><br>${escape(activity.description)}<br><small>${escape(activity.duration)} · ${escape(activity.distance)} · ${activity.cost ? formatInr(activity.cost) : "Free"}</small></li>`).join("")}</ol></section>`
       )
       .join("");
-    const documentHtml = `<!doctype html><html><head><meta charset="utf-8"><title>${escape(trip.destination.name)} itinerary — TripsForge</title><style>body{font-family:Arial,sans-serif;max-width:760px;margin:48px auto;padding:0 24px;color:#123a35;line-height:1.55}h1,h2{font-family:Georgia,serif}h1{font-size:44px;margin-bottom:6px}h2{margin-top:36px;border-bottom:2px solid #e6651b;padding-bottom:8px}li{margin:16px 0}small,p{color:#486962}.meta{padding:14px 16px;background:#f2eddf;border-radius:12px}</style></head><body><p>TRIPSFORGE ITINERARY</p><h1>${escape(trip.destination.name)}</h1><p class="meta">${escape(formatDateRange(trip.plan.startDate, trip.plan.endDate))} · ${travellers} travellers · ${escape(formatInr(trip.budget.total))} estimate</p>${days}</body></html>`;
+    const documentHtml = `<!doctype html><html><head><meta charset="utf-8"><title>${escape(trip.destination.name)} itinerary — TripsForge</title><style>body{font-family:Arial,sans-serif;max-width:760px;margin:48px auto;padding:0 24px;color:#123a35;line-height:1.55}h1,h2{font-family:Georgia,serif}h1{font-size:44px;margin-bottom:6px}h2{margin-top:36px;border-bottom:2px solid #e6651b;padding-bottom:8px}li{margin:16px 0}small,p{color:#486962}.meta{padding:14px 16px;background:#f2eddf;border-radius:12px}</style></head><body><p>TRIPSFORGE ITINERARY</p><h1>${escape(trip.destination.name)}</h1><p class="meta">${escape(formatDateRange(trip.plan.startDate, trip.plan.endDate))} · ${travellers} travellers · ${escape(formatInr(trip.budget.total))} estimate</p>${transport ? `<section><h2>Journey transport</h2><ol>${transport}</ol></section>` : ""}${days}</body></html>`;
     const href = URL.createObjectURL(
       new Blob([documentHtml], { type: "text/html" })
     );
@@ -602,7 +604,28 @@ export default function Itinerary() {
             </div>
           </div>
         </section>
-        <section className="mt-7 grid gap-5 md:grid-cols-3">
+        {(trip.transportLegs ?? []).length > 0 && (
+          <section className="mt-5 rounded-[1.7rem] border border-[#123a35]/10 bg-[#fffdf8] p-5 shadow-sm sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="atlas-label text-[#e6651b]">Transport plan</p>
+                <h2 className="mt-1 font-display text-2xl">Your journey legs</h2>
+              </div>
+              <span className="rounded-full bg-[#e8f0e9] px-3 py-1 text-xs font-bold text-[#28745c]">Saved with itinerary</span>
+            </div>
+            <ol className="mt-4 space-y-3">
+              {(trip.transportLegs ?? []).map((leg: TransportLeg, index: number) => (
+                <li key={leg.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#f5f7f2] p-3">
+                  <div className="min-w-0">
+                    <p className="font-bold">{leg.origin} <span className="text-[#e6651b]">→</span> {leg.destination}</p>
+                    <p className="mt-1 text-xs capitalize text-[#71857e]">{leg.mode} · {leg.travelDate || "Travel date not set"} · {leg.enabled ? "Included" : "Excluded"}</p>
+                  </div>
+                  <p className="text-sm font-bold tabular-nums">{leg.unitCost > 0 ? formatInr(leg.unitCost) : "Cost not entered"}</p>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-3 text-xs leading-5 text-[#87958f]">Transport amounts are traveller-entered estimates, not live supplier fares.</p>
+          </section>        <section className="mt-7 grid gap-5 md:grid-cols-3">
           <Metric
             label="Estimated total"
             value={formatInr(trip.budget.total)}
