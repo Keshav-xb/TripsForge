@@ -143,6 +143,13 @@ export default function Explore() {
                   </p>
                   <button
                     type="button"
+                    onClick={() => setLocation(`/destination?name=${encodeURIComponent(selectedPlace.label)}&lat=${selectedPlace.lat}&lng=${selectedPlace.lng}`)}
+                    className="mt-6 inline-flex w-full items-center justify-between rounded-xl border border-[#123a35]/15 px-4 py-3.5 text-sm font-bold text-[#123a35] hover:border-[#e6651b]"
+                  >
+                    Explore destination <Compass className="h-4 w-4 text-[#e6651b]" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={planDestination}
                     className="mt-6 inline-flex w-full items-center justify-between rounded-xl bg-[#123a35] px-4 py-3.5 text-sm font-bold text-white transition-colors hover:bg-[#1d514a]"
                   >
