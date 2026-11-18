@@ -109,7 +109,7 @@ export default function DestinationDetail() {
               <p className="text-xs font-black uppercase tracking-[.16em] text-[#ffbd70]">Ready when you are</p>
               <h2 className="mt-3 font-display text-3xl">Make this your next journey.</h2>
               <p className="mt-2 text-sm leading-6 text-white/70">Build an itinerary around this destination and tailor it to your dates and travel style.</p>
-              <button onClick={() => { forgeTrip({ ...defaultPlan, destination: name, destinationLocation: { lat, lng } }); setLocation("/planner"); }} className="mt-5 inline-flex w-full items-center justify-between rounded-xl bg-[#ffbd70] px-4 py-3 font-bold text-[#123a35]">Plan a trip here <Navigation className="h-4 w-4" /></button>
+              <button onClick={() => { forgeTrip({ ...defaultPlan, destination: name, destinationLocation: { lat, lng } }); setLocation(`/journey?name=${encodeURIComponent(name)}&lat=${lat}&lng=${lng}`); }} className="mt-5 inline-flex w-full items-center justify-between rounded-xl bg-[#ffbd70] px-4 py-3 font-bold text-[#123a35]">Plan a trip here <Navigation className="h-4 w-4" /></button>
             </div>
           </aside>
         </section>
