@@ -125,10 +125,7 @@ export default function JourneyStudio() {
                 value={draft.startLocation}
                 placeholder="Search your departure city"
                 onChange={startLocation => { patch({ startLocation, startLocationPoint: undefined }); setTransportLegs(legs => legs.map((leg, index) => index === 0 ? { ...leg, origin: startLocation } : leg)); }}
-                onSelect={location => patch({
-                  startLocation: location.label,
-                  startLocationPoint: { lat: location.lat, lng: location.lng },
-                })}
+                onSelect={location => { patch({ startLocation: location.label, startLocationPoint: { lat: location.lat, lng: location.lng } }); setTransportLegs(legs => legs.map((leg, index) => index === 0 ? { ...leg, origin: location.label } : leg)); }}
               />
               <p className="mt-2 text-xs text-[#71857e]">Required. Select a suggested place so TripsForge can estimate the journey from your actual starting point.</p>
               {draft.startLocationPoint && <p className="mt-1 text-xs font-semibold text-[#28745c]">Departure location selected · {draft.startLocationPoint.lat.toFixed(4)}, {draft.startLocationPoint.lng.toFixed(4)}</p>}
