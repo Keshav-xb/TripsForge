@@ -6,6 +6,7 @@ import SiteFooter from "@/components/SiteFooter";
 import { MapView, type MapMarker } from "@/components/Map";
 import { useTrip } from "@/contexts/TripContext";
 import { defaultPlan, type Interest, type PlanInputs } from "@/lib/tripData";
+import { estimateMinimumBudget } from "@/lib/budgetEstimates";
 
 const interests: Interest[] = ["Nature", "Food", "History", "Adventure", "Shopping", "Nightlife", "Photography", "Culture", "Beaches", "Architecture", "Family"];
 const dateOffset = (days: number) => {
@@ -29,8 +30,11 @@ export default function JourneyStudio() {
     destinationLocation: hasCoordinates ? { lat, lng } : plan.destinationLocation,
     startDate: dateOffset(30),
     endDate: dateOffset(33),
+    budget: 0,
   }));
   const [error, setError] = useState("");
+  const budgetEstimate = estimateMinimumBudget(draft);
+  const formatBudget = (value: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
   const markers = useMemo<MapMarker[]>(() => hasCoordinates ? [{ id: "destination", label: destination, position: { lat, lng }, description: "Your selected destination" }] : [], [destination, hasCoordinates, lat, lng]);
   const patch = (values: Partial<PlanInputs>) => setDraft(current => ({ ...current, ...values }));
   const toggleInterest = (interest: Interest) => patch({ interests: draft.interests.includes(interest) ? draft.interests.filter(item => item !== interest) : [...draft.interests, interest] });
@@ -38,6 +42,8 @@ export default function JourneyStudio() {
     if (!draft.destination.trim()) return setError("Choose a destination first.");
     if (!draft.startDate || !draft.endDate || draft.endDate <= draft.startDate) return setError("Choose an end date after your start date.");
     if (draft.adults + draft.children < 1) return setError("Add at least one traveller.");
+    if (!Number.isFinite(draft.budget) || draft.budget <= 0) return setError("Enter your actual total trip budget to continue.");
+    if (budgetEstimate && draft.budget < budgetEstimate.minimum) return setError(`Your budget is below the estimated minimum for ${budgetEstimate.destinationLabel}. Please enter a realistic budget of at least ${formatBudget(budgetEstimate.minimum)} for ${budgetEstimate.travellers} traveller(s) over ${budgetEstimate.days} days.`);
     setError("");
     forgeTrip(draft);
     navigate("/itinerary");
@@ -82,9 +88,17 @@ export default function JourneyStudio() {
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><Wallet className="h-5 w-5 text-[#e6651b]" /> Budget</h2>
               <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
-                <label className="grid gap-2 text-sm font-semibold">Total budget ({draft.currency})<input type="number" min="0" value={draft.budget} onChange={e => patch({ budget: Number(e.target.value) })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Your total trip budget (INR)<input type="number" min="1" inputMode="numeric" placeholder="Enter your budget" value={draft.budget || ""} onChange={e => patch({ budget: e.target.value === "" ? 0 : Number(e.target.value) })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
                 <label className="grid gap-2 text-sm font-semibold">Travel style<select value={draft.travelStyle} onChange={e => patch({ travelStyle: e.target.value as PlanInputs["travelStyle"] })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3"><option>Relaxed</option><option>Balanced</option><option>Packed</option></select></label>
               </div>
+              {budgetEstimate ? (
+                <div className="mt-3 rounded-2xl border border-[#e6651b]/20 bg-[#fff5eb] p-4">
+                  <p className="text-sm font-bold text-[#8e431c]">Estimated minimum planning budget: {formatBudget(budgetEstimate.minimum)}</p>
+                  <p className="mt-1 text-xs leading-5 text-[#795f4d]">Based on an indicative on-the-ground allowance of {formatBudget(budgetEstimate.dailyPerTraveller)} per traveller per day for {budgetEstimate.destinationLabel}. This is a planning estimate, not a live quote. Flights, visas and long-distance transport are not included.</p>
+                </div>
+              ) : (
+                <p className="mt-3 rounded-xl bg-[#f2eddf] p-3 text-xs leading-5 text-[#71857e]">We don't yet have a reliable cost profile for this destination, so we won't invent a minimum. Enter your own researched budget. The estimate does not include flights or visas.</p>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">{(["Budget", "Balanced", "Premium"] as const).map(level => <button type="button" key={level} onClick={() => patch({ budgetLevel: level })} className={`rounded-full border px-4 py-2 text-sm font-semibold ${draft.budgetLevel === level ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{level}</button>)}</div>
             </div>
             <div>
