@@ -7,6 +7,7 @@ export type MapMarker = { id: string; label: string; position: Point; descriptio
 
 type LeafletMap = {
   setView: (center: [number, number], zoom: number) => LeafletMap;
+  invalidateSize?: () => LeafletMap;
   fitBounds: (bounds: unknown, options?: { padding?: [number, number] }) => LeafletMap;
   remove: () => void;
 };
@@ -128,7 +129,13 @@ export function MapView({
         pin.bindPopup(`<strong>${index + 1}. ${marker.label.replace(/[&<>"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char] ?? char))}</strong>${marker.description ? `<br/>${marker.description.replace(/[&<>"]/g, "")}` : ""}`);
         pin.on("click", () => onMarkerClick?.(marker.id));
       });
-      if (bounds.length > 1) activeMap.fitBounds(L.latLngBounds(bounds), { padding: [32, 32] });
+      if (bounds.length > 1) {
+        activeMap.fitBounds(L.latLngBounds(bounds), { padding: [32, 32] });
+      } else if (bounds.length === 1) {
+        activeMap.setView(bounds[0], Math.max(initialZoom, 12));
+      }
+      // The map container can change size as the Explore layout settles on mobile.
+      window.setTimeout(() => activeMap.invalidateSize?.(), 0);
     }).catch(() => { if (!cancelled) onMapError?.(); });
     return () => { cancelled = true; map?.remove(); mapRef.current = null; };
   }, [initialCenter.lat, initialCenter.lng, initialZoom, markers, routeGeometry, selectedMarkerId, onMarkerClick, onMapError]);
