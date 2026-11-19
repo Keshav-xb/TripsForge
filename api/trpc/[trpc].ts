@@ -378,6 +378,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   } catch (error) {
     const message = error instanceof Error ? error.message : "TRAVEL_REQUEST_FAILED";
     const status = message === "LOCATION_NOT_FOUND" ? 404 : 502;
-    return send(req, res, status, { error: { json: { message, code: status === 404 ? "NOT_FOUND" : "BAD_GATEWAY", data: { httpStatus: status } } } });
+    console.error("[TripsForge API failure]", { requestId, path, status, message });
+    return send(req, res, status, { error: { json: { message, code: status === 404 ? "NOT_FOUND" : "BAD_GATEWAY", data: { httpStatus: status, requestId } } } });
   }
 }
