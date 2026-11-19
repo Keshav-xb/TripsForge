@@ -49,6 +49,7 @@ export type DayPlan = {
 };
 
 export type ForgedTrip = {
+  transportLegs?: import("./transportLegs").TransportLeg[];
   destination: Destination;
   plan: PlanInputs;
   days: DayPlan[];
