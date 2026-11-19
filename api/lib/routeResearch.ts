@@ -47,7 +47,7 @@ export function buildRouteResearch(input: {
     const evidence = input.infrastructure.find(item => item.kind === mode);
     const originCount = evidence?.originCount ?? 0;
     const destinationCount = evidence?.destinationCount ?? 0;
-    const status = originCount > 0 && destinationCount > 0
+    const status = evidence && !evidence.checked\n      ? "not_checked" as const\n      : originCount > 0 && destinationCount > 0
       ? "infrastructure_at_both_ends" as const
       : originCount > 0 || destinationCount > 0
         ? "infrastructure_partial" as const
