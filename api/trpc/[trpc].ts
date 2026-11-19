@@ -233,8 +233,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (returnDate && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(returnDate) || returnDate <= departureDate)) {
         throw new Error("INVALID_FLIGHT_RETURN_DATE");
       }
-      const originCode = origin.split(",")[0].trim().slice(0, 3).toUpperCase();
-      const destinationCode = destination.split(",")[0].trim().slice(0, 3).toUpperCase();
+      const originCode = "DEMO-ORG";
+      const destinationCode = "DEMO-DST";
       const departureAt = new Date(`${departureDate}T08:00:00`).toISOString();
       const arrivalAt = new Date(`${departureDate}T11:00:00`).toISOString();
       const offers = [
