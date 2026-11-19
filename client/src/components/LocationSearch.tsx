@@ -1,4 +1,4 @@
-import { MapPin, Loader2, Search } from "lucide-react";
+import { MapPin, Loader2, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 
@@ -118,8 +118,23 @@ export default function LocationSearch({
           autoComplete="off"
           className="w-full rounded-2xl border border-[#123a35]/15 bg-[#fffdf8] py-4 pl-11 pr-10 text-base font-medium outline-none focus:ring-2 focus:ring-[#e6651b]"
         />
-        {query.isFetching ? (
+        {query.isFetching || fallbackLoading ? (
           <Loader2 className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#e6651b]" />
+        ) : value ? (
+          <button
+            type="button"
+            aria-label={`Clear ${label.toLowerCase()}`}
+            onClick={() => {
+              onChange("");
+              setSearch("");
+              setResolveError(false);
+              setFallbackResults([]);
+              setOpen(true);
+            }}
+            className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-[#71857e] transition hover:bg-[#f2eddf] hover:text-[#123a35]"
+          >
+            <X className="h-4 w-4" />
+          </button>
         ) : (
           <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9badA8]" />
         )}
