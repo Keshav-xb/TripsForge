@@ -234,7 +234,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (!response.ok) throw new Error(`OSRM_HTTP_${response.status}`);
       const result = await response.json() as { code?: string; routes?: Array<{ distance: number; duration: number }> };
       const route = result.routes?.[0];
-      if (result.code !== "Ok" || !route) {
+      if (result.code && result.code !== "Ok" && result.code !== "NoRoute") throw new Error("OSRM_ROUTE_" + result.code);
+      if (result.code === "NoRoute" || !route) {
         return send(req, res, 200, trpcData({
           mode: "car", status: "unavailable", recommendable: false,
           reason: "The connected road router did not find a drivable route between these coordinates.",
