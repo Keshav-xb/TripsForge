@@ -36,22 +36,25 @@ export default function JourneyStudio() {
   const [, navigate] = useLocation();
   const { forgeTrip, plan } = useTrip();
   const params = new URLSearchParams(window.location.search);
-  const destination = params.get("name") || plan.destination || defaultPlan.destination;
-  const lat = Number(params.get("lat"));
-  const lng = Number(params.get("lng"));
-  const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  // Only a curated Explore Route is allowed to prefill the journey endpoints.
+  // A regular "Plan a trip" visit starts with two empty location fields.
+  const isCuratedRoute = params.get("route") === "explore";
+  const routeOrigin = isCuratedRoute ? (params.get("origin") ?? "") : "";
+  const routeDestination = isCuratedRoute ? (params.get("destination") ?? "") : "";
   const [draft, setDraft] = useState<PlanInputs>(() => ({
     ...defaultPlan,
     ...plan,
     budget: plan.budget > 0 ? plan.budget : defaultPlan.budget,
-    destination,
-    destinationLocation: hasCoordinates ? { lat, lng } : plan.destinationLocation,
+    destination: routeDestination,
+    startLocation: routeOrigin,
+    destinationLocation: undefined,
+    startLocationPoint: undefined,
     startDate: dateOffset(30),
     endDate: dateOffset(33),
   }));
   const [error, setError] = useState("");
   const [budgetInput, setBudgetInput] = useState(String(plan.budget > 0 ? plan.budget : defaultPlan.budget));
-  const [transportLegs, setTransportLegs] = useState<TransportLeg[]>(() => [createEmptyTransportLeg(plan.startLocation || defaultPlan.startLocation, destination)]);
+  const [transportLegs, setTransportLegs] = useState<TransportLeg[]>(() => [createEmptyTransportLeg(routeOrigin, routeDestination)]);
   const transportTotal = getTransportLegTotal(transportLegs);
   const [routeResearch, setRouteResearch] = useState<{
     retrievedAt: string;
