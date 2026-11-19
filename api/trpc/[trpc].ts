@@ -88,6 +88,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const url = new URL("https://photon.komoot.io/api/");
       url.searchParams.set("q", String(input.query ?? ""));
       url.searchParams.set("limit", "8");
+      url.searchParams.set("lang", "en");
       const data = await photon(url) as { features?: PhotonFeature[] };
       return send(req, res, 200, trpcData({
         provider: "OpenStreetMap / Photon",
