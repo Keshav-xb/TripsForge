@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowRight, CalendarDays, Compass, MapPin, Minus, Plus, Sparkles, Users, Wallet } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
@@ -82,6 +82,31 @@ export default function JourneyStudio() {
     setBudgetItems(items => items.map(item => item.id === id ? { ...item, ...updates } : item));
   const destinationPoint = draft.destinationLocation;
   const hasDestinationPoint = !!destinationPoint && Number.isFinite(destinationPoint.lat) && Number.isFinite(destinationPoint.lng);
+  const [roadCheck, setRoadCheck] = useState<{ status: "idle" | "loading" | "verified" | "unavailable" | "error"; distanceKm?: number; durationMinutes?: number; reason?: string; provider?: string; checkedAt?: string }>({ status: "idle" });
+  useEffect(() => {
+    const origin = draft.startLocationPoint;
+    const destinationPoint = draft.destinationLocation;
+    if (!origin || !destinationPoint) {
+      setRoadCheck({ status: "idle" });
+      return;
+    }
+    const controller = new AbortController();
+    setRoadCheck({ status: "loading" });
+    const input = encodeURIComponent(JSON.stringify({ json: { origin, destination: destinationPoint } }));
+    fetch(`/api/trpc/route.feasibility?input=${input}`, { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error("ROAD_CHECK_FAILED");
+        const payload = await response.json();
+        const result = payload?.result?.data?.json;
+        if (!result || !["verified", "unavailable"].includes(result.status)) throw new Error("INVALID_ROAD_CHECK_RESPONSE");
+        setRoadCheck(result);
+      })
+      .catch(error => {
+        if (error instanceof Error && error.name === "AbortError") return;
+        setRoadCheck({ status: "error", reason: "Road-network verification is temporarily unavailable." });
+      });
+    return () => controller.abort();
+  }, [draft.startLocationPoint, draft.destinationLocation]);
   const markers = useMemo<MapMarker[]>(() => hasDestinationPoint ? [{ id: "destination", label: draft.destination, position: destinationPoint!, description: "Your selected destination" }] : [], [draft.destination, hasDestinationPoint, destinationPoint]);
   const patch = (values: Partial<PlanInputs>) => setDraft(current => ({ ...current, ...values }));
   const toggleInterest = (interest: Interest) => patch({ interests: draft.interests.includes(interest) ? draft.interests.filter(item => item !== interest) : [...draft.interests, interest] });
@@ -138,6 +163,14 @@ export default function JourneyStudio() {
               />
               <p className="mt-2 text-xs text-[#71857e]">Required. Select a suggested place so TripsForge can estimate the journey from your actual starting point.</p>
               {draft.startLocationPoint && <p className="mt-1 text-xs font-semibold text-[#28745c]">Departure location selected · {draft.startLocationPoint.lat.toFixed(4)}, {draft.startLocationPoint.lng.toFixed(4)}</p>}
+              {roadCheck.status !== "idle" && <div className="mt-3 rounded-xl border border-[#123a35]/10 bg-[#f5f7f2] p-4" aria-live="polite">
+                <p className="text-sm font-bold">Road route check</p>
+                {roadCheck.status === "loading" && <p className="mt-1 text-sm text-[#71857e]">Checking the road network…</p>}
+                {roadCheck.status === "verified" && <><p className="mt-1 text-sm font-semibold text-[#28745c]">Car route found</p><p className="mt-1 text-sm">{roadCheck.distanceKm} km · about {Math.floor((roadCheck.durationMinutes || 0) / 60)}h {(roadCheck.durationMinutes || 0) % 60}m</p></>}
+                {roadCheck.status === "unavailable" && <p className="mt-1 text-sm text-[#71857e]">No drivable route was returned. TripsForge will not recommend car travel for this pair based on this check.</p>}
+                {roadCheck.status === "error" && <p className="mt-1 text-sm text-[#71857e]">{roadCheck.reason}</p>}
+                {roadCheck.provider && <p className="mt-2 text-[11px] text-[#87958f]">Source: {roadCheck.provider} · checked {roadCheck.checkedAt ? new Date(roadCheck.checkedAt).toLocaleString() : "just now"}</p>}
+              </div>}
             </div>
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><CalendarDays className="h-5 w-5 text-[#e6651b]" /> Travel dates</h2>

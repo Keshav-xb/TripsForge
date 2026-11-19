@@ -219,6 +219,37 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         resolvedStops: stops,
       }));
     }
+    if (path === "route.feasibility") {
+      const origin = input.origin as Point | undefined;
+      const destinationPoint = input.destination as Point | undefined;
+      const validPoint = (point?: Point) => !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng)
+        && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
+      if (!validPoint(origin) || !validPoint(destinationPoint)) throw new Error("ROUTE_REQUIRES_VALID_COORDINATES");
+      const coordinates = `${origin!.lng},${origin!.lat};${destinationPoint!.lng},${destinationPoint!.lat}`;
+      const url = new URL(`https://router.project-osrm.org/route/v1/driving/${coordinates}`);
+      url.searchParams.set("overview", "false");
+      url.searchParams.set("steps", "false");
+      const checkedAt = new Date().toISOString();
+      const response = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { "User-Agent": "TripsForge/1.0 (travel planning MVP)" } });
+      if (!response.ok) throw new Error(`OSRM_HTTP_${response.status}`);
+      const result = await response.json() as { code?: string; routes?: Array<{ distance: number; duration: number }> };
+      const route = result.routes?.[0];
+      if (result.code && result.code !== "Ok" && result.code !== "NoRoute") throw new Error("OSRM_ROUTE_" + result.code);
+      if (result.code === "NoRoute" || !route) {
+        return send(req, res, 200, trpcData({
+          mode: "car", status: "unavailable", recommendable: false,
+          reason: "The connected road router did not find a drivable route between these coordinates.",
+          provider: "OSRM / OpenStreetMap", checkedAt,
+        }));
+      }
+      return send(req, res, 200, trpcData({
+        mode: "car", status: "verified", recommendable: true,
+        distanceKm: Math.round(route.distance / 100) / 10,
+        durationMinutes: Math.round(route.duration / 60),
+        reason: "A drivable road-network route was returned by the connected router.",
+        provider: "OSRM / OpenStreetMap", checkedAt,
+      }));
+    }
     return send(req, res, 404, { error: { json: { message: "TRAVEL_PROCEDURE_NOT_FOUND" } } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "TRAVEL_REQUEST_FAILED";
