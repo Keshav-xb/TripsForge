@@ -48,6 +48,7 @@ export default function JourneyStudio() {
     endDate: dateOffset(33),
   }));
   const [error, setError] = useState("");
+  const [budgetInput, setBudgetInput] = useState(String(plan.budget ?? defaultPlan.budget));
   const [transportLegs, setTransportLegs] = useState<TransportLeg[]>(() => [createEmptyTransportLeg(plan.startLocation || defaultPlan.startLocation, destination)]);
   const transportTotal = getTransportLegTotal(transportLegs);
   const updateTransportLeg = (id: string, updates: Partial<TransportLeg>) => setTransportLegs(legs => legs.map(leg => leg.id === id ? { ...leg, ...updates } : leg));
@@ -151,7 +152,7 @@ export default function JourneyStudio() {
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><Wallet className="h-5 w-5 text-[#e6651b]" /> Budget</h2>
               <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
-                <label className="grid gap-2 text-sm font-semibold">Total budget ({draft.currency})<input type="number" min="0" value={draft.budget} onChange={e => patch({ budget: Number(e.target.value) })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Total budget ({draft.currency})<input type="number" min="0" value={budgetInput} onChange={e => { const value = e.target.value; setBudgetInput(value); patch({ budget: value === "" ? 0 : Math.max(0, Number(value) || 0) }); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
                 <label className="grid gap-2 text-sm font-semibold">Travel style<select value={draft.travelStyle} onChange={e => patch({ travelStyle: e.target.value as PlanInputs["travelStyle"] })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3"><option>Relaxed</option><option>Balanced</option><option>Packed</option></select></label>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">{(["Budget", "Balanced", "Premium"] as const).map(level => <button type="button" key={level} onClick={() => patch({ budgetLevel: level })} className={`rounded-full border px-4 py-2 text-sm font-semibold ${draft.budgetLevel === level ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{level}</button>)}</div>
