@@ -227,10 +227,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const departureDate = String(input.departureDate ?? "");
       const returnDate = String(input.returnDate ?? "");
       const adults = Math.min(9, Math.max(1, Math.floor(Number(input.adults) || 1)));
-      if (!origin || !destination || !/^\\d{4}-\\d{2}-\\d{2}$/.test(departureDate)) {
+      if (!origin || !destination || !/^\d{4}-\d{2}-\d{2}$/.test(departureDate)) {
         throw new Error("FLIGHT_SEARCH_REQUIRES_CITIES_AND_DEPARTURE_DATE");
       }
-      if (returnDate && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(returnDate) || returnDate <= departureDate)) {
+      if (returnDate && (!/^\d{4}-\d{2}-\d{2}$/.test(returnDate) || returnDate <= departureDate)) {
         throw new Error("INVALID_FLIGHT_RETURN_DATE");
       }
       const originCode = "DEMO-ORG";
