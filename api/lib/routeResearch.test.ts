@@ -33,6 +33,23 @@ describe("buildRouteResearch", () => {
     expect(result.limitations.join(" ")).toContain("does not prove");
   });
 
+  it("distinguishes a missing road result from an unavailable lookup", () => {
+    const base = {
+      origin: "Jammu",
+      destination: "Srinagar",
+      travelDate: "2026-12-10",
+      infrastructure: [],
+      retrievedAt: "2026-11-19T12:00:00.000Z",
+    };
+    const noRoute = buildRouteResearch({ ...base, road: { status: "no_route_returned", provider: "OSRM" } });
+    const unavailable = buildRouteResearch({ ...base, road: { status: "unavailable", provider: "OSRM", reason: "timeout" } });
+
+    expect(noRoute.modes.find(mode => mode.mode === "car")?.status).toBe("road_route_not_returned");
+    expect(noRoute.modes.find(mode => mode.mode === "car")?.evidence).toContain("does not prove");
+    expect(unavailable.modes.find(mode => mode.mode === "car")?.status).toBe("road_lookup_unavailable");
+    expect(unavailable.modes.find(mode => mode.mode === "car")?.evidence).toContain("timeout");
+  });
+
   it("reports road-network route separately from scheduled transport service", () => {
     const result = buildRouteResearch({
       origin: "Jammu",
