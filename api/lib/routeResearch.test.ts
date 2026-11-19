@@ -9,8 +9,8 @@ describe("buildRouteResearch", () => {
       travelDate: "2026-12-10",
       road: { status: "unavailable", provider: "OSRM", reason: "long-distance route not available" },
       infrastructure: [
-        { kind: "flight", originCount: 1, destinationCount: 1, originExamples: ["Jammu Airport"], destinationExamples: ["Charles de Gaulle Airport"] },
-        { kind: "train", originCount: 2, destinationCount: 2, originExamples: ["Jammu Tawi"], destinationExamples: ["Gare du Nord"] },
+        { kind: "flight", originCount: 1, destinationCount: 1, originExamples: ["Jammu Airport"], destinationExamples: ["Charles de Gaulle Airport"], checked: true },
+        { kind: "train", originCount: 2, destinationCount: 2, originExamples: ["Jammu Tawi"], destinationExamples: ["Gare du Nord"], checked: true },
       ],
       retrievedAt: "2026-11-19T12:00:00.000Z",
     });
@@ -26,7 +26,7 @@ describe("buildRouteResearch", () => {
       destination: "B",
       travelDate: "2026-12-10",
       road: null,
-      infrastructure: [{ kind: "bus", originCount: 0, destinationCount: 0, originExamples: [], destinationExamples: [] }],
+      infrastructure: [{ kind: "bus", originCount: 0, destinationCount: 0, originExamples: [], destinationExamples: [], checked: true }],
       retrievedAt: "2026-11-19T12:00:00.000Z",
     });
     expect(result.modes.find(mode => mode.mode === "bus")?.status).toBe("no_infrastructure_found");
