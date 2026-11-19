@@ -75,10 +75,29 @@ function trpcData(value: unknown) { return { result: { data: { json: value } } }
 function label(p: PhotonFeature["properties"]) {
   return [p.name, p.street, p.city, p.state, p.country].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(", ");
 }
-async function photon(url: URL) {
-  const response = await fetch(url, { headers: { "User-Agent": "TripsForge/1.0 (travel planning MVP)" }, signal: AbortSignal.timeout(10000) });
+const photonSearchCache = new Map<string, { expiresAt: number; value: unknown }>();
+const photonSearchInFlight = new Map<string, Promise<unknown>>();
+async function photon(url: URL, timeoutMs = 10000) {
+  const response = await fetch(url, { headers: { "User-Agent": "TripsForge/1.0 (travel planning MVP)" }, signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) throw new Error(`OPEN_MAP_DATA_HTTP_${response.status}`);
   return response.json();
+}
+async function photonSearch(url: URL) {
+  const key = url.toString();
+  const cached = photonSearchCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const existing = photonSearchInFlight.get(key);
+  if (existing) return existing;
+  const request = photon(url, 6000).then(value => {
+    photonSearchCache.set(key, { value, expiresAt: Date.now() + 5 * 60_000 });
+    if (photonSearchCache.size > 200) {
+      const oldest = photonSearchCache.keys().next().value;
+      if (oldest) photonSearchCache.delete(oldest);
+    }
+    return value;
+  }).finally(() => photonSearchInFlight.delete(key));
+  photonSearchInFlight.set(key, request);
+  return request;
 }
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const path = new URL(req.url ?? "", "https://tripsforge.local").pathname.replace(/^\/api\/trpc\//, "");
@@ -89,7 +108,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       url.searchParams.set("q", String(input.query ?? ""));
       url.searchParams.set("limit", "8");
       url.searchParams.set("lang", "en");
-      const data = await photon(url) as { features?: PhotonFeature[] };
+      const data = await photonSearch(url) as { features?: PhotonFeature[] };
       return send(req, res, 200, trpcData({
         provider: "OpenStreetMap / Photon",
         retrievedAt: new Date().toISOString(),
