@@ -83,7 +83,7 @@ export default function JourneyStudio() {
   const destinationPoint = draft.destinationLocation;
   const hasDestinationPoint = !!destinationPoint && Number.isFinite(destinationPoint.lat) && Number.isFinite(destinationPoint.lng);
   const [roadCheck, setRoadCheck] = useState<{ status: "idle" | "loading" | "verified" | "unavailable" | "error"; distanceKm?: number; durationMinutes?: number; reason?: string; provider?: string; checkedAt?: string }>({ status: "idle" });
-  const [flightCheck, setFlightCheck] = useState<{ status: "idle" | "loading" | "offers_found" | "no_offers_for_search" | "not_configured" | "location_unresolved" | "error"; message?: string; checkedAt?: string; origin?: { code: string; name: string }; destination?: { code: string; name: string }; offers?: Array<{ id: string; price: string | null; currency: string | null; airlines: Array<{ code: string; name: string }>; itineraries: Array<{ duration: string | null; segments: Array<{ from: string; to: string; departureAt: string | null; arrivalAt: string | null; airline: string; flightNumber: string }> }> }>; coverageNote?: string }>({ status: "idle" });
+  const [flightCheck, setFlightCheck] = useState<{ status: "idle" | "loading" | "offers_found" | "no_offers_for_search" | "not_configured" | "location_unresolved" | "error"; message?: string; checkedAt?: string; origin?: { code: string; name: string }; destination?: { code: string; name: string }; offers?: Array<{ id: string; price: string | null; currency: string | null; airlines: Array<{ code: string; name: string }>; itineraries: Array<{ duration: string | null; segments: Array<{ from: string; to: string; departureAt: string | null; arrivalAt: string | null; airline: string; flightNumber: string }> }> }>; coverageNote?: string; dataMode?: "demo" | "live"; provider?: string }>({ status: "idle" });
   useEffect(() => {
     const origin = draft.startLocationPoint;
     const destinationPoint = draft.destinationLocation;
@@ -191,9 +191,9 @@ export default function JourneyStudio() {
               <p className="mt-2 text-xs text-[#71857e]">Required. Select a suggested place so TripsForge can estimate the journey from your actual starting point.</p>
               {draft.startLocationPoint && <p className="mt-1 text-xs font-semibold text-[#28745c]">Departure location selected · {draft.startLocationPoint.lat.toFixed(4)}, {draft.startLocationPoint.lng.toFixed(4)}</p>}
               {flightCheck.status !== "idle" && <div className="mt-3 rounded-xl border border-[#123a35]/10 bg-white p-4" aria-live="polite">
-                <div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">Flight intelligence</p><span className="text-[11px] text-[#87958f]">Amadeus</span></div>
-                {flightCheck.status === "loading" && <p className="mt-2 text-sm text-[#71857e]">Checking flight offers for your dates…</p>}
-                {flightCheck.status === "not_configured" && <p className="mt-2 text-sm text-[#71857e]">Flight provider credentials are not configured on the server yet.</p>}
+                <div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">Flight intelligence</p><span className="text-[11px] font-bold text-[#b45309]">DEMO DATA</span></div>
+                {flightCheck.status === "loading" && <p className="mt-2 text-sm text-[#71857e]">Preparing illustrative flight examples…</p>}
+                {flightCheck.status === "not_configured" && <p className="mt-2 text-sm text-[#71857e]">Live flight inventory is not connected yet.</p>}
                 {flightCheck.status === "location_unresolved" && <p className="mt-2 text-sm text-[#71857e]">{flightCheck.message}</p>}
                 {flightCheck.status === "error" && <p className="mt-2 text-sm text-[#71857e]">{flightCheck.message}</p>}
                 {flightCheck.status === "no_offers_for_search" && <p className="mt-2 text-sm text-[#71857e]">No offers were returned for these dates and search criteria. This does not mean no flights operate on this route.</p>}
@@ -204,7 +204,7 @@ export default function JourneyStudio() {
                     {(offer.itineraries ?? []).map((itinerary, itineraryIndex) => <div key={itineraryIndex} className="mt-2 text-xs text-[#71857e]"><p>{itinerary.duration ?? "Duration unavailable"} · {itinerary.segments.length} flight segment(s)</p>{itinerary.segments.map((segment, segmentIndex) => <p key={segmentIndex}>{segment.from} → {segment.to} · {segment.airline} {segment.flightNumber} · {segment.departureAt ? new Date(segment.departureAt).toLocaleString() : "time unavailable"}</p>)}</div>)}
                   </div>)}</div>
                 </>}
-                {flightCheck.coverageNote && <p className="mt-3 text-[11px] leading-4 text-[#87958f]">{flightCheck.coverageNote}</p>}
+                {flightCheck.coverageNote && <p className="mt-3 rounded-lg bg-[#fff7ed] p-3 text-[11px] leading-4 text-[#9a3412]">{flightCheck.coverageNote}</p>}
                 {flightCheck.checkedAt && <p className="mt-2 text-[11px] text-[#87958f]">Checked {new Date(flightCheck.checkedAt).toLocaleString()}</p>}
               </div>}
               {roadCheck.status !== "idle" && <div className="mt-3 rounded-xl border border-[#123a35]/10 bg-[#f5f7f2] p-4" aria-live="polite">
