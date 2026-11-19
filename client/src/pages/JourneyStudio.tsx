@@ -83,6 +83,7 @@ export default function JourneyStudio() {
   const destinationPoint = draft.destinationLocation;
   const hasDestinationPoint = !!destinationPoint && Number.isFinite(destinationPoint.lat) && Number.isFinite(destinationPoint.lng);
   const [roadCheck, setRoadCheck] = useState<{ status: "idle" | "loading" | "verified" | "unavailable" | "error"; distanceKm?: number; durationMinutes?: number; reason?: string; provider?: string; checkedAt?: string }>({ status: "idle" });
+  const [flightCheck, setFlightCheck] = useState<{ status: "idle" | "loading" | "offers_found" | "no_offers_for_search" | "not_configured" | "location_unresolved" | "error"; message?: string; checkedAt?: string; origin?: { code: string; name: string }; destination?: { code: string; name: string }; offers?: Array<{ id: string; price: string | null; currency: string | null; airlines: Array<{ code: string; name: string }>; itineraries: Array<{ duration: string | null; segments: Array<{ from: string; to: string; departureAt: string | null; arrivalAt: string | null; airline: string; flightNumber: string }> }> }>; coverageNote?: string; dataMode?: "demo" | "live"; provider?: string }>({ status: "idle" });
   useEffect(() => {
     const origin = draft.startLocationPoint;
     const destinationPoint = draft.destinationLocation;
@@ -107,6 +108,32 @@ export default function JourneyStudio() {
       });
     return () => controller.abort();
   }, [draft.startLocationPoint, draft.destinationLocation]);
+  useEffect(() => {
+    if (!draft.startLocationPoint || !draft.destinationLocation || !draft.startLocation.trim() || !draft.destination.trim() || !draft.startDate) {
+      setFlightCheck({ status: "idle" });
+      return;
+    }
+    const controller = new AbortController();
+    setFlightCheck({ status: "loading" });
+    const input = encodeURIComponent(JSON.stringify({ json: {
+      origin: draft.startLocation, destination: draft.destination,
+      departureDate: draft.startDate, returnDate: draft.endDate,
+      adults: draft.adults, children: draft.children, currency: draft.currency,
+    } }));
+    fetch(`/api/trpc/flight.search?input=${input}`, { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error("FLIGHT_SEARCH_FAILED");
+        const payload = await response.json();
+        const result = payload?.result?.data?.json;
+        if (!result || typeof result.status !== "string") throw new Error("INVALID_FLIGHT_SEARCH_RESPONSE");
+        setFlightCheck(result);
+      })
+      .catch(error => {
+        if (error instanceof Error && error.name === "AbortError") return;
+        setFlightCheck({ status: "error", message: "Flight search is temporarily unavailable." });
+      });
+    return () => controller.abort();
+  }, [draft.startLocation, draft.destination, draft.startLocationPoint, draft.destinationLocation, draft.startDate, draft.endDate, draft.adults, draft.children, draft.currency]);
   const markers = useMemo<MapMarker[]>(() => hasDestinationPoint ? [{ id: "destination", label: draft.destination, position: destinationPoint!, description: "Your selected destination" }] : [], [draft.destination, hasDestinationPoint, destinationPoint]);
   const patch = (values: Partial<PlanInputs>) => setDraft(current => ({ ...current, ...values }));
   const toggleInterest = (interest: Interest) => patch({ interests: draft.interests.includes(interest) ? draft.interests.filter(item => item !== interest) : [...draft.interests, interest] });
@@ -163,6 +190,23 @@ export default function JourneyStudio() {
               />
               <p className="mt-2 text-xs text-[#71857e]">Required. Select a suggested place so TripsForge can estimate the journey from your actual starting point.</p>
               {draft.startLocationPoint && <p className="mt-1 text-xs font-semibold text-[#28745c]">Departure location selected · {draft.startLocationPoint.lat.toFixed(4)}, {draft.startLocationPoint.lng.toFixed(4)}</p>}
+              {flightCheck.status !== "idle" && <div className="mt-3 rounded-xl border border-[#123a35]/10 bg-white p-4" aria-live="polite">
+                <div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">Flight intelligence</p><span className="text-[11px] font-bold text-[#b45309]">DEMO DATA</span></div>
+                {flightCheck.status === "loading" && <p className="mt-2 text-sm text-[#71857e]">Preparing illustrative flight examples…</p>}
+                {flightCheck.status === "not_configured" && <p className="mt-2 text-sm text-[#71857e]">Live flight inventory is not connected yet.</p>}
+                {flightCheck.status === "location_unresolved" && <p className="mt-2 text-sm text-[#71857e]">{flightCheck.message}</p>}
+                {flightCheck.status === "error" && <p className="mt-2 text-sm text-[#71857e]">{flightCheck.message}</p>}
+                {flightCheck.status === "no_offers_for_search" && <p className="mt-2 text-sm text-[#71857e]">No offers were returned for these dates and search criteria. This does not mean no flights operate on this route.</p>}
+                {flightCheck.status === "offers_found" && <><p className="mt-2 text-xs text-[#71857e]">{flightCheck.origin?.name} ({flightCheck.origin?.code}) → {flightCheck.destination?.name} ({flightCheck.destination?.code})</p>
+                  <div className="mt-3 space-y-2">{(flightCheck.offers ?? []).slice(0, 5).map(offer => <div key={offer.id} className="rounded-lg border border-[#123a35]/10 p-3">
+                    <p className="font-bold">{offer.price ? `${offer.currency} ${offer.price}` : "Price not supplied"}</p>
+                    <p className="mt-1 text-xs text-[#71857e]">{offer.airlines.map(airline => airline.name).join(", ") || "Airline details unavailable"}</p>
+                    {(offer.itineraries ?? []).map((itinerary, itineraryIndex) => <div key={itineraryIndex} className="mt-2 text-xs text-[#71857e]"><p>{itinerary.duration ?? "Duration unavailable"} · {itinerary.segments.length} flight segment(s)</p>{itinerary.segments.map((segment, segmentIndex) => <p key={segmentIndex}>{segment.from} → {segment.to} · {segment.airline} {segment.flightNumber} · {segment.departureAt ? new Date(segment.departureAt).toLocaleString() : "time unavailable"}</p>)}</div>)}
+                  </div>)}</div>
+                </>}
+                {flightCheck.coverageNote && <p className="mt-3 rounded-lg bg-[#fff7ed] p-3 text-[11px] leading-4 text-[#9a3412]">{flightCheck.coverageNote}</p>}
+                {flightCheck.checkedAt && <p className="mt-2 text-[11px] text-[#87958f]">Checked {new Date(flightCheck.checkedAt).toLocaleString()}</p>}
+              </div>}
               {roadCheck.status !== "idle" && <div className="mt-3 rounded-xl border border-[#123a35]/10 bg-[#f5f7f2] p-4" aria-live="polite">
                 <p className="text-sm font-bold">Road route check</p>
                 {roadCheck.status === "loading" && <p className="mt-1 text-sm text-[#71857e]">Checking the road network…</p>}

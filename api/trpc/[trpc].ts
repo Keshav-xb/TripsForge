@@ -99,6 +99,7 @@ async function photonSearch(url: URL) {
   photonSearchInFlight.set(key, request);
   return request;
 }
+
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const path = new URL(req.url ?? "", "https://tripsforge.local").pathname.replace(/^\/api\/trpc\//, "");
   try {
@@ -219,6 +220,64 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         resolvedStops: stops,
       }));
     }
+
+    if (path === "flight.search") {
+      const origin = String(input.origin ?? "").trim();
+      const destination = String(input.destination ?? "").trim();
+      const departureDate = String(input.departureDate ?? "");
+      const returnDate = String(input.returnDate ?? "");
+      const adults = Math.min(9, Math.max(1, Math.floor(Number(input.adults) || 1)));
+      if (!origin || !destination || !/^\d{4}-\d{2}-\d{2}$/.test(departureDate)) {
+        throw new Error("FLIGHT_SEARCH_REQUIRES_CITIES_AND_DEPARTURE_DATE");
+      }
+      if (returnDate && (!/^\d{4}-\d{2}-\d{2}$/.test(returnDate) || returnDate <= departureDate)) {
+        throw new Error("INVALID_FLIGHT_RETURN_DATE");
+      }
+      const originCode = "DEMO-ORG";
+      const destinationCode = "DEMO-DST";
+      const departureAt = new Date(`${departureDate}T08:00:00`).toISOString();
+      const arrivalAt = new Date(`${departureDate}T11:00:00`).toISOString();
+      const offers = [
+        {
+          id: "demo-direct",
+          price: "8500",
+          currency: String(input.currency || "INR").toUpperCase(),
+          airlines: [{ code: "DEMO", name: "Demo Airways" }],
+          itineraries: [{ duration: "PT3H", segments: [{
+            from: originCode, to: destinationCode, departureAt, arrivalAt,
+            airline: "DEMO", flightNumber: "TF101",
+          }] }],
+        },
+        {
+          id: "demo-connecting",
+          price: "6200",
+          currency: String(input.currency || "INR").toUpperCase(),
+          airlines: [{ code: "DEMO", name: "Demo Connect" }],
+          itineraries: [{ duration: "PT5H30M", segments: [{
+            from: originCode, to: "HUB", departureAt,
+            arrivalAt: new Date(`${departureDate}T09:30:00`).toISOString(),
+            airline: "DEMO", flightNumber: "TF202",
+          }, {
+            from: "HUB", to: destinationCode,
+            departureAt: new Date(`${departureDate}T10:15:00`).toISOString(),
+            arrivalAt: new Date(`${departureDate}T13:30:00`).toISOString(),
+            airline: "DEMO", flightNumber: "TF203",
+          }] }],
+        },
+      ];
+      return send(req, res, 200, trpcData({
+        status: "offers_found",
+        provider: "TripsForge illustrative demo dataset",
+        dataMode: "demo",
+        checkedAt: new Date().toISOString(),
+        origin: { code: originCode, name: origin },
+        destination: { code: destinationCode, name: destination },
+        passengers: adults + Math.max(0, Math.floor(Number(input.children) || 0)),
+        offers,
+        coverageNote: "DEMO ONLY: these routes, airlines, schedules and prices are fictional examples. They are not searchable inventory, live schedules, availability or bookable fares. Do not use them to make travel decisions.",
+      }));
+    }
+
     if (path === "route.feasibility") {
       const origin = input.origin as Point | undefined;
       const destinationPoint = input.destination as Point | undefined;
