@@ -81,7 +81,6 @@ export default function JourneyStudio() {
   const updateBudgetItem = (id: string, updates: Partial<BudgetCostItem>) =>
     setBudgetItems(items => items.map(item => item.id === id ? { ...item, ...updates } : item));
   const destinationPoint = draft.destinationLocation;
-  const destinationPoint = draft.destinationLocation;
   const hasDestinationPoint = !!destinationPoint && Number.isFinite(destinationPoint.lat) && Number.isFinite(destinationPoint.lng);
   const [roadCheck, setRoadCheck] = useState<{ status: "idle" | "loading" | "verified" | "unavailable" | "error"; distanceKm?: number; durationMinutes?: number; reason?: string; provider?: string; checkedAt?: string }>({ status: "idle" });
   const [flightCheck, setFlightCheck] = useState<{ status: "idle" | "loading" | "offers_found" | "no_offers_for_search" | "not_configured" | "location_unresolved" | "error"; message?: string; checkedAt?: string; origin?: { code: string; name: string }; destination?: { code: string; name: string }; offers?: Array<{ id: string; price: string | null; currency: string | null; airlines: Array<{ code: string; name: string }>; itineraries: Array<{ duration: string | null; segments: Array<{ from: string; to: string; departureAt: string | null; arrivalAt: string | null; airline: string; flightNumber: string }> }> }>; coverageNote?: string }>({ status: "idle" });
@@ -109,6 +108,32 @@ export default function JourneyStudio() {
       });
     return () => controller.abort();
   }, [draft.startLocationPoint, draft.destinationLocation]);
+  useEffect(() => {
+    if (!draft.startLocationPoint || !draft.destinationLocation || !draft.startLocation.trim() || !draft.destination.trim() || !draft.startDate) {
+      setFlightCheck({ status: "idle" });
+      return;
+    }
+    const controller = new AbortController();
+    setFlightCheck({ status: "loading" });
+    const input = encodeURIComponent(JSON.stringify({ json: {
+      origin: draft.startLocation, destination: draft.destination,
+      departureDate: draft.startDate, returnDate: draft.endDate,
+      adults: draft.adults, children: draft.children, currency: draft.currency,
+    } }));
+    fetch(`/api/trpc/flight.search?input=${input}`, { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error("FLIGHT_SEARCH_FAILED");
+        const payload = await response.json();
+        const result = payload?.result?.data?.json;
+        if (!result || typeof result.status !== "string") throw new Error("INVALID_FLIGHT_SEARCH_RESPONSE");
+        setFlightCheck(result);
+      })
+      .catch(error => {
+        if (error instanceof Error && error.name === "AbortError") return;
+        setFlightCheck({ status: "error", message: "Flight search is temporarily unavailable." });
+      });
+    return () => controller.abort();
+  }, [draft.startLocation, draft.destination, draft.startLocationPoint, draft.destinationLocation, draft.startDate, draft.endDate, draft.adults, draft.children, draft.currency]);
   const markers = useMemo<MapMarker[]>(() => hasDestinationPoint ? [{ id: "destination", label: draft.destination, position: destinationPoint!, description: "Your selected destination" }] : [], [draft.destination, hasDestinationPoint, destinationPoint]);
   const patch = (values: Partial<PlanInputs>) => setDraft(current => ({ ...current, ...values }));
   const toggleInterest = (interest: Interest) => patch({ interests: draft.interests.includes(interest) ? draft.interests.filter(item => item !== interest) : [...draft.interests, interest] });
