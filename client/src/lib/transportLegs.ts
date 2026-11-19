@@ -1,4 +1,4 @@
-export type TransportMode = "flight" | "train" | "bus" | "car" | "ferry" | "other";
+export type TransportMode = "unverified" | "flight" | "train" | "bus" | "car" | "ferry" | "other";
 
 export type TransportLeg = {
   id: string;
@@ -17,7 +17,7 @@ export function createEmptyTransportLeg(origin = "", destination = ""): Transpor
     id: `transport-leg-${nextLegId++}`,
     origin,
     destination,
-    mode: "flight",
+    mode: "unverified",
     travelDate: "",
     unitCost: 0,
     enabled: true,

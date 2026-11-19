@@ -1,4 +1,4 @@
-import { MapPin, Loader2, Search } from "lucide-react";
+import { MapPin, Loader2, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 
@@ -31,11 +31,61 @@ export default function LocationSearch({
     { query: search },
     { enabled: search.trim().length >= 2, staleTime: 5 * 60_000, gcTime: 10 * 60_000, refetchOnWindowFocus: false, retry: false }
   );
+  const [fallbackResults, setFallbackResults] = useState<Array<{ placeId: string; description: string; name: string; secondary: string; location: { lat: number; lng: number } }>>([]);
+  const [fallbackLoading, setFallbackLoading] = useState(false);
+  const [fallbackError, setFallbackError] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(value.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [value]);
+
+  // If the TripsForge API or its primary geocoder is unavailable, query the
+  // public Open-Meteo geocoder directly from the browser as a final fallback.
+  useEffect(() => {
+    if (!query.isError || search.trim().length < 2) {
+      setFallbackResults([]);
+      setFallbackError(false);
+      return;
+    }
+    let cancelled = false;
+    const controller = new AbortController();
+    setFallbackLoading(true);
+    setFallbackError(false);
+    const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
+    url.searchParams.set("name", search.trim());
+    url.searchParams.set("count", "8");
+    url.searchParams.set("language", "en");
+    url.searchParams.set("format", "json");
+    fetch(url, { signal: controller.signal })
+      .then(response => {
+        if (!response.ok) throw new Error("GEOCODING_UNAVAILABLE");
+        return response.json() as Promise<{ results?: Array<{ id: number; name: string; latitude: number; longitude: number; country?: string; admin1?: string; admin2?: string }> }>;
+      })
+      .then(data => {
+        if (cancelled) return;
+        setFallbackResults((data.results ?? []).map(item => {
+          const secondary = [item.admin2, item.admin1, item.country].filter(Boolean).join(", ");
+          return {
+            placeId: `geonames:${item.id}`,
+            description: [item.name, secondary].filter(Boolean).join(", "),
+            name: item.name,
+            secondary,
+            location: { lat: item.latitude, lng: item.longitude },
+          };
+        }));
+      })
+      .catch(() => {
+        if (!cancelled) setFallbackError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setFallbackLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [query.isError, search]);
 
   const choose = (item: { description: string; placeId: string; name?: string; location?: { lat: number; lng: number } }) => {
     setResolveError(false);
@@ -68,8 +118,23 @@ export default function LocationSearch({
           autoComplete="off"
           className="w-full rounded-2xl border border-[#123a35]/15 bg-[#fffdf8] py-4 pl-11 pr-10 text-base font-medium outline-none focus:ring-2 focus:ring-[#e6651b]"
         />
-        {query.isFetching ? (
+        {query.isFetching || fallbackLoading ? (
           <Loader2 className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#e6651b]" />
+        ) : value ? (
+          <button
+            type="button"
+            aria-label={`Clear ${label.toLowerCase()}`}
+            onClick={() => {
+              onChange("");
+              setSearch("");
+              setResolveError(false);
+              setFallbackResults([]);
+              setOpen(true);
+            }}
+            className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-[#71857e] transition hover:bg-[#f2eddf] hover:text-[#123a35]"
+          >
+            <X className="h-4 w-4" />
+          </button>
         ) : (
           <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9badA8]" />
         )}
@@ -78,10 +143,10 @@ export default function LocationSearch({
         <div className="absolute inset-x-0 top-[4.8rem] z-[1100] overflow-hidden rounded-2xl border border-[#123a35]/12 bg-[#fffdf8] shadow-[0_20px_40px_-24px_rgba(18,58,53,.6)]">
           {query.isFetching ? (
             <p className="p-4 text-xs font-semibold text-[#71857e]">Searching places…</p>
-          ) : query.isError ? (
-            <p className="p-4 text-xs font-semibold leading-5 text-[#8a6a51]">Location search is temporarily unavailable. Please try again.</p>
-          ) : query.data?.results.length ? (
-            (query.data.results as Array<{ placeId: string; description: string; name?: string; secondary?: string; location?: { lat: number; lng: number } }>).map(item => (
+          ) : query.isError && fallbackLoading ? (
+            <p className="p-4 text-xs font-semibold text-[#71857e]">Trying backup location search…</p>
+          ) : (query.data?.results?.length || fallbackResults.length) ? (
+            ((query.data?.results?.length ? query.data.results : fallbackResults) as Array<{ placeId: string; description: string; name?: string; secondary?: string; location?: { lat: number; lng: number } }>).map(item => (
               <button
                 type="button"
                 key={item.placeId}
@@ -99,6 +164,8 @@ export default function LocationSearch({
                 </span>
               </button>
             ))
+          ) : query.isError && fallbackError ? (
+            <p className="p-4 text-xs font-semibold leading-5 text-[#8a6a51]">Location search is unavailable right now. Check your connection and try again.</p>
           ) : (
             <p className="p-4 text-xs font-semibold text-[#71857e]">No matching places found. Try a city and country name.</p>
           )}

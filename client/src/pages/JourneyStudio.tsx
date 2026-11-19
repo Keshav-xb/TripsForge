@@ -5,6 +5,7 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { MapView, type MapMarker } from "@/components/Map";
 import LocationSearch from "@/components/LocationSearch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { calculateAllBudgetScenarios, type BudgetCategory, type BudgetCostItem, type BudgetQuantityRule } from "@/lib/tripBudget";
 import { createEmptyTransportLeg, getTransportLegTotal, validateTransportLegs, type TransportLeg, type TransportMode } from "@/lib/transportLegs";
 import { useTrip } from "@/contexts/TripContext";
@@ -35,23 +36,70 @@ export default function JourneyStudio() {
   const [, navigate] = useLocation();
   const { forgeTrip, plan } = useTrip();
   const params = new URLSearchParams(window.location.search);
-  const destination = params.get("name") || plan.destination || defaultPlan.destination;
-  const lat = Number(params.get("lat"));
-  const lng = Number(params.get("lng"));
-  const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  // Only a curated Explore Route is allowed to prefill the journey endpoints.
+  // A regular "Plan a trip" visit starts with two empty location fields.
+  const isCuratedRoute = params.get("route") === "explore";
+  const routeOrigin = isCuratedRoute ? (params.get("origin") ?? "") : "";
+  const routeDestination = isCuratedRoute ? (params.get("destination") ?? "") : "";
   const [draft, setDraft] = useState<PlanInputs>(() => ({
     ...defaultPlan,
     ...plan,
     budget: plan.budget > 0 ? plan.budget : defaultPlan.budget,
-    destination,
-    destinationLocation: hasCoordinates ? { lat, lng } : plan.destinationLocation,
+    destination: routeDestination,
+    startLocation: routeOrigin,
+    destinationLocation: undefined,
+    startLocationPoint: undefined,
     startDate: dateOffset(30),
     endDate: dateOffset(33),
   }));
   const [error, setError] = useState("");
   const [budgetInput, setBudgetInput] = useState(String(plan.budget > 0 ? plan.budget : defaultPlan.budget));
-  const [transportLegs, setTransportLegs] = useState<TransportLeg[]>(() => [createEmptyTransportLeg(plan.startLocation || defaultPlan.startLocation, destination)]);
+  const [transportLegs, setTransportLegs] = useState<TransportLeg[]>(() => [createEmptyTransportLeg(routeOrigin, routeDestination)]);
   const transportTotal = getTransportLegTotal(transportLegs);
+  const [routeResearch, setRouteResearch] = useState<{
+    retrievedAt: string;
+    provider: string;
+    modes: Array<{ mode: TransportMode; status: string; evidence: string; serviceStatus: string; bookingStatus: string }>;
+    limitations: string[];
+    road: null | { status: string; distanceKm?: number; durationMinutes?: number; provider: string; reason?: string };
+  } | null>(null);
+  const [researching, setResearching] = useState(false);
+  const [researchError, setResearchError] = useState("");
+  const runRouteResearch = async () => {
+    if (!draft.startLocationPoint || !draft.destinationLocation) {
+      setResearchError("Select both departure and destination from the location suggestions first.");
+      return;
+    }
+    setResearching(true);
+    setResearchError("");
+    setRouteResearch(null);
+    try {
+      const input = {
+        origin: draft.startLocation,
+        destination: draft.destination,
+        originPoint: draft.startLocationPoint,
+        destinationPoint: draft.destinationLocation,
+        travelDate: transportLegs.find(leg => leg.travelDate)?.travelDate || draft.startDate,
+      };
+      const response = await fetch(`/api/trpc/route.research?input=${encodeURIComponent(JSON.stringify({ json: input }))}`);
+      const responseText = await response.text();
+      let payload: { result?: { data?: { json?: typeof routeResearch } }; error?: { json?: { message?: string } } };
+      try {
+        payload = JSON.parse(responseText);
+      } catch {
+        throw new Error(response.status === 504 || response.status === 502
+          ? "The route provider took too long or is temporarily unavailable. Please retry in a moment."
+          : "TripsForge received an invalid response from the route service. Please retry.");
+      }
+      const result = payload.result?.data?.json;
+      if (!response.ok || !result) throw new Error(payload.error?.json?.message || "Route research is temporarily unavailable.");
+      setRouteResearch(result);
+    } catch (error) {
+      setResearchError(error instanceof Error ? error.message : "Route research failed. Please try again.");
+    } finally {
+      setResearching(false);
+    }
+  };
   const updateTransportLeg = (id: string, updates: Partial<TransportLeg>) => setTransportLegs(legs => legs.map(leg => leg.id === id ? { ...leg, ...updates } : leg));
   const [infants, setInfants] = useState(0);
   const [rooms, setRooms] = useState(1);
@@ -122,8 +170,8 @@ export default function JourneyStudio() {
                 label="Destination"
                 value={draft.destination}
                 placeholder="Search your destination city"
-                onChange={value => { patch({ destination: value, destinationLocation: undefined }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: value } : leg)); }}
-                onSelect={location => { patch({ destination: location.label, destinationLocation: { lat: location.lat, lng: location.lng } }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: location.label } : leg)); }}
+                onChange={value => { setRouteResearch(null); patch({ destination: value, destinationLocation: undefined }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: value } : leg)); }}
+                onSelect={location => { setRouteResearch(null); patch({ destination: location.label, destinationLocation: { lat: location.lat, lng: location.lng } }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: location.label } : leg)); }}
               />
               {hasDestinationPoint && <p className="mt-2 text-xs text-[#71857e]">Map location attached · {destinationPoint!.lat.toFixed(4)}, {destinationPoint!.lng.toFixed(4)}</p>}
             </div>
@@ -133,8 +181,8 @@ export default function JourneyStudio() {
                 label="Departure city"
                 value={draft.startLocation}
                 placeholder="Search your departure city"
-                onChange={startLocation => { patch({ startLocation, startLocationPoint: undefined }); setTransportLegs(legs => legs.map((leg, index) => index === 0 ? { ...leg, origin: startLocation } : leg)); }}
-                onSelect={location => { patch({ startLocation: location.label, startLocationPoint: { lat: location.lat, lng: location.lng } }); setTransportLegs(legs => legs.map((leg, index) => index === 0 ? { ...leg, origin: location.label } : leg)); }}
+                onChange={startLocation => { setRouteResearch(null); patch({ startLocation, startLocationPoint: undefined }); setTransportLegs(legs => legs.map((leg, index) => index === 0 ? { ...leg, origin: startLocation } : leg)); }}
+                onSelect={location => { setRouteResearch(null); patch({ startLocation: location.label, startLocationPoint: { lat: location.lat, lng: location.lng } }); setTransportLegs(legs => legs.map((leg, index) => index === 0 ? { ...leg, origin: location.label } : leg)); }}
               />
               <p className="mt-2 text-xs text-[#71857e]">Required. Select a suggested place so TripsForge can estimate the journey from your actual starting point.</p>
               {draft.startLocationPoint && <p className="mt-1 text-xs font-semibold text-[#28745c]">Departure location selected · {draft.startLocationPoint.lat.toFixed(4)}, {draft.startLocationPoint.lng.toFixed(4)}</p>}
@@ -142,7 +190,7 @@ export default function JourneyStudio() {
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><CalendarDays className="h-5 w-5 text-[#e6651b]" /> Travel dates</h2>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-semibold">Departure<input type="date" min={dateOffset(0)} value={draft.startDate} onChange={e => patch({ startDate: e.target.value })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Departure<input type="date" min={dateOffset(0)} value={draft.startDate} onChange={e => { setRouteResearch(null); patch({ startDate: e.target.value }); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
                 <label className="grid gap-2 text-sm font-semibold">Return<input type="date" min={draft.startDate || dateOffset(0)} value={draft.endDate} onChange={e => patch({ endDate: e.target.value })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
               </div>
             </div>
@@ -154,14 +202,44 @@ export default function JourneyStudio() {
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><Wallet className="h-5 w-5 text-[#e6651b]" /> Budget</h2>
               <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
                 <label className="grid gap-2 text-sm font-semibold">Budget limit for everyone ({draft.currency})<input type="text" inputMode="decimal" value={budgetInput} onChange={e => { const value = e.target.value; if (value === "" || /^\d*(\.\d*)?$/.test(value)) { setBudgetInput(value); if (value.trim() !== "" && Number.isFinite(Number(value))) patch({ budget: Math.max(0, Number(value)) }); } }} onBlur={() => { if (budgetInput.trim() === "") setBudgetInput(String(draft.budget > 0 ? draft.budget : defaultPlan.budget)); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
-                <label className="grid gap-2 text-sm font-semibold">Travel style<select value={draft.travelStyle} onChange={e => patch({ travelStyle: e.target.value as PlanInputs["travelStyle"] })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3"><option>Relaxed</option><option>Balanced</option><option>Packed</option></select></label>
+                <div className="grid gap-2 text-sm font-semibold">
+                  <span>Travel style</span>
+                  <Select value={draft.travelStyle} onValueChange={value => patch({ travelStyle: value as PlanInputs["travelStyle"] })}>
+                    <SelectTrigger className="h-11 w-full rounded-xl border-[#123a35]/15 bg-white px-3 text-sm font-medium text-[#123a35] shadow-none">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[1300] rounded-xl bg-white text-[#123a35] shadow-xl">
+                      <SelectItem value="Relaxed">Relaxed</SelectItem>
+                      <SelectItem value="Balanced">Balanced</SelectItem>
+                      <SelectItem value="Packed">Packed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <p className="mt-2 text-xs leading-5 text-[#71857e]">This is your spending limit for the whole group. It stays fixed when traveller numbers change; the trip estimate below recalculates from the unit prices you enter.</p><div className="mt-3 flex flex-wrap gap-2">{(["Budget", "Balanced", "Premium"] as const).map(level => <button type="button" key={level} onClick={() => patch({ budgetLevel: level })} className={`rounded-full border px-4 py-2 text-sm font-semibold ${draft.budgetLevel === level ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{level}</button>)}</div>
             </div>
             <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div><h2 className="font-display text-2xl">Journey transport legs</h2><p className="mt-1 text-sm text-[#71857e]">Break the route into separately priced segments.</p></div>
+                <div><h2 className="font-display text-2xl">Journey transport legs</h2><p className="mt-1 text-sm text-[#71857e]">Break a complex journey into separately planned segments.</p></div>
                 <button type="button" onClick={() => setTransportLegs(legs => [...legs, createEmptyTransportLeg(legs.at(-1)?.destination || draft.startLocation, draft.destination)])} className="rounded-xl bg-[#123a35] px-3 py-2 text-sm font-bold text-white">Add leg +</button>
+              </div>
+              <div className="mt-4 rounded-xl border border-[#123a35]/10 bg-white p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><p className="font-bold">Research this route</p><p className="mt-1 text-xs leading-5 text-[#71857e]">Check mapped transport infrastructure near both endpoints and look for a drivable road-network route.</p></div>
+                  <button type="button" onClick={() => void runRouteResearch()} disabled={researching || !draft.startLocationPoint || !draft.destinationLocation} className="rounded-xl bg-[#e6651b] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{researching ? "Researching…" : "Research route"}</button>
+                </div>
+                {!draft.startLocationPoint || !draft.destinationLocation ? <p className="mt-3 text-xs text-[#8b542d]">Choose both locations from the search suggestions to enable research.</p> : null}
+                {researchError && <p role="alert" className="mt-3 text-xs font-semibold text-red-700">{researchError}</p>}
+                {routeResearch && <div className="mt-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#71857e]"><span>Sources: {routeResearch.provider}</span><span>Checked {new Date(routeResearch.retrievedAt).toLocaleString()}</span></div>
+                  {routeResearch.road && <div className={`rounded-xl p-3 text-sm ${routeResearch.road.status === "route_found" ? "bg-[#edf5ef]" : "bg-[#fff4e8]"}`}>{routeResearch.road.status === "route_found" ? <><strong>Road network route found:</strong> {routeResearch.road.distanceKm} km · approximately {Math.round((routeResearch.road.durationMinutes || 0) / 60 * 10) / 10} hours by car. This is not a live traffic or road-open check.</> : routeResearch.road.status === "no_route_returned" ? <>OSRM returned no drivable route for these coordinates. This does not prove that no road connection exists.</> : <>Road-network lookup unavailable: {routeResearch.road.reason || "The routing provider could not complete the request."}</>}</div>}
+                  {routeResearch.modes.map(item => <div key={item.mode} className="rounded-xl border border-[#123a35]/10 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold capitalize">{item.mode}</p><span className="rounded-full bg-[#f2eddf] px-2 py-1 text-[10px] font-bold uppercase tracking-wide">{item.status.replaceAll("_", " ")}</span></div>
+                    <p className="mt-2 text-xs leading-5 text-[#637e76]">{item.evidence}</p>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] font-semibold text-[#8b542d]">Scheduled service: unverified · Booking: not connected</p><button type="button" onClick={() => updateTransportLeg(transportLegs[0].id, { mode: item.mode })} className="text-xs font-bold text-[#e6651b]">Use as planning assumption</button></div>
+                  </div>)}
+                  <div className="rounded-xl bg-[#fff4e8] p-3"><p className="text-xs font-bold text-[#8b542d]">Research limitations</p><ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] leading-5 text-[#8b542d]">{routeResearch.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul></div>
+                </div>}
               </div>
               <div className="mt-4 space-y-3">
                 {transportLegs.map((leg, index) => <div key={leg.id} className="rounded-xl border border-[#123a35]/10 bg-white p-3">
@@ -169,21 +247,42 @@ export default function JourneyStudio() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="grid gap-1 text-xs font-semibold">From<input value={leg.origin} onChange={e => updateTransportLeg(leg.id, { origin: e.target.value })} placeholder="Origin" className="min-w-0 rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
                     <label className="grid gap-1 text-xs font-semibold">To<input value={leg.destination} onChange={e => updateTransportLeg(leg.id, { destination: e.target.value })} placeholder="Destination" className="min-w-0 rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
-                    <label className="grid gap-1 text-xs font-semibold">Mode<select value={leg.mode} onChange={e => updateTransportLeg(leg.id, { mode: e.target.value as TransportMode })} className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"><option value="flight">Flight</option><option value="train">Train</option><option value="bus">Bus</option><option value="car">Car / taxi</option><option value="ferry">Ferry</option><option value="other">Other</option></select></label>
-                    <label className="grid gap-1 text-xs font-semibold">Travel date<input type="date" value={leg.travelDate} onChange={e => updateTransportLeg(leg.id, { travelDate: e.target.value })} className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
+                    <div className="grid gap-1 text-xs font-semibold">
+                      <span>Transport assumption</span>
+                      <Select value={leg.mode} onValueChange={value => updateTransportLeg(leg.id, { mode: value as TransportMode })}>
+                        <SelectTrigger className="h-11 w-full rounded-xl border-[#123a35]/15 bg-white px-3 text-sm font-medium text-[#123a35] shadow-none focus:ring-2 focus:ring-[#e6651b]/20">
+                          <SelectValue placeholder="Choose transport" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[1300] rounded-xl border-[#123a35]/10 bg-white text-[#123a35] shadow-xl">
+                          <SelectItem value="unverified">Not decided / needs research</SelectItem>
+                          <SelectItem value="flight">Flight</SelectItem>
+                          <SelectItem value="train">Train</SelectItem>
+                          <SelectItem value="bus">Bus</SelectItem>
+                          <SelectItem value="car">Car / taxi</SelectItem>
+                          <SelectItem value="ferry">Ferry</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <label className="grid gap-1 text-xs font-semibold">Travel date<input type="date" value={leg.travelDate} onChange={e => { setRouteResearch(null); updateTransportLeg(leg.id, { travelDate: e.target.value }); }} className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
                     <label className="grid gap-1 text-xs font-semibold sm:col-span-2">Estimated total for this leg ({draft.currency})<input type="number" min="0" value={leg.unitCost || ""} onChange={e => updateTransportLeg(leg.id, { unitCost: Math.max(0, Number(e.target.value) || 0) })} placeholder="Enter a quote or estimate" className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
                   </div>
                   <p className="mt-2 text-[11px] text-[#87958f]">Traveller-entered amount for this segment. Not a live fare or availability result.</p>
                 </div>)}
               </div>
-              <p className="mt-3 text-sm font-bold">Transport total: {money(transportTotal, draft.currency)}</p>
+              <p className="mt-3 text-sm font-bold">Transport total: {money(transportTotal, draft.currency)}</p><p className="mt-2 rounded-lg bg-[#fff4e8] px-3 py-2 text-xs leading-5 text-[#8b542d]">A selected mode is only your planning assumption. TripsForge has not verified that a scheduled service operates on this segment. “Not decided” is the default until route research can confirm realistic connections. Prices entered here are not live fares.</p>
             </div>
             <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div><h2 className="font-display text-2xl">Trip cost breakdown</h2><p className="mt-1 text-sm text-[#71857e]">Enter a cost per unit. Totals recalculate when prices, traveller counts, rooms or dates change.</p></div>
-                <select aria-label="Budget currency" value={draft.currency} onChange={e => { patch({ currency: e.target.value }); setBudgetItems(items => items.map(item => ({ ...item, currency: e.target.value }))); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-2 text-sm font-semibold">
-                  {["INR","USD","EUR","GBP","AED","SGD","CAD","AUD"].map(currency => <option key={currency}>{currency}</option>)}
-                </select>
+                <Select value={draft.currency} onValueChange={currency => { patch({ currency }); setBudgetItems(items => items.map(item => ({ ...item, currency }))); }}>
+                  <SelectTrigger aria-label="Budget currency" className="h-10 w-[112px] rounded-xl border-[#123a35]/15 bg-white px-3 text-sm font-semibold text-[#123a35] shadow-none">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[1300] rounded-xl bg-white text-[#123a35] shadow-xl">
+                    {["INR","USD","EUR","GBP","AED","SGD","CAD","AUD"].map(currency => <SelectItem key={currency} value={currency}>{currency}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {(["economy","expected","comfort"] as const).map(scenario => <button type="button" key={scenario} onClick={() => setActiveScenario(scenario)} className={`rounded-xl border px-2 py-3 text-sm font-bold capitalize ${activeScenario === scenario ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{scenario}</button>)}

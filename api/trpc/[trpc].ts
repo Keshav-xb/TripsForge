@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../lib/routeResearch";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
@@ -67,7 +68,8 @@ function send(req: IncomingMessage, res: ServerResponse, status: number, value: 
   const batched = new URL(req.url ?? "", "https://tripsforge.local").searchParams.get("batch") === "1";
   res.statusCode = status;
   res.setHeader("content-type", "application/json");
-  res.setHeader("cache-control", "public, max-age=60, s-maxage=300");
+  const routeResearchRequest = new URL(req.url ?? "", "https://tripsforge.local").pathname.endsWith("/route.research");
+  res.setHeader("cache-control", routeResearchRequest ? "no-store" : "public, max-age=60, s-maxage=300");
   res.setHeader("access-control-allow-origin", "*");
   res.end(JSON.stringify(batched ? [value] : value));
 }
@@ -99,6 +101,43 @@ async function photonSearch(url: URL) {
   photonSearchInFlight.set(key, request);
   return request;
 }
+
+type OpenMeteoGeocodingResult = {
+  id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  country?: string;
+  country_code?: string;
+  admin1?: string;
+  admin2?: string;
+  feature_code?: string;
+};
+
+async function openMeteoLocationSearch(query: string) {
+  const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
+  url.searchParams.set("name", query);
+  url.searchParams.set("count", "8");
+  url.searchParams.set("language", "en");
+  url.searchParams.set("format", "json");
+  const response = await fetch(url, {
+    headers: { "User-Agent": "TripsForge/1.0 (travel planning MVP)" },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`OPEN_METEO_GEOCODING_HTTP_${response.status}`);
+  const data = await response.json() as { results?: OpenMeteoGeocodingResult[] };
+  return (data.results ?? []).map(item => {
+    const secondary = [item.admin2, item.admin1, item.country].filter(Boolean).join(", ");
+    const description = [item.name, secondary].filter(Boolean).join(", ");
+    return {
+      placeId: `geonames:${item.id}`,
+      description,
+      location: { lat: item.latitude, lng: item.longitude },
+      name: item.name,
+      secondary,
+    };
+  });
+}
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const path = new URL(req.url ?? "", "https://tripsforge.local").pathname.replace(/^\/api\/trpc\//, "");
   try {
@@ -108,17 +147,29 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       url.searchParams.set("q", String(input.query ?? ""));
       url.searchParams.set("limit", "8");
       url.searchParams.set("lang", "en");
-      const data = await photonSearch(url) as { features?: PhotonFeature[] };
-      return send(req, res, 200, trpcData({
-        provider: "OpenStreetMap / Photon",
-        retrievedAt: new Date().toISOString(),
-        results: (data.features ?? []).map(feature => ({
+      const query = String(input.query ?? "").trim();
+      if (query.length < 2 || query.length > 120) {
+        return send(req, res, 200, trpcData({ provider: "OpenStreetMap / Photon", retrievedAt: new Date().toISOString(), results: [] }));
+      }
+      let results: Array<{ placeId: string; description: string; location: Point; name: string; secondary: string }>;
+      let provider = "OpenStreetMap / Photon";
+      try {
+        const data = await photonSearch(url) as { features?: PhotonFeature[] };
+        results = (data.features ?? []).map(feature => ({
           placeId: feature.properties.osm_type && feature.properties.osm_id ? `${feature.properties.osm_type}:${feature.properties.osm_id}` : "",
           description: label(feature.properties),
           location: { lat: feature.geometry.coordinates[1], lng: feature.geometry.coordinates[0] },
           name: feature.properties.name ?? label(feature.properties),
           secondary: [feature.properties.city, feature.properties.state, feature.properties.country].filter(Boolean).join(", "),
-        })).filter(item => item.description),
+        })).filter(item => item.description);
+      } catch {
+        results = await openMeteoLocationSearch(query);
+        provider = "Open-Meteo Geocoding (fallback)";
+      }
+      return send(req, res, 200, trpcData({
+        provider,
+        retrievedAt: new Date().toISOString(),
+        results,
       }));
     }
     if (path === "location.resolve") {
@@ -156,6 +207,110 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (path === "places.nearby") {
       const places = await nearbyPlaces(input as { lat: number; lng: number; category: string; radius?: number });
       return send(req, res, 200, trpcData({ provider: "OpenStreetMap / Overpass", retrievedAt: new Date().toISOString(), places }));
+    }
+    if (path === "route.research") {
+      const origin = String(input.origin ?? "").trim();
+      const destination = String(input.destination ?? "").trim();
+      const travelDate = String(input.travelDate ?? "");
+      const originPoint = input.originPoint as Point | undefined;
+      const destinationPoint = input.destinationPoint as Point | undefined;
+      const validPoint = (point: Point | undefined) => !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
+      if (origin.length < 2 || origin.length > 180 || destination.length < 2 || destination.length > 180) throw new Error("INVALID_ROUTE_LABELS");
+      if (!validPoint(originPoint) || !validPoint(destinationPoint)) throw new Error("INVALID_ROUTE_COORDINATES");
+      const resolvedOriginPoint = originPoint!;
+      const resolvedDestinationPoint = destinationPoint!;
+      // Run routing alongside infrastructure lookups and cap each public-provider
+      // request below Vercel's short serverless execution window.
+      const roadPromise = (async (): Promise<Parameters<typeof buildRouteResearch>[0]["road"]> => {
+        try {
+          const coordinates = `${resolvedOriginPoint.lng},${resolvedOriginPoint.lat};${resolvedDestinationPoint.lng},${resolvedDestinationPoint.lat}`;
+          const url = new URL(`https://router.project-osrm.org/route/v1/driving/${coordinates}`);
+          url.searchParams.set("overview", "false");
+          url.searchParams.set("steps", "false");
+          const response = await fetch(url, { signal: AbortSignal.timeout(4500) });
+          if (!response.ok) throw new Error(`OSRM_HTTP_${response.status}`);
+          const body = await response.text();
+          let data: { code: string; routes?: Array<{ distance: number; duration: number }> };
+          try {
+            data = JSON.parse(body);
+          } catch {
+            throw new Error("OSRM_INVALID_RESPONSE");
+          }
+          const route = data.routes?.[0];
+          return data.code === "Ok" && route
+            ? { status: "route_found", distanceKm: Math.round(route.distance / 100) / 10, durationMinutes: Math.round(route.duration / 60), provider: "OSRM / OpenStreetMap" }
+            : { status: "no_route_returned", provider: "OSRM / OpenStreetMap" };
+        } catch (error) {
+          return { status: "unavailable", provider: "OSRM / OpenStreetMap", reason: error instanceof Error ? error.message : "ROAD_ROUTE_UNAVAILABLE" };
+        }
+      })();
+      const parsedTravelDate = new Date(travelDate + "T00:00:00Z");
+      if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(travelDate) || Number.isNaN(parsedTravelDate.getTime()) || parsedTravelDate.toISOString().slice(0, 10) !== travelDate) throw new Error("INVALID_TRAVEL_DATE");
+
+      const infrastructureQueries: Array<{ kind: TransportResearchMode; filter: string }> = [
+        { kind: "flight", filter: '["aeroway"="aerodrome"]' },
+        { kind: "train", filter: '["railway"~"station|halt"]' },
+        { kind: "bus", filter: '["amenity"="bus_station"]' },
+        { kind: "ferry", filter: '["amenity"="ferry_terminal"]' },
+      ];
+      const searchInfrastructure = async (point: Point) => {
+        const around = `(around:20000,${point.lat},${point.lng})`;
+        const query = `[out:json][timeout:20];(
+          node${around}["aeroway"="aerodrome"];way${around}["aeroway"="aerodrome"];relation${around}["aeroway"="aerodrome"];
+          node${around}["railway"~"station|halt"];way${around}["railway"~"station|halt"];relation${around}["railway"~"station|halt"];
+          node${around}["amenity"="bus_station"];way${around}["amenity"="bus_station"];relation${around}["amenity"="bus_station"];
+          node${around}["highway"="bus_stop"];way${around}["highway"="bus_stop"];
+          node${around}["amenity"="ferry_terminal"];way${around}["amenity"="ferry_terminal"];relation${around}["amenity"="ferry_terminal"];
+        );out center tags;`;
+        const response = await fetch("https://overpass-api.de/api/interpreter", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (route research)" },
+          body: new URLSearchParams({ data: query }),
+          signal: AbortSignal.timeout(2500),
+        });
+        if (!response.ok) throw new Error(`OVERPASS_HTTP_${response.status}`);
+        const body = await response.text();
+        let data: { elements?: Array<{ tags?: Record<string, string> }> };
+        try {
+          data = JSON.parse(body);
+        } catch {
+          throw new Error("OVERPASS_INVALID_RESPONSE");
+        }
+        const elements = data.elements ?? [];
+        const classify = (tags: Record<string, string> = {}): TransportResearchMode | null => {
+          if (tags.aeroway === "aerodrome") return "flight";
+          if (tags.railway === "station" || tags.railway === "halt") return "train";
+          if (tags.amenity === "bus_station" || tags.highway === "bus_stop") return "bus";
+          if (tags.amenity === "ferry_terminal") return "ferry";
+          return null;
+        };
+        return infrastructureQueries.map(({ kind }) => {
+          const matching = elements.filter(element => classify(element.tags) === kind);
+          const names = matching.map(element => element.tags?.name ?? element.tags?.["name:en"]).filter((name): name is string => !!name);
+          return { kind, count: matching.length, examples: Array.from(new Set(names)).slice(0, 4), checked: true };
+        });
+      };
+      const safeInfrastructureSearch = async (point: Point) => {
+        try {
+          return await searchInfrastructure(point);
+        } catch {
+          return infrastructureQueries.map(({ kind }) => ({ kind, count: 0, examples: [], checked: false }));
+        }
+      };
+      const [originInfrastructure, destinationInfrastructure] = await Promise.all([
+        safeInfrastructureSearch(resolvedOriginPoint),
+        safeInfrastructureSearch(resolvedDestinationPoint),
+      ]);
+      const infrastructure: InfrastructureEvidence[] = infrastructureQueries.map(({ kind }) => {
+        const from = originInfrastructure.find(item => item.kind === kind)!;
+        const to = destinationInfrastructure.find(item => item.kind === kind)!;
+        return { kind, originCount: from.count, destinationCount: to.count, originExamples: from.examples, destinationExamples: to.examples, checked: from.checked && to.checked };
+      });
+
+      const road = await roadPromise;
+      const result = buildRouteResearch({ origin, destination, travelDate, road, infrastructure, retrievedAt: new Date().toISOString() });
+      res.setHeader("cache-control", "no-store");
+      return send(req, res, 200, trpcData(result));
     }
     if (path === "route.preview") {
       const rawStops = Array.isArray(input.stops) ? input.stops as Array<{ id?: string; title: string; location?: Point; geocode?: boolean }> : [];

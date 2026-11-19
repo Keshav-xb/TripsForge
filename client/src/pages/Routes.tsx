@@ -5,8 +5,9 @@ import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { formatRouteBudget, type RouteRecord } from "@/lib/routeData";
 import { listExploreRoutes } from "@/lib/supabaseRoutes";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const selectClass = "w-full rounded-xl border border-[#123a35]/15 bg-white px-3 py-3 text-sm font-semibold text-[#355752] outline-none transition focus:border-[#e6651b] focus:ring-2 focus:ring-[#e6651b]/15";
+const selectTriggerClass = "h-11 w-full rounded-xl border-[#123a35]/15 bg-white px-3 text-sm font-semibold text-[#355752] shadow-none transition hover:border-[#e6651b]/50 focus:ring-2 focus:ring-[#e6651b]/15";
 
 function values(routes: RouteRecord[], key: "continent" | "country" | "region") {
   return Array.from(new Set(routes.map((route) => route[key]))).sort();
@@ -40,7 +41,56 @@ export default function Routes() {
 
   return <div className="min-h-screen bg-[#fffdf8] text-[#123a35]"><SiteHeader /><main>
     <section className="relative overflow-hidden border-b border-[#123a35]/10 bg-[#f2eddf] px-5 py-14 lg:px-10 lg:py-20"><div className="absolute -right-24 -top-28 h-80 w-80 rounded-full border-[34px] border-[#e6651b]/10" /><div className="relative mx-auto max-w-[1440px]"><div className="flex items-center gap-2 text-xs font-black uppercase tracking-[.18em] text-[#e6651b]"><Globe2 className="h-4 w-4" /> Global route discovery</div><h1 className="mt-5 max-w-4xl font-display text-5xl leading-[.92] tracking-[-.07em] sm:text-7xl">Find the route <em>between</em> the places.</h1><p className="mt-6 max-w-2xl text-lg leading-8 text-[#5d7771]">Curated multi-stop journeys for travellers who want more than a pin on the map. Start with a continent, follow a region, and let the route take shape.</p><div className="mt-8 flex flex-wrap gap-3 text-sm font-bold"><span className="rounded-full bg-[#123a35] px-4 py-2 text-white">{routes.length || 6} route ideas</span><span className="rounded-full border border-[#123a35]/15 bg-white/60 px-4 py-2 text-[#56716a]">Sample catalog · ready to expand</span></div></div></section>
-    <section className="px-5 py-8 lg:px-10 lg:py-12"><div className="mx-auto max-w-[1440px]"><div className="rounded-[1.6rem] border border-[#123a35]/10 bg-white p-4 shadow-[0_18px_50px_-38px_rgba(18,58,53,.6)] sm:p-5"><div className="flex items-center justify-between gap-4"><div className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-[#e6651b]" /><p className="text-sm font-black uppercase tracking-[.12em] text-[#123a35]">Shape your search</p></div><button onClick={reset} className="text-xs font-bold text-[#e6651b] hover:underline">Reset filters</button></div><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"><label className="text-xs font-bold text-[#6a817a]">Continent<select value={continent} onChange={(event) => { setContinent(event.target.value); setCountry("All countries"); setRegion("All regions"); }} className={selectClass}><option>All continents</option>{values(routes, "continent").map((item) => <option key={item}>{item}</option>)}</select></label><label className="text-xs font-bold text-[#6a817a]">Country<select value={country} onChange={(event) => setCountry(event.target.value)} className={selectClass}><option>All countries</option>{values(routes.filter((route) => continent === "All continents" || route.continent === continent), "country").map((item) => <option key={item}>{item}</option>)}</select></label><label className="text-xs font-bold text-[#6a817a]">State / region<select value={region} onChange={(event) => setRegion(event.target.value)} className={selectClass}><option>All regions</option>{values(routes.filter((route) => (continent === "All continents" || route.continent === continent) && (country === "All countries" || route.country === country)), "region").map((item) => <option key={item}>{item}</option>)}</select></label><label className="text-xs font-bold text-[#6a817a]">Budget<select value={budget} onChange={(event) => setBudget(event.target.value)} className={selectClass}><option>Any budget</option><option>Under ₹50k</option><option>₹50k–₹1.5L</option><option>₹1.5L+</option></select></label><label className="text-xs font-bold text-[#6a817a]">Duration<select value={duration} onChange={(event) => setDuration(event.target.value)} className={selectClass}><option>Any duration</option><option>1 week or less</option><option>8–10 days</option><option>11+ days</option></select></label><label className="text-xs font-bold text-[#6a817a]">Travel style<select value={style} onChange={(event) => setStyle(event.target.value)} className={selectClass}><option>All styles</option><option>Cultural</option><option>Food</option><option>Nature</option><option>Romantic</option><option>Adventure</option><option>Road trip</option></select></label></div></div>
+    <section className="px-5 py-8 lg:px-10 lg:py-12"><div className="mx-auto max-w-[1440px]"><div className="rounded-[1.6rem] border border-[#123a35]/10 bg-white p-4 shadow-[0_18px_50px_-38px_rgba(18,58,53,.6)] sm:p-5"><div className="flex items-center justify-between gap-4"><div className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-[#e6651b]" /><p className="text-sm font-black uppercase tracking-[.12em] text-[#123a35]">Shape your search</p></div><button onClick={reset} className="text-xs font-bold text-[#e6651b] hover:underline">Reset filters</button></div><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <label className="grid gap-2 text-xs font-bold text-[#6a817a]">Continent
+          <Select value={continent} onValueChange={(value) => { setContinent(value); setCountry("All countries"); setRegion("All regions"); }}>
+            <SelectTrigger className={selectTriggerClass}><SelectValue /></SelectTrigger>
+            <SelectContent className="z-[1300] rounded-xl border-[#123a35]/10 bg-white text-[#123a35] shadow-xl">
+              <SelectItem value="All continents">All continents</SelectItem>{values(routes, "continent").map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="grid gap-2 text-xs font-bold text-[#6a817a]">Country
+          <Select value={country} onValueChange={setCountry}>
+            <SelectTrigger className={selectTriggerClass}><SelectValue /></SelectTrigger>
+            <SelectContent className="z-[1300] rounded-xl bg-white text-[#123a35] shadow-xl">
+              <SelectItem value="All countries">All countries</SelectItem>{values(routes.filter(route => continent === "All continents" || route.continent === continent), "country").map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="grid gap-2 text-xs font-bold text-[#6a817a]">State / region
+          <Select value={region} onValueChange={setRegion}>
+            <SelectTrigger className={selectTriggerClass}><SelectValue /></SelectTrigger>
+            <SelectContent className="z-[1300] rounded-xl bg-white text-[#123a35] shadow-xl">
+              <SelectItem value="All regions">All regions</SelectItem>{values(routes.filter(route => (continent === "All continents" || route.continent === continent) && (country === "All countries" || route.country === country)), "region").map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="grid gap-2 text-xs font-bold text-[#6a817a]">Budget
+          <Select value={budget} onValueChange={setBudget}>
+            <SelectTrigger className={selectTriggerClass}><SelectValue /></SelectTrigger>
+            <SelectContent className="z-[1300] rounded-xl bg-white text-[#123a35] shadow-xl">
+              {["Any budget","Under ₹50k","₹50k–₹1.5L","₹1.5L+"].map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="grid gap-2 text-xs font-bold text-[#6a817a]">Duration
+          <Select value={duration} onValueChange={setDuration}>
+            <SelectTrigger className={selectTriggerClass}><SelectValue /></SelectTrigger>
+            <SelectContent className="z-[1300] rounded-xl bg-white text-[#123a35] shadow-xl">
+              {["Any duration","1 week or less","8–10 days","11+ days"].map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="grid gap-2 text-xs font-bold text-[#6a817a]">Travel style
+          <Select value={style} onValueChange={setStyle}>
+            <SelectTrigger className={selectTriggerClass}><SelectValue /></SelectTrigger>
+            <SelectContent className="z-[1300] rounded-xl bg-white text-[#123a35] shadow-xl">
+              {["All styles","Cultural","Food","Nature","Romantic","Adventure","Road trip"].map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </label>
+      </div></div>
       <div className="mt-10 flex items-end justify-between gap-5"><div><p className="atlas-label text-[#e6651b]">{source === "supabase" ? "Live catalog" : "Starter catalog"}</p><h2 className="mt-3 font-display text-3xl tracking-[-.05em]">{filtered.length} routes to follow</h2></div><p className="hidden max-w-xs text-right text-sm leading-6 text-[#6b827c] sm:block">Every route is a starting point. Shape it around your dates, budget and pace in TripsForge.</p></div>
       {loading ? <div className="grid min-h-[300px] place-items-center"><Loader2 className="h-8 w-8 animate-spin text-[#e6651b]" /></div> : filtered.length ? <div className="mt-7 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{filtered.map((route) => <RouteCard key={route.slug} route={route} />)}</div> : <div className="mt-7 rounded-[1.6rem] bg-[#f2eddf] p-10 text-center"><Compass className="mx-auto h-8 w-8 text-[#e6651b]" /><h3 className="mt-4 font-display text-3xl">That combination is still being mapped.</h3><button onClick={reset} className="mt-4 font-bold text-[#e6651b]">See every route</button></div>}
     </div></section>
