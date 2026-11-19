@@ -4,7 +4,7 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const publishableKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 describe("Supabase saved-trip access boundaries", () => {
-  it("denies anonymous saved-trip reads while exposing only the public-share RPC", async () => {
+  it.skipIf(!supabaseUrl || !publishableKey)("denies anonymous saved-trip reads while exposing only the public-share RPC", async () => {
     expect(supabaseUrl).toMatch(/^https:\/\//);
     expect(publishableKey).toBeTruthy();
 
