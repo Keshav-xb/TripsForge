@@ -140,6 +140,8 @@ async function openMeteoLocationSearch(query: string) {
 }
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const path = new URL(req.url ?? "", "https://tripsforge.local").pathname.replace(/^\/api\/trpc\//, "");
+  const requestId = globalThis.crypto?.randomUUID?.() ?? `route-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  res.setHeader("x-tripsforge-request-id", requestId);
   try {
     const { input } = requestData(req);
     if (path === "location.search") {
