@@ -29,11 +29,11 @@ export default function LocationSearch({
   const [resolveError, setResolveError] = useState(false);
   const query = trpc.location.search.useQuery(
     { query: search },
-    { enabled: search.trim().length >= 2, staleTime: 60_000, retry: false }
+    { enabled: search.trim().length >= 2, staleTime: 5 * 60_000, gcTime: 10 * 60_000, refetchOnWindowFocus: false, retry: false }
   );
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setSearch(value.trim()), 250);
+    const timer = window.setTimeout(() => setSearch(value.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [value]);
 
