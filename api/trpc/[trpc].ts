@@ -167,7 +167,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const destinationPoint = input.destinationPoint as Point | undefined;
       const validPoint = (point: Point | undefined) => !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
       if (origin.length < 2 || origin.length > 180 || destination.length < 2 || destination.length > 180) throw new Error("INVALID_ROUTE_LABELS");
-      if (!validPoint(originPoint) || !validPoint(destinationPoint)) throw new Error("INVALID_ROUTE_COORDINATES");
+      if (!validPoint(originPoint) || !validPoint(destinationPoint)) throw new Error("INVALID_ROUTE_COORDINATES");\n      const resolvedOriginPoint = originPoint!;\n      const resolvedDestinationPoint = destinationPoint!;
       const parsedTravelDate = new Date(travelDate + "T00:00:00Z");
       if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(travelDate) || Number.isNaN(parsedTravelDate.getTime()) || parsedTravelDate.toISOString().slice(0, 10) !== travelDate) throw new Error("INVALID_TRAVEL_DATE");
 
@@ -205,7 +205,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         return infrastructureQueries.map(({ kind }) => {
           const matching = elements.filter(element => classify(element.tags) === kind);
           const names = matching.map(element => element.tags?.name ?? element.tags?.["name:en"]).filter((name): name is string => !!name);
-          return { kind, count: matching.length, examples: [...new Set(names)].slice(0, 4), checked: true };
+          return { kind, count: matching.length, examples: Array.from(new Set(names)).slice(0, 4), checked: true };
         });
       };
       const safeInfrastructureSearch = async (point: Point) => {
@@ -227,7 +227,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
       let road: Parameters<typeof buildRouteResearch>[0]["road"] = null;
       try {
-        const coordinates = `${originPoint.lng},${originPoint.lat};${destinationPoint.lng},${destinationPoint.lat}`;
+        const coordinates = `${resolvedOriginPoint.lng},${resolvedOriginPoint.lat};${resolvedDestinationPoint.lng},${resolvedDestinationPoint.lat}`;
         const url = new URL(`https://router.project-osrm.org/route/v1/driving/${coordinates}`);
         url.searchParams.set("overview", "false");
         url.searchParams.set("steps", "false");
