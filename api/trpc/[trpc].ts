@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../lib/routeResearch";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
@@ -156,6 +157,70 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (path === "places.nearby") {
       const places = await nearbyPlaces(input as { lat: number; lng: number; category: string; radius?: number });
       return send(req, res, 200, trpcData({ provider: "OpenStreetMap / Overpass", retrievedAt: new Date().toISOString(), places }));
+    }
+    if (path === "route.research") {
+      const origin = String(input.origin ?? "").trim();
+      const destination = String(input.destination ?? "").trim();
+      const travelDate = String(input.travelDate ?? "");
+      const originPoint = input.originPoint as Point | undefined;
+      const destinationPoint = input.destinationPoint as Point | undefined;
+      const validPoint = (point: Point | undefined) => !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
+      if (origin.length < 2 || origin.length > 180 || destination.length < 2 || destination.length > 180) throw new Error("INVALID_ROUTE_LABELS");
+      if (!validPoint(originPoint) || !validPoint(destinationPoint)) throw new Error("INVALID_ROUTE_COORDINATES");
+      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(travelDate) || Number.isNaN(Date.parse(travelDate + "T12:00:00Z"))) throw new Error("INVALID_TRAVEL_DATE");
+
+      const infrastructureQueries: Array<{ kind: TransportResearchMode; filter: string }> = [
+        { kind: "flight", filter: '["aeroway"="aerodrome"]' },
+        { kind: "train", filter: '["railway"~"station|halt"]' },
+        { kind: "bus", filter: '["amenity"="bus_station"]' },
+        { kind: "ferry", filter: '["amenity"="ferry_terminal"]' },
+      ];
+      const searchInfrastructure = async (point: Point) => {
+        const results = await Promise.all(infrastructureQueries.map(async ({ kind, filter }) => {
+          const query = `[out:json][timeout:18];(node(around:20000,${point.lat},${point.lng})${filter};way(around:20000,${point.lat},${point.lng})${filter};relation(around:20000,${point.lat},${point.lng})${filter};);out center tags;`;
+          const response = await fetch("https://overpass-api.de/api/interpreter", {
+            method: "POST",
+            headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (route research)" },
+            body: new URLSearchParams({ data: query }),
+            signal: AbortSignal.timeout(20000),
+          });
+          if (!response.ok) throw new Error(`OVERPASS_HTTP_${response.status}`);
+          const data = await response.json() as { elements?: Array<{ tags?: Record<string, string> }> };
+          const names = (data.elements ?? []).map(element => element.tags?.name ?? element.tags?.["name:en"]).filter((name): name is string => !!name);
+          return { kind, count: data.elements?.length ?? 0, examples: [...new Set(names)].slice(0, 4) };
+        }));
+        return results;
+      };
+
+      const [originInfrastructure, destinationInfrastructure] = await Promise.all([
+        searchInfrastructure(originPoint),
+        searchInfrastructure(destinationPoint),
+      ]);
+      const infrastructure: InfrastructureEvidence[] = infrastructureQueries.map(({ kind }) => {
+        const from = originInfrastructure.find(item => item.kind === kind)!;
+        const to = destinationInfrastructure.find(item => item.kind === kind)!;
+        return { kind, originCount: from.count, destinationCount: to.count, originExamples: from.examples, destinationExamples: to.examples };
+      });
+
+      let road: Parameters<typeof buildRouteResearch>[0]["road"] = null;
+      try {
+        const coordinates = `${originPoint.lng},${originPoint.lat};${destinationPoint.lng},${destinationPoint.lat}`;
+        const url = new URL(`https://router.project-osrm.org/route/v1/driving/${coordinates}`);
+        url.searchParams.set("overview", "false");
+        url.searchParams.set("steps", "false");
+        const response = await fetch(url, { signal: AbortSignal.timeout(18000) });
+        if (!response.ok) throw new Error(`OSRM_HTTP_${response.status}`);
+        const data = await response.json() as { code: string; routes?: Array<{ distance: number; duration: number }> };
+        const route = data.routes?.[0];
+        road = data.code === "Ok" && route
+          ? { status: "route_found", distanceKm: Math.round(route.distance / 100) / 10, durationMinutes: Math.round(route.duration / 60), provider: "OSRM / OpenStreetMap" }
+          : { status: "no_route_returned", provider: "OSRM / OpenStreetMap" };
+      } catch (error) {
+        road = { status: "unavailable", provider: "OSRM / OpenStreetMap", reason: error instanceof Error ? error.message : "ROAD_ROUTE_UNAVAILABLE" };
+      }
+      const result = buildRouteResearch({ origin, destination, travelDate, road, infrastructure, retrievedAt: new Date().toISOString() });
+      res.setHeader("cache-control", "no-store");
+      return send(req, res, 200, trpcData(result));
     }
     if (path === "route.preview") {
       const rawStops = Array.isArray(input.stops) ? input.stops as Array<{ id?: string; title: string; location?: Point; geocode?: boolean }> : [];
