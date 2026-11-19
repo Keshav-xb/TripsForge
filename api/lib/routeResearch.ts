@@ -1,18 +1,25 @@
 export type TransportResearchMode = "flight" | "train" | "bus" | "car" | "ferry";
+
 export type InfrastructureEvidence = {
   kind: TransportResearchMode;
   originCount: number;
   destinationCount: number;
   originExamples: string[];
   destinationExamples: string[];
+  checked: boolean;
 };
+
 export type RouteResearchResult = {
   provider: string;
   retrievedAt: string;
   origin: string;
   destination: string;
   travelDate: string;
-  road: null | { status: "route_found"; distanceKm: number; durationMinutes: number; provider: string } | { status: "no_route_returned"; provider: string } | { status: "unavailable"; provider: string; reason: string };
+  road:
+    | null
+    | { status: "route_found"; distanceKm: number; durationMinutes: number; provider: string }
+    | { status: "no_route_returned"; provider: string }
+    | { status: "unavailable"; provider: string; reason: string };
   infrastructure: InfrastructureEvidence[];
   modes: Array<{
     mode: TransportResearchMode;
@@ -44,32 +51,38 @@ export function buildRouteResearch(input: {
         bookingStatus: "not_connected" as const,
       };
     }
+
     const evidence = input.infrastructure.find(item => item.kind === mode);
     const originCount = evidence?.originCount ?? 0;
     const destinationCount = evidence?.destinationCount ?? 0;
-    const status = evidence && !evidence.checked\n      ? "not_checked" as const\n      : originCount > 0 && destinationCount > 0
-      ? "infrastructure_at_both_ends" as const
-      : originCount > 0 || destinationCount > 0
-        ? "infrastructure_partial" as const
-        : evidence ? "no_infrastructure_found" as const : "not_checked" as const;
+    let status: RouteResearchResult["modes"][number]["status"] = "not_checked";
+    if (evidence?.checked) {
+      if (originCount > 0 && destinationCount > 0) status = "infrastructure_at_both_ends";
+      else if (originCount > 0 || destinationCount > 0) status = "infrastructure_partial";
+      else status = "no_infrastructure_found";
+    }
+
     const examples = [
       ...(evidence?.originExamples ?? []).map(name => `Origin: ${name}`),
       ...(evidence?.destinationExamples ?? []).map(name => `Destination: ${name}`),
     ];
+    const explanation = status === "infrastructure_at_both_ends"
+      ? `Transport infrastructure is mapped near both endpoints. ${examples.join("; ")}`
+      : status === "infrastructure_partial"
+        ? `Mapped infrastructure was found near only one endpoint. ${examples.join("; ")}`
+        : status === "no_infrastructure_found"
+          ? "No matching infrastructure was found in the searched radius. This does not prove the service does not exist."
+          : "Infrastructure data could not be checked.";
+
     return {
       mode,
       status,
-      evidence: status === "infrastructure_at_both_ends"
-        ? `Transport infrastructure is mapped near both endpoints. ${examples.join("; ")}`
-        : status === "infrastructure_partial"
-          ? `Mapped infrastructure was found near only one endpoint. ${examples.join("; ")}`
-          : status === "no_infrastructure_found"
-            ? "No matching infrastructure was found in the searched radius. This does not prove the service does not exist."
-            : "Infrastructure data could not be checked.",
+      evidence: explanation,
       serviceStatus: "unverified" as const,
       bookingStatus: "not_connected" as const,
     };
   });
+
   return {
     provider: "OpenStreetMap / Overpass + OSRM",
     retrievedAt: input.retrievedAt,
