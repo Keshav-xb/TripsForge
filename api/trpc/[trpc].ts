@@ -99,6 +99,44 @@ async function photonSearch(url: URL) {
   photonSearchInFlight.set(key, request);
   return request;
 }
+
+type AmadeusToken = { value: string; expiresAt: number };
+let amadeusToken: AmadeusToken | undefined;
+
+async function getAmadeusToken(baseUrl: string, clientId: string, clientSecret: string): Promise<string> {
+  if (amadeusToken && amadeusToken.expiresAt > Date.now() + 60_000) return amadeusToken.value;
+  const response = await fetch(`${baseUrl}/v1/security/oauth2/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!response.ok) throw new Error(`AMADEUS_AUTH_HTTP_${response.status}`);
+  const data = await response.json() as { access_token?: string; expires_in?: number };
+  if (!data.access_token) throw new Error("AMADEUS_AUTH_INVALID_RESPONSE");
+  amadeusToken = { value: data.access_token, expiresAt: Date.now() + Math.max(60, data.expires_in ?? 1800) * 1000 };
+  return data.access_token;
+}
+
+async function amadeusCityCode(baseUrl: string, token: string, city: string): Promise<{ code: string; name: string } | undefined> {
+  const keyword = city.split(",")[0].trim();
+  if (keyword.length < 3) return undefined;
+  const url = new URL(`${baseUrl}/v1/reference-data/locations/cities`);
+  url.searchParams.set("keyword", keyword);
+  url.searchParams.set("max", "10");
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(12000) });
+  if (!response.ok) throw new Error(`AMADEUS_CITY_HTTP_${response.status}`);
+  const data = await response.json() as { data?: Array<{ name?: string; iataCode?: string; subType?: string }> };
+  const matches = data.data ?? [];
+  const match = matches.find(item => item.iataCode && item.name?.toLowerCase() === keyword.toLowerCase())
+    ?? matches.find(item => item.iataCode);
+  return match?.iataCode ? { code: match.iataCode, name: match.name ?? keyword } : undefined;
+}
+
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const path = new URL(req.url ?? "", "https://tripsforge.local").pathname.replace(/^\/api\/trpc\//, "");
   try {
@@ -219,6 +257,83 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         resolvedStops: stops,
       }));
     }
+
+    if (path === "flight.search") {
+      const originName = String(input.origin ?? "").trim();
+      const destinationName = String(input.destination ?? "").trim();
+      const departureDate = String(input.departureDate ?? "");
+      const returnDate = String(input.returnDate ?? "");
+      const adults = Math.min(9, Math.max(1, Math.floor(Number(input.adults) || 1)));
+      const children = Math.min(8, Math.max(0, Math.floor(Number(input.children) || 0)));
+      if (!originName || !destinationName || !/^\\d{4}-\\d{2}-\\d{2}$/.test(departureDate)) throw new Error("FLIGHT_SEARCH_REQUIRES_CITIES_AND_DEPARTURE_DATE");
+      if (returnDate && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(returnDate) || returnDate <= departureDate)) throw new Error("INVALID_FLIGHT_RETURN_DATE");
+      if (!process.env.AMADEUS_CLIENT_ID || !process.env.AMADEUS_CLIENT_SECRET) {
+        return send(req, res, 200, trpcData({ status: "not_configured", provider: "Amadeus", message: "Flight search is not connected yet. Configure AMADEUS_CLIENT_ID and AMADEUS_CLIENT_SECRET on the server." }));
+      }
+      const baseUrl = (process.env.AMADEUS_API_BASE_URL || "https://test.api.amadeus.com").replace(/\\/$/, "");
+      const token = await getAmadeusToken(baseUrl, process.env.AMADEUS_CLIENT_ID, process.env.AMADEUS_CLIENT_SECRET);
+      const [originCity, destinationCity] = await Promise.all([
+        amadeusCityCode(baseUrl, token, originName),
+        amadeusCityCode(baseUrl, token, destinationName),
+      ]);
+      if (!originCity || !destinationCity) {
+        return send(req, res, 200, trpcData({
+          status: "location_unresolved", provider: "Amadeus",
+          originResolved: !!originCity, destinationResolved: !!destinationCity,
+          message: "The flight provider could not resolve one or both city codes. This is not evidence that flights do not exist.",
+        }));
+      }
+      const url = new URL(`${baseUrl}/v2/shopping/flight-offers`);
+      url.searchParams.set("originLocationCode", originCity.code);
+      url.searchParams.set("destinationLocationCode", destinationCity.code);
+      url.searchParams.set("departureDate", departureDate);
+      url.searchParams.set("adults", String(adults));
+      if (children > 0) url.searchParams.set("children", String(children));
+      if (returnDate) url.searchParams.set("returnDate", returnDate);
+      url.searchParams.set("currencyCode", String(input.currency || "INR").toUpperCase());
+      url.searchParams.set("max", "10");
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20000) });
+      if (!response.ok) throw new Error(`AMADEUS_FLIGHT_SEARCH_HTTP_${response.status}`);
+      const payload = await response.json() as {
+        data?: Array<{
+          id?: string; price?: { total?: string; currency?: string };
+          itineraries?: Array<{ duration?: string; segments?: Array<{
+            departure?: { iataCode?: string; at?: string };
+            arrival?: { iataCode?: string; at?: string };
+            carrierCode?: string; number?: string;
+          }> }>;
+          validatingAirlineCodes?: string[];
+        }>;
+        dictionaries?: { carriers?: Record<string, string> };
+        meta?: { count?: number };
+      };
+      const offers = (payload.data ?? []).map(offer => ({
+        id: offer.id ?? "",
+        price: offer.price?.total ?? null,
+        currency: offer.price?.currency ?? null,
+        airlines: (offer.validatingAirlineCodes ?? []).map(code => ({ code, name: payload.dictionaries?.carriers?.[code] ?? code })),
+        itineraries: (offer.itineraries ?? []).map(itinerary => ({
+          duration: itinerary.duration ?? null,
+          segments: (itinerary.segments ?? []).map(segment => ({
+            from: segment.departure?.iataCode ?? "",
+            to: segment.arrival?.iataCode ?? "",
+            departureAt: segment.departure?.at ?? null,
+            arrivalAt: segment.arrival?.at ?? null,
+            airline: segment.carrierCode ?? "",
+            flightNumber: segment.number ?? "",
+          })),
+        })),
+      }));
+      return send(req, res, 200, trpcData({
+        status: offers.length ? "offers_found" : "no_offers_for_search",
+        provider: "Amadeus Flight Offers Search",
+        checkedAt: new Date().toISOString(),
+        origin: originCity, destination: destinationCity,
+        offers,
+        coverageNote: "Amadeus Self-Service does not include American Airlines, Delta, British Airways or low-cost carriers, and may omit negotiated fares. No results do not prove that no flights operate.",
+      }));
+    }
+
     if (path === "route.feasibility") {
       const origin = input.origin as Point | undefined;
       const destinationPoint = input.destination as Point | undefined;
