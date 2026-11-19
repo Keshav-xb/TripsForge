@@ -1,0 +1,90 @@
+export type TransportResearchMode = "flight" | "train" | "bus" | "car" | "ferry";
+export type InfrastructureEvidence = {
+  kind: TransportResearchMode;
+  originCount: number;
+  destinationCount: number;
+  originExamples: string[];
+  destinationExamples: string[];
+};
+export type RouteResearchResult = {
+  provider: string;
+  retrievedAt: string;
+  origin: string;
+  destination: string;
+  travelDate: string;
+  road: null | { status: "route_found"; distanceKm: number; durationMinutes: number; provider: string } | { status: "no_route_returned"; provider: string } | { status: "unavailable"; provider: string; reason: string };
+  infrastructure: InfrastructureEvidence[];
+  modes: Array<{
+    mode: TransportResearchMode;
+    status: "road_route_found" | "infrastructure_at_both_ends" | "infrastructure_partial" | "no_infrastructure_found" | "not_checked";
+    evidence: string;
+    serviceStatus: "unverified";
+    bookingStatus: "not_connected";
+  }>;
+  limitations: string[];
+};
+
+export function buildRouteResearch(input: {
+  origin: string;
+  destination: string;
+  travelDate: string;
+  road: RouteResearchResult["road"];
+  infrastructure: InfrastructureEvidence[];
+  retrievedAt: string;
+}): RouteResearchResult {
+  const modes = (["flight", "train", "bus", "car", "ferry"] as const).map(mode => {
+    if (mode === "car") {
+      return {
+        mode,
+        status: input.road?.status === "route_found" ? "road_route_found" as const : "not_checked" as const,
+        evidence: input.road?.status === "route_found"
+          ? `A drivable road-network route was returned: ${input.road.distanceKm} km, estimated ${input.road.durationMinutes} minutes.`
+          : "No verified road-network route result is available for this pair.",
+        serviceStatus: "unverified" as const,
+        bookingStatus: "not_connected" as const,
+      };
+    }
+    const evidence = input.infrastructure.find(item => item.kind === mode);
+    const originCount = evidence?.originCount ?? 0;
+    const destinationCount = evidence?.destinationCount ?? 0;
+    const status = originCount > 0 && destinationCount > 0
+      ? "infrastructure_at_both_ends" as const
+      : originCount > 0 || destinationCount > 0
+        ? "infrastructure_partial" as const
+        : evidence ? "no_infrastructure_found" as const : "not_checked" as const;
+    const examples = [
+      ...(evidence?.originExamples ?? []).map(name => `Origin: ${name}`),
+      ...(evidence?.destinationExamples ?? []).map(name => `Destination: ${name}`),
+    ];
+    return {
+      mode,
+      status,
+      evidence: status === "infrastructure_at_both_ends"
+        ? `Transport infrastructure is mapped near both endpoints. ${examples.join("; ")}`
+        : status === "infrastructure_partial"
+          ? `Mapped infrastructure was found near only one endpoint. ${examples.join("; ")}`
+          : status === "no_infrastructure_found"
+            ? "No matching infrastructure was found in the searched radius. This does not prove the service does not exist."
+            : "Infrastructure data could not be checked.",
+      serviceStatus: "unverified" as const,
+      bookingStatus: "not_connected" as const,
+    };
+  });
+  return {
+    provider: "OpenStreetMap / Overpass + OSRM",
+    retrievedAt: input.retrievedAt,
+    origin: input.origin,
+    destination: input.destination,
+    travelDate: input.travelDate,
+    road: input.road,
+    infrastructure: input.infrastructure,
+    modes,
+    limitations: [
+      "Mapped airports, stations, bus stops and ferry terminals are infrastructure evidence only, not proof of a scheduled service between these cities.",
+      "No live airline, rail, bus or ferry timetable, fare, seat availability or booking provider is connected.",
+      "A road-network route does not prove that a bus service operates, that traffic is clear, or that the road is currently open.",
+      "No result from OpenStreetMap is not proof that infrastructure or a transport service does not exist.",
+      "Infrastructure search radius is 20 km around each endpoint; rural terminals or alternate gateways may be outside it.",
+    ],
+  };
+}
