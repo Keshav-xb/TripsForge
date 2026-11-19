@@ -57,7 +57,7 @@ export default function JourneyStudio() {
     provider: string;
     modes: Array<{ mode: TransportMode; status: string; evidence: string; serviceStatus: string; bookingStatus: string }>;
     limitations: string[];
-    road: null | { status: string; distanceKm?: number; durationMinutes?: number; provider: string };
+    road: null | { status: string; distanceKm?: number; durationMinutes?: number; provider: string; reason?: string };
   } | null>(null);
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState("");
@@ -208,7 +208,7 @@ export default function JourneyStudio() {
                 {researchError && <p role="alert" className="mt-3 text-xs font-semibold text-red-700">{researchError}</p>}
                 {routeResearch && <div className="mt-4 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#71857e]"><span>Sources: {routeResearch.provider}</span><span>Checked {new Date(routeResearch.retrievedAt).toLocaleString()}</span></div>
-                  {routeResearch.road?.status === "route_found" && <div className="rounded-xl bg-[#edf5ef] p-3 text-sm"><strong>Road network route found:</strong> {routeResearch.road.distanceKm} km · approximately {Math.round((routeResearch.road.durationMinutes || 0) / 60 * 10) / 10} hours by car. This is not a live traffic or road-open check.</div>}
+                  {routeResearch.road && <div className={`rounded-xl p-3 text-sm ${routeResearch.road.status === "route_found" ? "bg-[#edf5ef]" : "bg-[#fff4e8]"}`}>{routeResearch.road.status === "route_found" ? <><strong>Road network route found:</strong> {routeResearch.road.distanceKm} km · approximately {Math.round((routeResearch.road.durationMinutes || 0) / 60 * 10) / 10} hours by car. This is not a live traffic or road-open check.</> : routeResearch.road.status === "no_route_returned" ? <>OSRM returned no drivable route for these coordinates. This does not prove that no road connection exists.</> : <>Road-network lookup unavailable: {routeResearch.road.reason || "The routing provider could not complete the request."}</>}</div>}
                   {routeResearch.modes.map(item => <div key={item.mode} className="rounded-xl border border-[#123a35]/10 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold capitalize">{item.mode}</p><span className="rounded-full bg-[#f2eddf] px-2 py-1 text-[10px] font-bold uppercase tracking-wide">{item.status.replaceAll("_", " ")}</span></div>
                     <p className="mt-2 text-xs leading-5 text-[#637e76]">{item.evidence}</p>
