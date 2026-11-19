@@ -160,7 +160,7 @@ export default function JourneyStudio() {
             </div>
             <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div><h2 className="font-display text-2xl">Journey transport legs</h2><p className="mt-1 text-sm text-[#71857e]">Break the route into separately priced segments.</p></div>
+                <div><h2 className="font-display text-2xl">Journey transport legs</h2><p className="mt-1 text-sm text-[#71857e]">Break a complex journey into separately planned segments.</p></div>
                 <button type="button" onClick={() => setTransportLegs(legs => [...legs, createEmptyTransportLeg(legs.at(-1)?.destination || draft.startLocation, draft.destination)])} className="rounded-xl bg-[#123a35] px-3 py-2 text-sm font-bold text-white">Add leg +</button>
               </div>
               <div className="mt-4 space-y-3">
@@ -169,14 +169,14 @@ export default function JourneyStudio() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="grid gap-1 text-xs font-semibold">From<input value={leg.origin} onChange={e => updateTransportLeg(leg.id, { origin: e.target.value })} placeholder="Origin" className="min-w-0 rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
                     <label className="grid gap-1 text-xs font-semibold">To<input value={leg.destination} onChange={e => updateTransportLeg(leg.id, { destination: e.target.value })} placeholder="Destination" className="min-w-0 rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
-                    <label className="grid gap-1 text-xs font-semibold">Mode<select value={leg.mode} onChange={e => updateTransportLeg(leg.id, { mode: e.target.value as TransportMode })} className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"><option value="flight">Flight</option><option value="train">Train</option><option value="bus">Bus</option><option value="car">Car / taxi</option><option value="ferry">Ferry</option><option value="other">Other</option></select></label>
+                    <label className="grid gap-1 text-xs font-semibold">Transport assumption<select value={leg.mode} onChange={e => updateTransportLeg(leg.id, { mode: e.target.value as TransportMode })} className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"><option value="unverified">Not decided / needs research</option><option value="flight">Flight (your selection)</option><option value="train">Train (your selection)</option><option value="bus">Bus (your selection)</option><option value="car">Car / taxi (your selection)</option><option value="ferry">Ferry (your selection)</option><option value="other">Other (your selection)</option></select></label>
                     <label className="grid gap-1 text-xs font-semibold">Travel date<input type="date" value={leg.travelDate} onChange={e => updateTransportLeg(leg.id, { travelDate: e.target.value })} className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
                     <label className="grid gap-1 text-xs font-semibold sm:col-span-2">Estimated total for this leg ({draft.currency})<input type="number" min="0" value={leg.unitCost || ""} onChange={e => updateTransportLeg(leg.id, { unitCost: Math.max(0, Number(e.target.value) || 0) })} placeholder="Enter a quote or estimate" className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
                   </div>
                   <p className="mt-2 text-[11px] text-[#87958f]">Traveller-entered amount for this segment. Not a live fare or availability result.</p>
                 </div>)}
               </div>
-              <p className="mt-3 text-sm font-bold">Transport total: {money(transportTotal, draft.currency)}</p>
+              <p className="mt-3 text-sm font-bold">Transport total: {money(transportTotal, draft.currency)}</p><p className="mt-2 rounded-lg bg-[#fff4e8] px-3 py-2 text-xs leading-5 text-[#8b542d]">A selected mode is only your planning assumption. TripsForge has not verified that a scheduled service operates on this segment. “Not decided” is the default until route research can confirm realistic connections. Prices entered here are not live fares.</p>
             </div>
             <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
