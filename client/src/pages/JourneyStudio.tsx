@@ -42,13 +42,14 @@ export default function JourneyStudio() {
   const [draft, setDraft] = useState<PlanInputs>(() => ({
     ...defaultPlan,
     ...plan,
+    budget: plan.budget > 0 ? plan.budget : defaultPlan.budget,
     destination,
     destinationLocation: hasCoordinates ? { lat, lng } : plan.destinationLocation,
     startDate: dateOffset(30),
     endDate: dateOffset(33),
   }));
   const [error, setError] = useState("");
-  const [budgetInput, setBudgetInput] = useState(String(plan.budget ?? defaultPlan.budget));
+  const [budgetInput, setBudgetInput] = useState(String(plan.budget > 0 ? plan.budget : defaultPlan.budget));
   const [transportLegs, setTransportLegs] = useState<TransportLeg[]>(() => [createEmptyTransportLeg(plan.startLocation || defaultPlan.startLocation, destination)]);
   const transportTotal = getTransportLegTotal(transportLegs);
   const updateTransportLeg = (id: string, updates: Partial<TransportLeg>) => setTransportLegs(legs => legs.map(leg => leg.id === id ? { ...leg, ...updates } : leg));
@@ -152,10 +153,10 @@ export default function JourneyStudio() {
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><Wallet className="h-5 w-5 text-[#e6651b]" /> Budget</h2>
               <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
-                <label className="grid gap-2 text-sm font-semibold">Total budget ({draft.currency})<input type="number" min="0" value={budgetInput} onChange={e => { const value = e.target.value; setBudgetInput(value); patch({ budget: value === "" ? 0 : Math.max(0, Number(value) || 0) }); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Budget limit for everyone ({draft.currency})<input type="text" inputMode="decimal" value={budgetInput} onChange={e => { const value = e.target.value; if (value === "" || /^\d*(\.\d*)?$/.test(value)) { setBudgetInput(value); if (value.trim() !== "" && Number.isFinite(Number(value))) patch({ budget: Math.max(0, Number(value)) }); } }} onBlur={() => { if (budgetInput.trim() === "") setBudgetInput(String(draft.budget > 0 ? draft.budget : defaultPlan.budget)); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
                 <label className="grid gap-2 text-sm font-semibold">Travel style<select value={draft.travelStyle} onChange={e => patch({ travelStyle: e.target.value as PlanInputs["travelStyle"] })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3"><option>Relaxed</option><option>Balanced</option><option>Packed</option></select></label>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">{(["Budget", "Balanced", "Premium"] as const).map(level => <button type="button" key={level} onClick={() => patch({ budgetLevel: level })} className={`rounded-full border px-4 py-2 text-sm font-semibold ${draft.budgetLevel === level ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{level}</button>)}</div>
+              <p className="mt-2 text-xs leading-5 text-[#71857e]">This is your spending limit for the whole group. It stays fixed when traveller numbers change; the trip estimate below recalculates from the unit prices you enter.</p><div className="mt-3 flex flex-wrap gap-2">{(["Budget", "Balanced", "Premium"] as const).map(level => <button type="button" key={level} onClick={() => patch({ budgetLevel: level })} className={`rounded-full border px-4 py-2 text-sm font-semibold ${draft.budgetLevel === level ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{level}</button>)}</div>
             </div>
             <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -179,7 +180,7 @@ export default function JourneyStudio() {
             </div>
             <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h2 className="font-display text-2xl">Trip cost breakdown</h2><p className="mt-1 text-sm text-[#71857e]">Enter any known prices. Totals recalculate as you edit.</p></div>
+                <div><h2 className="font-display text-2xl">Trip cost breakdown</h2><p className="mt-1 text-sm text-[#71857e]">Enter a cost per unit. Totals recalculate when prices, traveller counts, rooms or dates change.</p></div>
                 <select aria-label="Budget currency" value={draft.currency} onChange={e => { patch({ currency: e.target.value }); setBudgetItems(items => items.map(item => ({ ...item, currency: e.target.value }))); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-2 text-sm font-semibold">
                   {["INR","USD","EUR","GBP","AED","SGD","CAD","AUD"].map(currency => <option key={currency}>{currency}</option>)}
                 </select>
@@ -205,7 +206,7 @@ export default function JourneyStudio() {
                 <span>Priced category coverage: {currentBudget.pricedCategoryCoverage}%</span>
                 <span>{currentBudget.unpricedCategories.length} categories still unpriced</span>
               </div>
-              <p className="mt-2 text-xs leading-5 text-[#87958f]">These are traveller-entered planning amounts, not live supplier quotes. Transport legs above are separate traveller-entered estimates. Live fares, timetables and bookable availability are not connected yet.</p>
+              <p className="mt-2 text-xs leading-5 text-[#87958f]">Only entered prices are included, so an empty breakdown can show zero. Per-person items scale with travellers; room items scale with rooms and nights; per-trip items are counted once. These are traveller-entered planning amounts, not live supplier quotes. Live fares, timetables and bookable availability are not connected yet.</p>
             </div>
             <div>
               <h2 className="mb-3 font-display text-2xl">What do you want from this trip?</h2>
