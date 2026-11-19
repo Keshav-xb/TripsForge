@@ -101,6 +101,43 @@ async function photonSearch(url: URL) {
   photonSearchInFlight.set(key, request);
   return request;
 }
+
+type OpenMeteoGeocodingResult = {
+  id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  country?: string;
+  country_code?: string;
+  admin1?: string;
+  admin2?: string;
+  feature_code?: string;
+};
+
+async function openMeteoLocationSearch(query: string) {
+  const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
+  url.searchParams.set("name", query);
+  url.searchParams.set("count", "8");
+  url.searchParams.set("language", "en");
+  url.searchParams.set("format", "json");
+  const response = await fetch(url, {
+    headers: { "User-Agent": "TripsForge/1.0 (travel planning MVP)" },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`OPEN_METEO_GEOCODING_HTTP_${response.status}`);
+  const data = await response.json() as { results?: OpenMeteoGeocodingResult[] };
+  return (data.results ?? []).map(item => {
+    const secondary = [item.admin2, item.admin1, item.country].filter(Boolean).join(", ");
+    const description = [item.name, secondary].filter(Boolean).join(", ");
+    return {
+      placeId: `geonames:${item.id}`,
+      description,
+      location: { lat: item.latitude, lng: item.longitude },
+      name: item.name,
+      secondary,
+    };
+  });
+}
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const path = new URL(req.url ?? "", "https://tripsforge.local").pathname.replace(/^\/api\/trpc\//, "");
   try {
@@ -110,17 +147,29 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       url.searchParams.set("q", String(input.query ?? ""));
       url.searchParams.set("limit", "8");
       url.searchParams.set("lang", "en");
-      const data = await photonSearch(url) as { features?: PhotonFeature[] };
-      return send(req, res, 200, trpcData({
-        provider: "OpenStreetMap / Photon",
-        retrievedAt: new Date().toISOString(),
-        results: (data.features ?? []).map(feature => ({
+      const query = String(input.query ?? "").trim();
+      if (query.length < 2 || query.length > 120) {
+        return send(req, res, 200, trpcData({ provider: "OpenStreetMap / Photon", retrievedAt: new Date().toISOString(), results: [] }));
+      }
+      let results: Array<{ placeId: string; description: string; location: Point; name: string; secondary: string }>;
+      let provider = "OpenStreetMap / Photon";
+      try {
+        const data = await photonSearch(url) as { features?: PhotonFeature[] };
+        results = (data.features ?? []).map(feature => ({
           placeId: feature.properties.osm_type && feature.properties.osm_id ? `${feature.properties.osm_type}:${feature.properties.osm_id}` : "",
           description: label(feature.properties),
           location: { lat: feature.geometry.coordinates[1], lng: feature.geometry.coordinates[0] },
           name: feature.properties.name ?? label(feature.properties),
           secondary: [feature.properties.city, feature.properties.state, feature.properties.country].filter(Boolean).join(", "),
-        })).filter(item => item.description),
+        })).filter(item => item.description);
+      } catch {
+        results = await openMeteoLocationSearch(query);
+        provider = "Open-Meteo Geocoding (fallback)";
+      }
+      return send(req, res, 200, trpcData({
+        provider,
+        retrievedAt: new Date().toISOString(),
+        results,
       }));
     }
     if (path === "location.resolve") {
