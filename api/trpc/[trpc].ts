@@ -20,6 +20,7 @@ async function nearbyPlaces(input: { lat: number; lng: number; category: string;
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     throw new Error("INVALID_SEARCH_COORDINATES");
   }
+  if (!["hospital", "police", "pharmacy", "attraction"].includes(input.category)) throw new Error("INVALID_PLACE_CATEGORY");
   const radius = Math.min(10000, Math.max(500, Number(input.radius) || 5000));
   const filters: Record<string, string> = {
     hospital: '["amenity"="hospital"]',
@@ -58,17 +59,27 @@ async function nearbyPlaces(input: { lat: number; lng: number; category: string;
 function requestData(req: IncomingMessage) {
   const params = new URL(req.url ?? "", "https://tripsforge.local").searchParams;
   const raw = params.get("input");
-  const parsed = raw ? JSON.parse(raw) : {};
+  if (raw && raw.length > 16000) throw new Error("REQUEST_INPUT_TOO_LARGE");
+  let parsed: unknown = {};
+  try { parsed = raw ? JSON.parse(raw) : {}; } catch { throw new Error("INVALID_REQUEST_JSON"); }
   const batched = params.get("batch") === "1";
-  const payload = batched ? (parsed["0"] ?? parsed) : parsed;
-  return { input: payload.json ?? payload, batched };
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("INVALID_REQUEST_INPUT");
+  const record = parsed as Record<string, unknown>;
+  const payload = batched ? (record["0"] ?? record) : record;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("INVALID_REQUEST_INPUT");
+  const envelope = payload as Record<string, unknown>;
+  const input = envelope.json ?? envelope;
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("INVALID_REQUEST_INPUT");
+  return { input: input as Record<string, unknown>, batched };
 }
 function send(req: IncomingMessage, res: ServerResponse, status: number, value: unknown) {
   const batched = new URL(req.url ?? "", "https://tripsforge.local").searchParams.get("batch") === "1";
   res.statusCode = status;
   res.setHeader("content-type", "application/json");
-  res.setHeader("cache-control", "public, max-age=60, s-maxage=300");
+  res.setHeader("cache-control", "no-store");
   res.setHeader("access-control-allow-origin", "*");
+  res.setHeader("access-control-allow-methods", "GET, OPTIONS");
+  res.setHeader("access-control-allow-headers", "content-type");
   res.end(JSON.stringify(batched ? [value] : value));
 }
 function trpcData(value: unknown) { return { result: { data: { json: value } } }; }
@@ -101,6 +112,17 @@ async function photonSearch(url: URL) {
 }
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const path = new URL(req.url ?? "", "https://tripsforge.local").pathname.replace(/^\/api\/trpc\//, "");
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    res.setHeader("access-control-allow-origin", "*");
+    res.setHeader("access-control-allow-methods", "GET, OPTIONS");
+    res.setHeader("access-control-allow-headers", "content-type");
+    res.setHeader("cache-control", "no-store");
+    return res.end();
+  }
+  if (req.method !== "GET") {
+    return send(req, res, 405, { error: { json: { message: "METHOD_NOT_ALLOWED", code: "METHOD_NOT_SUPPORTED" } } });
+  }
   try {
     const { input } = requestData(req);
     if (path === "location.search") {
@@ -160,9 +182,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (path === "route.preview") {
       const rawStops = Array.isArray(input.stops) ? input.stops as Array<{ id?: string; title: string; location?: Point; geocode?: boolean }> : [];
       if (rawStops.length < 2) throw new Error("ROUTE_REQUIRES_TWO_STOPS");
+      if (rawStops.length > 20) throw new Error("ROUTE_TOO_MANY_STOPS");
+      const mode = input.mode ?? "driving";
+      if (mode !== "driving" && mode !== "walking" && mode !== "bicycling") throw new Error("INVALID_ROUTE_MODE");
       const destination = String(input.destination ?? "");
       const stops = await Promise.all(rawStops.map(async stop => {
-        if (!stop.geocode && stop.location && Number.isFinite(stop.location.lat) && Number.isFinite(stop.location.lng)) {
+        if (!stop.geocode && stop.location && Number.isFinite(stop.location.lat) && Number.isFinite(stop.location.lng)
+          && Math.abs(stop.location.lat) <= 90 && Math.abs(stop.location.lng) <= 180) {
           return { ...stop, location: stop.location, geocoded: false };
         }
         const query = [stop.title, destination].filter(Boolean).join(", ");
@@ -197,7 +223,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           resolvedStops: stops,
         }));
       }
-      const routerBase = input.mode === "walking" ? "https://routing.openstreetmap.de/routed-foot" : input.mode === "bicycling" ? "https://routing.openstreetmap.de/routed-bike" : "https://router.project-osrm.org";
+      const routerBase = mode === "walking" ? "https://routing.openstreetmap.de/routed-foot" : mode === "bicycling" ? "https://routing.openstreetmap.de/routed-bike" : "https://router.project-osrm.org";
       const coords = stops.map(stop => `${stop.location!.lng},${stop.location!.lat}`).join(";");
       const url = new URL(`${routerBase}/route/v1/driving/${coords}`);
       url.searchParams.set("overview", "full");
@@ -212,7 +238,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const minutes = Math.round((route.duration % 3600) / 60);
       return send(req, res, 200, trpcData({
         available: true, provider: "OSRM / OpenStreetMap", retrievedAt: new Date().toISOString(),
-        mode: input.mode ?? "driving", distanceKm: Math.round(route.distance / 100) / 10,
+        mode, distanceKm: Math.round(route.distance / 100) / 10,
         duration: hours ? `${hours}h ${minutes}m` : `${minutes}m`,
         durationSeconds: route.duration, warnings: [], summary: "Road-network route estimate",
         geometry: route.geometry, waypointOrder: (result.waypoints ?? []).map(point => point.waypoint_index), alternatives: [],
@@ -222,7 +248,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return send(req, res, 404, { error: { json: { message: "TRAVEL_PROCEDURE_NOT_FOUND" } } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "TRAVEL_REQUEST_FAILED";
-    const status = message === "LOCATION_NOT_FOUND" ? 404 : 502;
+    const status = message === "LOCATION_NOT_FOUND" ? 404
+      : ["REQUEST_INPUT_TOO_LARGE", "INVALID_REQUEST_JSON", "INVALID_REQUEST_INPUT", "INVALID_PLACE_CATEGORY", "ROUTE_TOO_MANY_STOPS", "INVALID_ROUTE_MODE", "ROUTE_REQUIRES_TWO_STOPS", "INVALID_SEARCH_COORDINATES"].includes(message) ? 400
+        : 502;
     return send(req, res, status, { error: { json: { message, code: status === 404 ? "NOT_FOUND" : "BAD_GATEWAY", data: { httpStatus: status } } } });
   }
 }
