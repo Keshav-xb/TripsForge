@@ -74,16 +74,14 @@ export default function LocationSearch({
           <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9badA8]" />
         )}
       </div>
-      {open &&
-      search.trim().length >= 2 &&
-      (query.data?.results.length || query.isError) ? (
+      {open && value.trim().length >= 2 && search.trim() === value.trim() ? (
         <div className="absolute inset-x-0 top-[4.8rem] z-[1100] overflow-hidden rounded-2xl border border-[#123a35]/12 bg-[#fffdf8] shadow-[0_20px_40px_-24px_rgba(18,58,53,.6)]">
-          {query.isError ? (
-          <p className="p-4 text-xs font-semibold leading-5 text-[#8a6a51]">
-            Location search is temporarily unavailable. Try again in a moment.
-          </p>
-          ) : (
-            (query.data?.results as Array<{ placeId: string; description: string; name?: string; secondary?: string; location?: { lat: number; lng: number } }> | undefined)?.map(item => (
+          {query.isFetching ? (
+            <p className="p-4 text-xs font-semibold text-[#71857e]">Searching places…</p>
+          ) : query.isError ? (
+            <p className="p-4 text-xs font-semibold leading-5 text-[#8a6a51]">Location search is temporarily unavailable. Please try again.</p>
+          ) : query.data?.results.length ? (
+            (query.data.results as Array<{ placeId: string; description: string; name?: string; secondary?: string; location?: { lat: number; lng: number } }>).map(item => (
               <button
                 type="button"
                 key={item.placeId}
@@ -101,6 +99,8 @@ export default function LocationSearch({
                 </span>
               </button>
             ))
+          ) : (
+            <p className="p-4 text-xs font-semibold text-[#71857e]">No matching places found. Try a city and country name.</p>
           )}
         </div>
       ) : null}

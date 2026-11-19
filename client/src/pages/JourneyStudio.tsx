@@ -78,7 +78,9 @@ export default function JourneyStudio() {
   const currentBudget = budgetScenarios[activeScenario];
   const updateBudgetItem = (id: string, updates: Partial<BudgetCostItem>) =>
     setBudgetItems(items => items.map(item => item.id === id ? { ...item, ...updates } : item));
-  const markers = useMemo<MapMarker[]>(() => hasCoordinates ? [{ id: "destination", label: destination, position: { lat, lng }, description: "Your selected destination" }] : [], [destination, hasCoordinates, lat, lng]);
+  const destinationPoint = draft.destinationLocation;
+  const hasDestinationPoint = !!destinationPoint && Number.isFinite(destinationPoint.lat) && Number.isFinite(destinationPoint.lng);
+  const markers = useMemo<MapMarker[]>(() => hasDestinationPoint ? [{ id: "destination", label: draft.destination, position: destinationPoint!, description: "Your selected destination" }] : [], [draft.destination, hasDestinationPoint, destinationPoint]);
   const patch = (values: Partial<PlanInputs>) => setDraft(current => ({ ...current, ...values }));
   const toggleInterest = (interest: Interest) => patch({ interests: draft.interests.includes(interest) ? draft.interests.filter(item => item !== interest) : [...draft.interests, interest] });
   const submit = () => {
@@ -114,9 +116,14 @@ export default function JourneyStudio() {
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
           <section className="space-y-6 rounded-[2rem] border border-[#123a35]/8 bg-[#fffdf8] p-5 shadow-sm sm:p-8">
             <div>
-              <label className="mb-2 block text-sm font-bold">Destination</label>
-              <div className="flex items-center gap-3 rounded-2xl border border-[#123a35]/15 bg-white px-4 py-4"><MapPin className="h-5 w-5 shrink-0 text-[#e6651b]" /><input value={draft.destination} onChange={e => { patch({ destination: e.target.value }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: e.target.value } : leg)); }} className="min-w-0 flex-1 bg-transparent font-semibold outline-none" aria-label="Destination" /></div>
-              {hasCoordinates && <p className="mt-2 text-xs text-[#71857e]">Map location attached · {lat.toFixed(4)}, {lng.toFixed(4)}</p>}
+              <LocationSearch
+                label="Destination"
+                value={draft.destination}
+                placeholder="Search your destination city"
+                onChange={value => { patch({ destination: value, destinationLocation: undefined }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: value } : leg)); }}
+                onSelect={location => { patch({ destination: location.label, destinationLocation: { lat: location.lat, lng: location.lng } }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: location.label } : leg)); }}
+              />
+              {hasDestinationPoint && <p className="mt-2 text-xs text-[#71857e]">Map location attached · {destinationPoint!.lat.toFixed(4)}, {destinationPoint!.lng.toFixed(4)}</p>}
             </div>
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><MapPin className="h-5 w-5 text-[#e6651b]" /> Starting point</h2>
@@ -210,7 +217,7 @@ export default function JourneyStudio() {
           <aside className="space-y-4 lg:sticky lg:top-6">
             <div className="overflow-hidden rounded-[1.7rem] border border-[#123a35]/10 bg-white">
               <div className="border-b border-[#123a35]/10 px-4 py-3 text-sm font-bold">Journey preview</div>
-              {hasCoordinates ? <MapView initialCenter={{ lat, lng }} initialZoom={11} markers={markers} className="h-[300px]" /> : <div className="grid h-[300px] place-items-center bg-[#eaf1ed] p-6 text-center text-sm text-[#71857e]">Select a destination with map coordinates to preview its location.</div>}
+              {hasDestinationPoint ? <MapView initialCenter={destinationPoint!} initialZoom={11} markers={markers} className="h-[300px]" /> : <div className="grid h-[300px] place-items-center bg-[#eaf1ed] p-6 text-center text-sm text-[#71857e]">Select a destination from the suggestions to preview its location.</div>}
               <div className="p-4"><p className="font-display text-2xl">{draft.destination}</p><p className="mt-1 text-sm text-[#71857e]">{draft.adults + draft.children} travellers · {draft.travelStyle} pace</p></div>
             </div>
             <button type="button" onClick={() => navigate("/explore")} className="w-full rounded-xl border border-[#123a35]/15 bg-white px-4 py-3 text-sm font-bold">Change destination</button>
