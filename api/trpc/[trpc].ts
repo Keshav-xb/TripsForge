@@ -218,8 +218,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         }
       };
       const [originInfrastructure, destinationInfrastructure] = await Promise.all([
-        safeInfrastructureSearch(originPoint),
-        safeInfrastructureSearch(destinationPoint),
+        safeInfrastructureSearch(resolvedOriginPoint),
+        safeInfrastructureSearch(resolvedDestinationPoint),
       ]);
       const infrastructure: InfrastructureEvidence[] = infrastructureQueries.map(({ kind }) => {
         const from = originInfrastructure.find(item => item.kind === kind)!;
