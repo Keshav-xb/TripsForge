@@ -227,7 +227,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           const url = new URL(`https://router.project-osrm.org/route/v1/driving/${coordinates}`);
           url.searchParams.set("overview", "false");
           url.searchParams.set("steps", "false");
-          const response = await fetch(url, { signal: AbortSignal.timeout(6500) });
+          const response = await fetch(url, { signal: AbortSignal.timeout(4500) });
           if (!response.ok) throw new Error(`OSRM_HTTP_${response.status}`);
           const body = await response.text();
           let data: { code: string; routes?: Array<{ distance: number; duration: number }> };
@@ -266,7 +266,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (route research)" },
           body: new URLSearchParams({ data: query }),
-          signal: AbortSignal.timeout(6500),
+          signal: AbortSignal.timeout(2500),
         });
         if (!response.ok) throw new Error(`OVERPASS_HTTP_${response.status}`);
         const body = await response.text();
