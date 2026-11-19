@@ -203,7 +203,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         return infrastructureQueries.map(({ kind }) => {
           const matching = elements.filter(element => classify(element.tags) === kind);
           const names = matching.map(element => element.tags?.name ?? element.tags?.["name:en"]).filter((name): name is string => !!name);
-          return { kind, count: matching.length, examples: [...new Set(names)].slice(0, 4) };
+          return { kind, count: matching.length, examples: [...new Set(names)].slice(0, 4), checked: true };
         });
       };
       const [originInfrastructure, destinationInfrastructure] = await Promise.all([
@@ -213,7 +213,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const infrastructure: InfrastructureEvidence[] = infrastructureQueries.map(({ kind }) => {
         const from = originInfrastructure.find(item => item.kind === kind)!;
         const to = destinationInfrastructure.find(item => item.kind === kind)!;
-        return { kind, originCount: from.count, destinationCount: to.count, originExamples: from.examples, destinationExamples: to.examples };
+        return { kind, originCount: from.count, destinationCount: to.count, originExamples: from.examples, destinationExamples: to.examples, checked: from.checked && to.checked };
       });
 
       let road: Parameters<typeof buildRouteResearch>[0]["road"] = null;
