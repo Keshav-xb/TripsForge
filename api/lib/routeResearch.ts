@@ -23,7 +23,7 @@ export type RouteResearchResult = {
   infrastructure: InfrastructureEvidence[];
   modes: Array<{
     mode: TransportResearchMode;
-    status: "road_route_found" | "infrastructure_at_both_ends" | "infrastructure_partial" | "no_infrastructure_found" | "not_checked";
+    status: "road_route_found" | "road_route_not_returned" | "road_lookup_unavailable" | "infrastructure_at_both_ends" | "infrastructure_partial" | "no_infrastructure_found" | "not_checked";
     evidence: string;
     serviceStatus: "unverified";
     bookingStatus: "not_connected";
@@ -43,10 +43,20 @@ export function buildRouteResearch(input: {
     if (mode === "car") {
       return {
         mode,
-        status: input.road?.status === "route_found" ? "road_route_found" as const : "not_checked" as const,
+        status: input.road?.status === "route_found"
+          ? "road_route_found" as const
+          : input.road?.status === "no_route_returned"
+            ? "road_route_not_returned" as const
+            : input.road?.status === "unavailable"
+              ? "road_lookup_unavailable" as const
+              : "not_checked" as const,
         evidence: input.road?.status === "route_found"
           ? `A drivable road-network route was returned: ${input.road.distanceKm} km, estimated ${input.road.durationMinutes} minutes.`
-          : "No verified road-network route result is available for this pair.",
+          : input.road?.status === "no_route_returned"
+            ? "OSRM returned no drivable route for these coordinates. This does not prove that no road connection exists."
+            : input.road?.status === "unavailable"
+              ? `The road-network lookup was unavailable: ${input.road.reason}`
+              : "No road-network lookup was performed.",
         serviceStatus: "unverified" as const,
         bookingStatus: "not_connected" as const,
       };
