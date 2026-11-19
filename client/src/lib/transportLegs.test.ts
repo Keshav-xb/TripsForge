@@ -3,7 +3,7 @@ import { createEmptyTransportLeg, getTransportLegTotal, validateTransportLegs } 
 
 describe("transport leg helpers", () => {
   it("creates a leg with the supplied endpoints", () => {
-    expect(createEmptyTransportLeg("Jammu", "Delhi")).toMatchObject({ origin: "Jammu", destination: "Delhi", mode: "flight", unitCost: 0, enabled: true });
+    expect(createEmptyTransportLeg("Jammu", "Delhi")).toMatchObject({ origin: "Jammu", destination: "Delhi", mode: "unverified", unitCost: 0, enabled: true });
   });
 
   it("totals only enabled, positive finite leg costs", () => {
