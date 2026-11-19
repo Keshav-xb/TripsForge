@@ -68,7 +68,8 @@ function send(req: IncomingMessage, res: ServerResponse, status: number, value: 
   const batched = new URL(req.url ?? "", "https://tripsforge.local").searchParams.get("batch") === "1";
   res.statusCode = status;
   res.setHeader("content-type", "application/json");
-  const routeResearchRequest = new URL(req.url ?? "", "https://tripsforge.local").pathname.endsWith("/route.research");\n  res.setHeader("cache-control", routeResearchRequest ? "no-store" : "public, max-age=60, s-maxage=300");
+  const routeResearchRequest = new URL(req.url ?? "", "https://tripsforge.local").pathname.endsWith("/route.research");
+  res.setHeader("cache-control", routeResearchRequest ? "no-store" : "public, max-age=60, s-maxage=300");
   res.setHeader("access-control-allow-origin", "*");
   res.end(JSON.stringify(batched ? [value] : value));
 }
@@ -167,7 +168,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const validPoint = (point: Point | undefined) => !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
       if (origin.length < 2 || origin.length > 180 || destination.length < 2 || destination.length > 180) throw new Error("INVALID_ROUTE_LABELS");
       if (!validPoint(originPoint) || !validPoint(destinationPoint)) throw new Error("INVALID_ROUTE_COORDINATES");
-      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(travelDate) || Number.isNaN(Date.parse(travelDate + "T12:00:00Z"))) throw new Error("INVALID_TRAVEL_DATE");
+      const parsedTravelDate = new Date(travelDate + "T00:00:00Z");
+      if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(travelDate) || Number.isNaN(parsedTravelDate.getTime()) || parsedTravelDate.toISOString().slice(0, 10) !== travelDate) throw new Error("INVALID_TRAVEL_DATE");
 
       const infrastructureQueries: Array<{ kind: TransportResearchMode; filter: string }> = [
         { kind: "flight", filter: '["aeroway"="aerodrome"]' },
