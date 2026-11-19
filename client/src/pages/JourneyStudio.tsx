@@ -83,16 +83,25 @@ export default function JourneyStudio() {
       };
       const response = await fetch(`/api/trpc/route.research?input=${encodeURIComponent(JSON.stringify({ json: input }))}`);
       const responseText = await response.text();
-      let payload: { result?: { data?: { json?: typeof routeResearch } }; error?: { json?: { message?: string } } };
+      const contentType = response.headers.get("content-type") || "unknown content type";
+      const requestId = response.headers.get("x-tripsforge-request-id") || "not supplied";
+      let payload: { result?: { data?: { json?: typeof routeResearch } }; error?: { json?: { message?: string; data?: { requestId?: string } } } };
       try {
         payload = JSON.parse(responseText);
       } catch {
-        throw new Error(response.status === 504 || response.status === 502
-          ? "The route provider took too long or is temporarily unavailable. Please retry in a moment."
-          : "TripsForge received an invalid response from the route service. Please retry.");
+        const statusHint = `HTTP ${response.status} · ${contentType}`;
+        const requestHint = requestId !== "not supplied" ? ` · Reference: ${requestId}` : "";
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+          throw new Error(`Route service unavailable (${statusHint}). Please retry shortly.${requestHint}`);
+        }
+        throw new Error(`Route API returned a non-JSON response (${statusHint}).${requestHint}`);
       }
       const result = payload.result?.data?.json;
-      if (!response.ok || !result) throw new Error(payload.error?.json?.message || "Route research is temporarily unavailable.");
+      if (!response.ok || !result) {
+        const reference = payload.error?.json?.data?.requestId || requestId;
+        const suffix = reference && reference !== "not supplied" ? ` · Reference: ${reference}` : "";
+        throw new Error((payload.error?.json?.message || `Route research failed (HTTP ${response.status}).`) + suffix);
+      }
       setRouteResearch(result);
     } catch (error) {
       setResearchError(error instanceof Error ? error.message : "Route research failed. Please try again.");
