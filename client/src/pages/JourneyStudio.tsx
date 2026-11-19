@@ -79,7 +79,15 @@ export default function JourneyStudio() {
         travelDate: transportLegs.find(leg => leg.travelDate)?.travelDate || draft.startDate,
       };
       const response = await fetch(`/api/trpc/route.research?input=${encodeURIComponent(JSON.stringify({ json: input }))}`);
-      const payload = await response.json() as { result?: { data?: { json?: typeof routeResearch } }; error?: { json?: { message?: string } } };
+      const responseText = await response.text();
+      let payload: { result?: { data?: { json?: typeof routeResearch } }; error?: { json?: { message?: string } } };
+      try {
+        payload = JSON.parse(responseText);
+      } catch {
+        throw new Error(response.status === 504 || response.status === 502
+          ? "The route provider took too long or is temporarily unavailable. Please retry in a moment."
+          : "TripsForge received an invalid response from the route service. Please retry.");
+      }
       const result = payload.result?.data?.json;
       if (!response.ok || !result) throw new Error(payload.error?.json?.message || "Route research is temporarily unavailable.");
       setRouteResearch(result);
