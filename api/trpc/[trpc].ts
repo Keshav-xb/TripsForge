@@ -1,3 +1,4 @@
+import { searchWeb } from "../lib/webIntelligence";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 type Point = { lat: number; lng: number };
@@ -104,6 +105,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const path = new URL(req.url ?? "", "https://tripsforge.local").pathname.replace(/^\/api\/trpc\//, "");
   try {
     const { input } = requestData(req);
+    if (path === "web.research") {
+      const result = await searchWeb(input.query, input.maxResults);
+      return send(req, res, 200, trpcData(result));
+    }
     if (path === "location.search") {
       const url = new URL("https://photon.komoot.io/api/");
       url.searchParams.set("q", String(input.query ?? ""));
