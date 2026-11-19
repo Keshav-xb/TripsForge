@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../lib/routeResearch";
+import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../lib/routeResearch.js";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
