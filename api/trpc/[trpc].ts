@@ -219,6 +219,31 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (!validPoint(originPoint) || !validPoint(destinationPoint)) throw new Error("INVALID_ROUTE_COORDINATES");
       const resolvedOriginPoint = originPoint!;
       const resolvedDestinationPoint = destinationPoint!;
+      // Run routing alongside infrastructure lookups and cap each public-provider
+      // request below Vercel's short serverless execution window.
+      const roadPromise = (async (): Promise<Parameters<typeof buildRouteResearch>[0]["road"]> => {
+        try {
+          const coordinates = `${resolvedOriginPoint.lng},${resolvedOriginPoint.lat};${resolvedDestinationPoint.lng},${resolvedDestinationPoint.lat}`;
+          const url = new URL(`https://router.project-osrm.org/route/v1/driving/${coordinates}`);
+          url.searchParams.set("overview", "false");
+          url.searchParams.set("steps", "false");
+          const response = await fetch(url, { signal: AbortSignal.timeout(6500) });
+          if (!response.ok) throw new Error(`OSRM_HTTP_${response.status}`);
+          const body = await response.text();
+          let data: { code: string; routes?: Array<{ distance: number; duration: number }> };
+          try {
+            data = JSON.parse(body);
+          } catch {
+            throw new Error("OSRM_INVALID_RESPONSE");
+          }
+          const route = data.routes?.[0];
+          return data.code === "Ok" && route
+            ? { status: "route_found", distanceKm: Math.round(route.distance / 100) / 10, durationMinutes: Math.round(route.duration / 60), provider: "OSRM / OpenStreetMap" }
+            : { status: "no_route_returned", provider: "OSRM / OpenStreetMap" };
+        } catch (error) {
+          return { status: "unavailable", provider: "OSRM / OpenStreetMap", reason: error instanceof Error ? error.message : "ROAD_ROUTE_UNAVAILABLE" };
+        }
+      })();
       const parsedTravelDate = new Date(travelDate + "T00:00:00Z");
       if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(travelDate) || Number.isNaN(parsedTravelDate.getTime()) || parsedTravelDate.toISOString().slice(0, 10) !== travelDate) throw new Error("INVALID_TRAVEL_DATE");
 
@@ -241,10 +266,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (route research)" },
           body: new URLSearchParams({ data: query }),
-          signal: AbortSignal.timeout(25000),
+          signal: AbortSignal.timeout(6500),
         });
         if (!response.ok) throw new Error(`OVERPASS_HTTP_${response.status}`);
-        const data = await response.json() as { elements?: Array<{ tags?: Record<string, string> }> };
+        const body = await response.text();
+        let data: { elements?: Array<{ tags?: Record<string, string> }> };
+        try {
+          data = JSON.parse(body);
+        } catch {
+          throw new Error("OVERPASS_INVALID_RESPONSE");
+        }
         const elements = data.elements ?? [];
         const classify = (tags: Record<string, string> = {}): TransportResearchMode | null => {
           if (tags.aeroway === "aerodrome") return "flight";
@@ -276,22 +307,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         return { kind, originCount: from.count, destinationCount: to.count, originExamples: from.examples, destinationExamples: to.examples, checked: from.checked && to.checked };
       });
 
-      let road: Parameters<typeof buildRouteResearch>[0]["road"] = null;
-      try {
-        const coordinates = `${resolvedOriginPoint.lng},${resolvedOriginPoint.lat};${resolvedDestinationPoint.lng},${resolvedDestinationPoint.lat}`;
-        const url = new URL(`https://router.project-osrm.org/route/v1/driving/${coordinates}`);
-        url.searchParams.set("overview", "false");
-        url.searchParams.set("steps", "false");
-        const response = await fetch(url, { signal: AbortSignal.timeout(18000) });
-        if (!response.ok) throw new Error(`OSRM_HTTP_${response.status}`);
-        const data = await response.json() as { code: string; routes?: Array<{ distance: number; duration: number }> };
-        const route = data.routes?.[0];
-        road = data.code === "Ok" && route
-          ? { status: "route_found", distanceKm: Math.round(route.distance / 100) / 10, durationMinutes: Math.round(route.duration / 60), provider: "OSRM / OpenStreetMap" }
-          : { status: "no_route_returned", provider: "OSRM / OpenStreetMap" };
-      } catch (error) {
-        road = { status: "unavailable", provider: "OSRM / OpenStreetMap", reason: error instanceof Error ? error.message : "ROAD_ROUTE_UNAVAILABLE" };
-      }
+      const road = await roadPromise;
       const result = buildRouteResearch({ origin, destination, travelDate, road, infrastructure, retrievedAt: new Date().toISOString() });
       res.setHeader("cache-control", "no-store");
       return send(req, res, 200, trpcData(result));
