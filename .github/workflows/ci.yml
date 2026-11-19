@@ -39,5 +39,5 @@ jobs:
       - name: Typecheck
         run: pnpm check
 
-      - name: Build frontend for Vercel
+      - name: Run tests\n        run: pnpm test\n\n      - name: Build frontend for Vercel
         run: pnpm build:vercel
