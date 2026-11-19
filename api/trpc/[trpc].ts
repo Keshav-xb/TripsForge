@@ -265,12 +265,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const returnDate = String(input.returnDate ?? "");
       const adults = Math.min(9, Math.max(1, Math.floor(Number(input.adults) || 1)));
       const children = Math.min(8, Math.max(0, Math.floor(Number(input.children) || 0)));
-      if (!originName || !destinationName || !/^\\d{4}-\\d{2}-\\d{2}$/.test(departureDate)) throw new Error("FLIGHT_SEARCH_REQUIRES_CITIES_AND_DEPARTURE_DATE");
-      if (returnDate && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(returnDate) || returnDate <= departureDate)) throw new Error("INVALID_FLIGHT_RETURN_DATE");
+      if (!originName || !destinationName || !/^\d{4}-\d{2}-\d{2}$/.test(departureDate)) throw new Error("FLIGHT_SEARCH_REQUIRES_CITIES_AND_DEPARTURE_DATE");
+      if (returnDate && (!/^\d{4}-\d{2}-\d{2}$/.test(returnDate) || returnDate <= departureDate)) throw new Error("INVALID_FLIGHT_RETURN_DATE");
       if (!process.env.AMADEUS_CLIENT_ID || !process.env.AMADEUS_CLIENT_SECRET) {
         return send(req, res, 200, trpcData({ status: "not_configured", provider: "Amadeus", message: "Flight search is not connected yet. Configure AMADEUS_CLIENT_ID and AMADEUS_CLIENT_SECRET on the server." }));
       }
-      const baseUrl = (process.env.AMADEUS_API_BASE_URL || "https://test.api.amadeus.com").replace(/\\/$/, "");
+      const baseUrl = (process.env.AMADEUS_API_BASE_URL || "https://test.api.amadeus.com").replace(/\/$/, "");
       const token = await getAmadeusToken(baseUrl, process.env.AMADEUS_CLIENT_ID, process.env.AMADEUS_CLIENT_SECRET);
       const [originCity, destinationCity] = await Promise.all([
         amadeusCityCode(baseUrl, token, originName),
