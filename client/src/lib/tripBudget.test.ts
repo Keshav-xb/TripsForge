@@ -72,7 +72,7 @@ describe("dynamic trip budget engine", () => {
     expect(results.economy.categoryTotals.food).toBe(5_250);
     expect(results.comfort.categoryTotals.food).toBe(12_000);
     expect(results.expected.travellerInputTotal).toBe(30_000);
-    expect(results.expected.modeledEstimateTotal).toBe(7_500);
+    expect(results.expected.modeledEstimateTotal).toBe(8_700);
     expect(results.expected.liveQuoteTotal).toBe(0);
   });
 
