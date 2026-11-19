@@ -5,6 +5,7 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { MapView, type MapMarker } from "@/components/Map";
 import LocationSearch from "@/components/LocationSearch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { calculateAllBudgetScenarios, type BudgetCategory, type BudgetCostItem, type BudgetQuantityRule } from "@/lib/tripBudget";
 import { createEmptyTransportLeg, getTransportLegTotal, validateTransportLegs, type TransportLeg, type TransportMode } from "@/lib/transportLegs";
 import { useTrip } from "@/contexts/TripContext";
@@ -223,7 +224,23 @@ export default function JourneyStudio() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     <label className="grid gap-1 text-xs font-semibold">From<input value={leg.origin} onChange={e => updateTransportLeg(leg.id, { origin: e.target.value })} placeholder="Origin" className="min-w-0 rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
                     <label className="grid gap-1 text-xs font-semibold">To<input value={leg.destination} onChange={e => updateTransportLeg(leg.id, { destination: e.target.value })} placeholder="Destination" className="min-w-0 rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
-                    <label className="grid gap-1 text-xs font-semibold">Transport assumption<select value={leg.mode} onChange={e => updateTransportLeg(leg.id, { mode: e.target.value as TransportMode })} className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"><option value="unverified">Not decided / needs research</option><option value="flight">Flight (your selection)</option><option value="train">Train (your selection)</option><option value="bus">Bus (your selection)</option><option value="car">Car / taxi (your selection)</option><option value="ferry">Ferry (your selection)</option><option value="other">Other (your selection)</option></select></label>
+                    <div className="grid gap-1 text-xs font-semibold">
+                      <span>Transport assumption</span>
+                      <Select value={leg.mode} onValueChange={value => updateTransportLeg(leg.id, { mode: value as TransportMode })}>
+                        <SelectTrigger className="h-11 w-full rounded-xl border-[#123a35]/15 bg-white px-3 text-sm font-medium text-[#123a35] shadow-none focus:ring-2 focus:ring-[#e6651b]/20">
+                          <SelectValue placeholder="Choose transport" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[1300] rounded-xl border-[#123a35]/10 bg-white text-[#123a35] shadow-xl">
+                          <SelectItem value="unverified">Not decided / needs research</SelectItem>
+                          <SelectItem value="flight">Flight</SelectItem>
+                          <SelectItem value="train">Train</SelectItem>
+                          <SelectItem value="bus">Bus</SelectItem>
+                          <SelectItem value="car">Car / taxi</SelectItem>
+                          <SelectItem value="ferry">Ferry</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <label className="grid gap-1 text-xs font-semibold">Travel date<input type="date" value={leg.travelDate} onChange={e => { setRouteResearch(null); updateTransportLeg(leg.id, { travelDate: e.target.value }); }} className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
                     <label className="grid gap-1 text-xs font-semibold sm:col-span-2">Estimated total for this leg ({draft.currency})<input type="number" min="0" value={leg.unitCost || ""} onChange={e => updateTransportLeg(leg.id, { unitCost: Math.max(0, Number(e.target.value) || 0) })} placeholder="Enter a quote or estimate" className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
                   </div>
@@ -235,9 +252,14 @@ export default function JourneyStudio() {
             <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div><h2 className="font-display text-2xl">Trip cost breakdown</h2><p className="mt-1 text-sm text-[#71857e]">Enter a cost per unit. Totals recalculate when prices, traveller counts, rooms or dates change.</p></div>
-                <select aria-label="Budget currency" value={draft.currency} onChange={e => { patch({ currency: e.target.value }); setBudgetItems(items => items.map(item => ({ ...item, currency: e.target.value }))); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-2 text-sm font-semibold">
-                  {["INR","USD","EUR","GBP","AED","SGD","CAD","AUD"].map(currency => <option key={currency}>{currency}</option>)}
-                </select>
+                <Select value={draft.currency} onValueChange={currency => { patch({ currency }); setBudgetItems(items => items.map(item => ({ ...item, currency }))); }}>
+                  <SelectTrigger aria-label="Budget currency" className="h-10 w-[112px] rounded-xl border-[#123a35]/15 bg-white px-3 text-sm font-semibold text-[#123a35] shadow-none">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[1300] rounded-xl bg-white text-[#123a35] shadow-xl">
+                    {["INR","USD","EUR","GBP","AED","SGD","CAD","AUD"].map(currency => <SelectItem key={currency} value={currency}>{currency}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {(["economy","expected","comfort"] as const).map(scenario => <button type="button" key={scenario} onClick={() => setActiveScenario(scenario)} className={`rounded-xl border px-2 py-3 text-sm font-bold capitalize ${activeScenario === scenario ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{scenario}</button>)}
