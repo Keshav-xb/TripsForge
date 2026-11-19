@@ -52,6 +52,42 @@ export default function JourneyStudio() {
   const [budgetInput, setBudgetInput] = useState(String(plan.budget > 0 ? plan.budget : defaultPlan.budget));
   const [transportLegs, setTransportLegs] = useState<TransportLeg[]>(() => [createEmptyTransportLeg(plan.startLocation || defaultPlan.startLocation, destination)]);
   const transportTotal = getTransportLegTotal(transportLegs);
+  const [routeResearch, setRouteResearch] = useState<{
+    retrievedAt: string;
+    provider: string;
+    modes: Array<{ mode: TransportMode; status: string; evidence: string; serviceStatus: string; bookingStatus: string }>;
+    limitations: string[];
+    road: null | { status: string; distanceKm?: number; durationMinutes?: number; provider: string };
+  } | null>(null);
+  const [researching, setResearching] = useState(false);
+  const [researchError, setResearchError] = useState("");
+  const runRouteResearch = async () => {
+    if (!draft.startLocationPoint || !draft.destinationLocation) {
+      setResearchError("Select both departure and destination from the location suggestions first.");
+      return;
+    }
+    setResearching(true);
+    setResearchError("");
+    setRouteResearch(null);
+    try {
+      const input = {
+        origin: draft.startLocation,
+        destination: draft.destination,
+        originPoint: draft.startLocationPoint,
+        destinationPoint: draft.destinationLocation,
+        travelDate: transportLegs.find(leg => leg.travelDate)?.travelDate || draft.startDate,
+      };
+      const response = await fetch(`/api/trpc/route.research?input=${encodeURIComponent(JSON.stringify({ json: input }))}`);
+      const payload = await response.json() as { result?: { data?: { json?: typeof routeResearch } }; error?: { json?: { message?: string } } };
+      const result = payload.result?.data?.json;
+      if (!response.ok || !result) throw new Error(payload.error?.json?.message || "Route research is temporarily unavailable.");
+      setRouteResearch(result);
+    } catch (error) {
+      setResearchError(error instanceof Error ? error.message : "Route research failed. Please try again.");
+    } finally {
+      setResearching(false);
+    }
+  };
   const updateTransportLeg = (id: string, updates: Partial<TransportLeg>) => setTransportLegs(legs => legs.map(leg => leg.id === id ? { ...leg, ...updates } : leg));
   const [infants, setInfants] = useState(0);
   const [rooms, setRooms] = useState(1);
@@ -162,6 +198,24 @@ export default function JourneyStudio() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div><h2 className="font-display text-2xl">Journey transport legs</h2><p className="mt-1 text-sm text-[#71857e]">Break a complex journey into separately planned segments.</p></div>
                 <button type="button" onClick={() => setTransportLegs(legs => [...legs, createEmptyTransportLeg(legs.at(-1)?.destination || draft.startLocation, draft.destination)])} className="rounded-xl bg-[#123a35] px-3 py-2 text-sm font-bold text-white">Add leg +</button>
+              </div>
+              <div className="mt-4 rounded-xl border border-[#123a35]/10 bg-white p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><p className="font-bold">Research this route</p><p className="mt-1 text-xs leading-5 text-[#71857e]">Check mapped transport infrastructure near both endpoints and look for a drivable road-network route.</p></div>
+                  <button type="button" onClick={() => void runRouteResearch()} disabled={researching || !draft.startLocationPoint || !draft.destinationLocation} className="rounded-xl bg-[#e6651b] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{researching ? "Researching…" : "Research route"}</button>
+                </div>
+                {!draft.startLocationPoint || !draft.destinationLocation ? <p className="mt-3 text-xs text-[#8b542d]">Choose both locations from the search suggestions to enable research.</p> : null}
+                {researchError && <p role="alert" className="mt-3 text-xs font-semibold text-red-700">{researchError}</p>}
+                {routeResearch && <div className="mt-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#71857e]"><span>Sources: {routeResearch.provider}</span><span>Checked {new Date(routeResearch.retrievedAt).toLocaleString()}</span></div>
+                  {routeResearch.road?.status === "route_found" && <div className="rounded-xl bg-[#edf5ef] p-3 text-sm"><strong>Road network route found:</strong> {routeResearch.road.distanceKm} km · approximately {Math.round((routeResearch.road.durationMinutes || 0) / 60 * 10) / 10} hours by car. This is not a live traffic or road-open check.</div>}
+                  {routeResearch.modes.map(item => <div key={item.mode} className="rounded-xl border border-[#123a35]/10 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold capitalize">{item.mode}</p><span className="rounded-full bg-[#f2eddf] px-2 py-1 text-[10px] font-bold uppercase tracking-wide">{item.status.replaceAll("_", " ")}</span></div>
+                    <p className="mt-2 text-xs leading-5 text-[#637e76]">{item.evidence}</p>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] font-semibold text-[#8b542d]">Scheduled service: unverified · Booking: not connected</p><button type="button" onClick={() => updateTransportLeg(transportLegs[0].id, { mode: item.mode })} className="text-xs font-bold text-[#e6651b]">Use as planning assumption</button></div>
+                  </div>)}
+                  <div className="rounded-xl bg-[#fff4e8] p-3"><p className="text-xs font-bold text-[#8b542d]">Research limitations</p><ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] leading-5 text-[#8b542d]">{routeResearch.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul></div>
+                </div>}
               </div>
               <div className="mt-4 space-y-3">
                 {transportLegs.map((leg, index) => <div key={leg.id} className="rounded-xl border border-[#123a35]/10 bg-white p-3">
