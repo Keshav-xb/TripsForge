@@ -199,7 +199,19 @@ export default function JourneyStudio() {
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><Wallet className="h-5 w-5 text-[#e6651b]" /> Budget</h2>
               <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
                 <label className="grid gap-2 text-sm font-semibold">Budget limit for everyone ({draft.currency})<input type="text" inputMode="decimal" value={budgetInput} onChange={e => { const value = e.target.value; if (value === "" || /^\d*(\.\d*)?$/.test(value)) { setBudgetInput(value); if (value.trim() !== "" && Number.isFinite(Number(value))) patch({ budget: Math.max(0, Number(value)) }); } }} onBlur={() => { if (budgetInput.trim() === "") setBudgetInput(String(draft.budget > 0 ? draft.budget : defaultPlan.budget)); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
-                <label className="grid gap-2 text-sm font-semibold">Travel style<select value={draft.travelStyle} onChange={e => patch({ travelStyle: e.target.value as PlanInputs["travelStyle"] })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3"><option>Relaxed</option><option>Balanced</option><option>Packed</option></select></label>
+                <div className="grid gap-2 text-sm font-semibold">
+                  <span>Travel style</span>
+                  <Select value={draft.travelStyle} onValueChange={value => patch({ travelStyle: value as PlanInputs["travelStyle"] })}>
+                    <SelectTrigger className="h-11 w-full rounded-xl border-[#123a35]/15 bg-white px-3 text-sm font-medium text-[#123a35] shadow-none">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[1300] rounded-xl bg-white text-[#123a35] shadow-xl">
+                      <SelectItem value="Relaxed">Relaxed</SelectItem>
+                      <SelectItem value="Balanced">Balanced</SelectItem>
+                      <SelectItem value="Packed">Packed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <p className="mt-2 text-xs leading-5 text-[#71857e]">This is your spending limit for the whole group. It stays fixed when traveller numbers change; the trip estimate below recalculates from the unit prices you enter.</p><div className="mt-3 flex flex-wrap gap-2">{(["Budget", "Balanced", "Premium"] as const).map(level => <button type="button" key={level} onClick={() => patch({ budgetLevel: level })} className={`rounded-full border px-4 py-2 text-sm font-semibold ${draft.budgetLevel === level ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{level}</button>)}</div>
             </div>
