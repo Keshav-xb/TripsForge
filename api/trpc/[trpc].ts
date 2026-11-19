@@ -167,7 +167,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const destinationPoint = input.destinationPoint as Point | undefined;
       const validPoint = (point: Point | undefined) => !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
       if (origin.length < 2 || origin.length > 180 || destination.length < 2 || destination.length > 180) throw new Error("INVALID_ROUTE_LABELS");
-      if (!validPoint(originPoint) || !validPoint(destinationPoint)) throw new Error("INVALID_ROUTE_COORDINATES");\n      const resolvedOriginPoint = originPoint!;\n      const resolvedDestinationPoint = destinationPoint!;
+      if (!validPoint(originPoint) || !validPoint(destinationPoint)) throw new Error("INVALID_ROUTE_COORDINATES");
+      const resolvedOriginPoint = originPoint!;\n      const resolvedDestinationPoint = destinationPoint!;
       const parsedTravelDate = new Date(travelDate + "T00:00:00Z");
       if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(travelDate) || Number.isNaN(parsedTravelDate.getTime()) || parsedTravelDate.toISOString().slice(0, 10) !== travelDate) throw new Error("INVALID_TRAVEL_DATE");
 
