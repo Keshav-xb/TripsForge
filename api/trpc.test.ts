@@ -46,7 +46,7 @@ describe("TripsForge API request guardrails", () => {
   });
 
   it("marks dynamic API responses as non-cacheable by browsers and shared proxies", async () => {
-    const response = await invoke("GET", "places.nearby", { lat: 32.7, lng: 74.8, category: "attraction" });
+    const response = await invoke("POST", "places.nearby", { lat: 32.7, lng: 74.8, category: "attraction" });
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });
