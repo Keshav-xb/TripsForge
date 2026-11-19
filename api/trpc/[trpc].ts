@@ -206,9 +206,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           return { kind, count: matching.length, examples: [...new Set(names)].slice(0, 4), checked: true };
         });
       };
+      const safeInfrastructureSearch = async (point: Point) => {
+        try {
+          return await searchInfrastructure(point);
+        } catch {
+          return infrastructureQueries.map(({ kind }) => ({ kind, count: 0, examples: [], checked: false }));
+        }
+      };
       const [originInfrastructure, destinationInfrastructure] = await Promise.all([
-        searchInfrastructure(originPoint),
-        searchInfrastructure(destinationPoint),
+        safeInfrastructureSearch(originPoint),
+        safeInfrastructureSearch(destinationPoint),
       ]);
       const infrastructure: InfrastructureEvidence[] = infrastructureQueries.map(({ kind }) => {
         const from = originInfrastructure.find(item => item.kind === kind)!;
