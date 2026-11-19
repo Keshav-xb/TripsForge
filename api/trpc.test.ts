@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import handler from "./[trpc]";
+import handler from "./trpc/[trpc]";
 
 async function invoke(method: string, path: string, input?: unknown) {
   const query = input === undefined ? "" : `?input=${encodeURIComponent(JSON.stringify({ json: input }))}`;
