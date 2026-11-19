@@ -176,22 +176,36 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         { kind: "ferry", filter: '["amenity"="ferry_terminal"]' },
       ];
       const searchInfrastructure = async (point: Point) => {
-        const results = await Promise.all(infrastructureQueries.map(async ({ kind, filter }) => {
-          const query = `[out:json][timeout:18];(node(around:20000,${point.lat},${point.lng})${filter};way(around:20000,${point.lat},${point.lng})${filter};relation(around:20000,${point.lat},${point.lng})${filter};);out center tags;`;
-          const response = await fetch("https://overpass-api.de/api/interpreter", {
-            method: "POST",
-            headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (route research)" },
-            body: new URLSearchParams({ data: query }),
-            signal: AbortSignal.timeout(20000),
-          });
-          if (!response.ok) throw new Error(`OVERPASS_HTTP_${response.status}`);
-          const data = await response.json() as { elements?: Array<{ tags?: Record<string, string> }> };
-          const names = (data.elements ?? []).map(element => element.tags?.name ?? element.tags?.["name:en"]).filter((name): name is string => !!name);
-          return { kind, count: data.elements?.length ?? 0, examples: [...new Set(names)].slice(0, 4) };
-        }));
-        return results;
+        const around = `(around:20000,${point.lat},${point.lng})`;
+        const query = `[out:json][timeout:20];(
+          node${around}["aeroway"="aerodrome"];way${around}["aeroway"="aerodrome"];relation${around}["aeroway"="aerodrome"];
+          node${around}["railway"~"station|halt"];way${around}["railway"~"station|halt"];relation${around}["railway"~"station|halt"];
+          node${around}["amenity"="bus_station"];way${around}["amenity"="bus_station"];relation${around}["amenity"="bus_station"];
+          node${around}["highway"="bus_stop"];way${around}["highway"="bus_stop"];
+          node${around}["amenity"="ferry_terminal"];way${around}["amenity"="ferry_terminal"];relation${around}["amenity"="ferry_terminal"];
+        );out center tags;`;
+        const response = await fetch("https://overpass-api.de/api/interpreter", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (route research)" },
+          body: new URLSearchParams({ data: query }),
+          signal: AbortSignal.timeout(25000),
+        });
+        if (!response.ok) throw new Error(`OVERPASS_HTTP_${response.status}`);
+        const data = await response.json() as { elements?: Array<{ tags?: Record<string, string> }> };
+        const elements = data.elements ?? [];
+        const classify = (tags: Record<string, string> = {}): TransportResearchMode | null => {
+          if (tags.aeroway === "aerodrome") return "flight";
+          if (tags.railway === "station" || tags.railway === "halt") return "train";
+          if (tags.amenity === "bus_station" || tags.highway === "bus_stop") return "bus";
+          if (tags.amenity === "ferry_terminal") return "ferry";
+          return null;
+        };
+        return infrastructureQueries.map(({ kind }) => {
+          const matching = elements.filter(element => classify(element.tags) === kind);
+          const names = matching.map(element => element.tags?.name ?? element.tags?.["name:en"]).filter((name): name is string => !!name);
+          return { kind, count: matching.length, examples: [...new Set(names)].slice(0, 4) };
+        });
       };
-
       const [originInfrastructure, destinationInfrastructure] = await Promise.all([
         searchInfrastructure(originPoint),
         searchInfrastructure(destinationPoint),
