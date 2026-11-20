@@ -257,56 +257,62 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       ];
       const searchInfrastructure = async (point: Point) => {
         const around = `(around:20000,${point.lat},${point.lng})`;
-        const query = `[out:json][timeout:20];(
+        const query = `[out:json][timeout:8];(
           node${around}["aeroway"="aerodrome"];way${around}["aeroway"="aerodrome"];relation${around}["aeroway"="aerodrome"];
           node${around}["railway"~"station|halt"];way${around}["railway"~"station|halt"];relation${around}["railway"~"station|halt"];
           node${around}["amenity"="bus_station"];way${around}["amenity"="bus_station"];relation${around}["amenity"="bus_station"];
           node${around}["highway"="bus_stop"];way${around}["highway"="bus_stop"];
           node${around}["amenity"="ferry_terminal"];way${around}["amenity"="ferry_terminal"];relation${around}["amenity"="ferry_terminal"];
         );out center tags;`;
-        const response = await fetch("https://overpass-api.de/api/interpreter", {
-          method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (route research)" },
-          body: new URLSearchParams({ data: query }),
-          signal: AbortSignal.timeout(2500),
-        });
-        if (!response.ok) throw new Error(`OVERPASS_HTTP_${response.status}`);
-        const body = await response.text();
-        let data: { elements?: Array<{ tags?: Record<string, string> }> };
-        try {
-          data = JSON.parse(body);
-        } catch {
-          throw new Error("OVERPASS_INVALID_RESPONSE");
+        const providers = [
+          { name: "Overpass main", url: "https://overpass-api.de/api/interpreter" },
+          { name: "Overpass Kumi fallback", url: "https://overpass.kumi.systems/api/interpreter" },
+        ];
+        let lastError = "OVERPASS_UNAVAILABLE";
+        for (const provider of providers) {
+          try {
+            const response = await fetch(provider.url, {
+              method: "POST",
+              headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (route research)" },
+              body: new URLSearchParams({ data: query }),
+              signal: AbortSignal.timeout(3500),
+            });
+            if (!response.ok) throw new Error(`OVERPASS_HTTP_${response.status}`);
+            const body = await response.text();
+            let data: { elements?: Array<{ tags?: Record<string, string> }> };
+            try {
+              data = JSON.parse(body);
+            } catch {
+              throw new Error("OVERPASS_INVALID_RESPONSE");
+            }
+            const elements = data.elements ?? [];
+            const classify = (tags: Record<string, string> = {}): TransportResearchMode | null => {
+              if (tags.aeroway === "aerodrome") return "flight";
+              if (tags.railway === "station" || tags.railway === "halt") return "train";
+              if (tags.amenity === "bus_station" || tags.highway === "bus_stop") return "bus";
+              if (tags.amenity === "ferry_terminal") return "ferry";
+              return null;
+            };
+            return infrastructureQueries.map(({ kind }) => {
+              const matching = elements.filter(element => classify(element.tags) === kind);
+              const names = matching.map(element => element.tags?.name ?? element.tags?.["name:en"]).filter((name): name is string => !!name);
+              return { kind, count: matching.length, examples: Array.from(new Set(names)).slice(0, 4), checked: true, provider: provider.name };
+            });
+          } catch (error) {
+            lastError = error instanceof Error ? error.message : "OVERPASS_UNAVAILABLE";
+          }
         }
-        const elements = data.elements ?? [];
-        const classify = (tags: Record<string, string> = {}): TransportResearchMode | null => {
-          if (tags.aeroway === "aerodrome") return "flight";
-          if (tags.railway === "station" || tags.railway === "halt") return "train";
-          if (tags.amenity === "bus_station" || tags.highway === "bus_stop") return "bus";
-          if (tags.amenity === "ferry_terminal") return "ferry";
-          return null;
-        };
-        return infrastructureQueries.map(({ kind }) => {
-          const matching = elements.filter(element => classify(element.tags) === kind);
-          const names = matching.map(element => element.tags?.name ?? element.tags?.["name:en"]).filter((name): name is string => !!name);
-          return { kind, count: matching.length, examples: Array.from(new Set(names)).slice(0, 4), checked: true };
-        });
-      };
-      const safeInfrastructureSearch = async (point: Point) => {
-        try {
-          return await searchInfrastructure(point);
-        } catch {
-          return infrastructureQueries.map(({ kind }) => ({ kind, count: 0, examples: [], checked: false }));
-        }
+        console.error("[TripsForge route research] infrastructure lookup failed", { reason: lastError });
+        return infrastructureQueries.map(({ kind }) => ({ kind, count: 0, examples: [], checked: false, reason: lastError }));
       };
       const [originInfrastructure, destinationInfrastructure] = await Promise.all([
-        safeInfrastructureSearch(resolvedOriginPoint),
-        safeInfrastructureSearch(resolvedDestinationPoint),
+        searchInfrastructure(resolvedOriginPoint),
+        searchInfrastructure(resolvedDestinationPoint),
       ]);
       const infrastructure: InfrastructureEvidence[] = infrastructureQueries.map(({ kind }) => {
         const from = originInfrastructure.find(item => item.kind === kind)!;
         const to = destinationInfrastructure.find(item => item.kind === kind)!;
-        return { kind, originCount: from.count, destinationCount: to.count, originExamples: from.examples, destinationExamples: to.examples, checked: from.checked && to.checked };
+        return { kind, originCount: from.count, destinationCount: to.count, originExamples: from.examples, destinationExamples: to.examples, checked: from.checked && to.checked, ...(!from.checked || !to.checked ? { reason: [!from.checked ? `origin: ${from.reason ?? "lookup failed"}` : "", !to.checked ? `destination: ${to.reason ?? "lookup failed"}` : ""].filter(Boolean).join("; ") } : {}) };
       });
 
       const road = await roadPromise;
