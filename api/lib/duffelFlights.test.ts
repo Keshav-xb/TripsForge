@@ -29,7 +29,15 @@ describe("searchDuffelFlights", () => {
         const query = new URL(url).searchParams.get("query");
         return new Response(JSON.stringify({ data: [{ type: "city", name: query, iata_code: query?.includes("Jammu") ? "IXJ" : "DEL" }] }), { status: 200 });
       }
-      return new Response(JSON.stringify({ data: { offers: [{ id: "off_test", total_amount: "100.00", total_currency: "USD", slices: [] }] } }), { status: 200 });
+      if (url.includes("/air/offer_requests")) {
+        expect(url).toContain("return_offers=false");
+        return new Response(JSON.stringify({ data: { id: "orq_test" } }), { status: 200 });
+      }
+      expect(url).toContain("/air/offers?");
+      expect(url).toContain("offer_request_id=orq_test");
+      expect(url).toContain("limit=200");
+      expect(url).toContain("sort=total_amount");
+      return new Response(JSON.stringify({ data: [{ id: "off_test", total_amount: "100.00", total_currency: "USD", slices: [] }] }), { status: 200 });
     }) as typeof fetch;
     try {
       const result = await searchDuffelFlights({ origin: "Jammu", destination: "Delhi", departureDate: "2026-12-20" });
@@ -48,6 +56,10 @@ describe("searchDuffelFlights", () => {
         const query = new URL(url).searchParams.get("query");
         return new Response(JSON.stringify({ data: [{ type: "city", name: query, iata_code: query?.includes("Jammu") ? "IXJ" : "DEL" }] }), { status: 200 });
       }
+      if (url.includes("/air/offer_requests")) {
+        return new Response(JSON.stringify({ data: { id: "orq_many" } }), { status: 200 });
+      }
+      expect(url).toContain("offer_request_id=orq_many");
       const offers = Array.from({ length: 8 }, (_, index) => ({
         id: `offer_${index}`,
         total_amount: String(800 - index * 50),
@@ -63,7 +75,7 @@ describe("searchDuffelFlights", () => {
           marketing_carrier_flight_number: "EA123",
         }] }],
       }));
-      return new Response(JSON.stringify({ data: { offers } }), { status: 200 });
+      return new Response(JSON.stringify({ data: offers }), { status: 200 });
     }) as typeof fetch;
     try {
       const result = await searchDuffelFlights({ origin: "Jammu", destination: "Delhi", departureDate: "2026-12-20" });
