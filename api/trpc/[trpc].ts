@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../lib/routeResearch.js";
+import { buildTravelIntelligence } from "../lib/travelIntelligence.js";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
@@ -209,6 +210,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (path === "places.nearby") {
       const places = await nearbyPlaces(input as { lat: number; lng: number; category: string; radius?: number });
       return send(req, res, 200, trpcData({ provider: "OpenStreetMap / Overpass", retrievedAt: new Date().toISOString(), places }));
+    }
+    if (path === "route.intelligence") {
+      const research = input.research as Parameters<typeof buildTravelIntelligence>[0] | undefined;
+      if (!research || typeof research !== "object" || !Array.isArray(research.modes) || typeof research.origin !== "string" || typeof research.destination !== "string" || typeof research.travelDate !== "string") {
+        throw new Error("INVALID_RESEARCH_EVIDENCE");
+      }
+      const report = buildTravelIntelligence(research);
+      return send(req, res, 200, trpcData(report));
     }
     if (path === "route.research") {
       const origin = String(input.origin ?? "").trim();
