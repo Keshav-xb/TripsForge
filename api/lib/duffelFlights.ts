@@ -122,8 +122,8 @@ export async function searchDuffelFlights(input: {
     resolveDuffelPlace(input.destination, token),
   ]);
   if (originCode === destinationCode) throw new Error("FLIGHT_ORIGIN_EQUALS_DESTINATION");
-  const result = await duffelRequest<{ data?: { offers?: DuffelOffer[] } }>(
-    "/air/offer_requests",
+  const requestResult = await duffelRequest<{ data?: { id?: string } }>(
+    "/air/offer_requests?return_offers=false&supplier_timeout=15000",
     token,
     {
       method: "POST",
@@ -137,7 +137,15 @@ export async function searchDuffelFlights(input: {
       }),
     },
   );
-  const offers = (result.data?.offers ?? []).flatMap(offer => {
+  const offerRequestId = requestResult.data?.id;
+  if (!offerRequestId) throw new Error("DUFFEL_OFFER_REQUEST_ID_MISSING");
+  const offersUrl = new URL("https://api.duffel.com/air/offers");
+  offersUrl.searchParams.set("offer_request_id", offerRequestId);
+  offersUrl.searchParams.set("limit", "200");
+  offersUrl.searchParams.set("sort", "total_amount");
+  const offerResult = await duffelRequest<{ data?: DuffelOffer[] }>(offersUrl.pathname + offersUrl.search, token);
+
+  const offers = (offerResult.data ?? []).flatMap(offer => {
     if (!offer.id || !offer.total_amount || !offer.total_currency) return [];
     const segments = (offer.slices ?? []).flatMap(slice => (slice.segments ?? []).map(segment => ({
       from: [segment.origin?.name, segment.origin?.iata_code].filter(Boolean).join(" (") + (segment.origin?.name && segment.origin?.iata_code ? ")" : ""),
