@@ -20,6 +20,24 @@ describe("searchDuffelFlights", () => {
     expect(result.offers).toEqual([]);
   });
 
+  it("identifies Duffel sandbox tokens as test environment", async () => {
+    process.env.DUFFEL_ACCESS_TOKEN = "duffel_test_example";
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/places/suggestions")) {
+        const query = new URL(url).searchParams.get("query");
+        return new Response(JSON.stringify({ data: [{ type: "city", name: query, iata_code: query?.includes("Jammu") ? "IXJ" : "DEL" }] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: { offers: [{ id: "off_test", total_amount: "100.00", total_currency: "USD", slices: [] }] } }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const result = await searchDuffelFlights({ origin: "Jammu", destination: "Delhi", departureDate: "2026-12-20" });
+      expect(result.status).toBe("offers_found");
+      if (result.status === "offers_found") expect(result.environment).toBe("test");
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
   it("rejects invalid travel dates before contacting the provider", async () => {
     process.env.DUFFEL_ACCESS_TOKEN = "test-token";
     await expect(searchDuffelFlights({
