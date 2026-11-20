@@ -73,6 +73,8 @@ describe("searchDuffelFlights", () => {
           operating_carrier: { name: "Example Air" },
           marketing_carrier: { name: "Example Marketing" },
           marketing_carrier_flight_number: "EA123",
+          duration: "PT01H30M",
+          passengers: [{ baggages: [{ type: "checked", quantity: 1 }, { type: "carry_on", quantity: 1 }] }],
         }] }],
       }));
       return new Response(JSON.stringify({ data: offers }), { status: 200 });
@@ -85,6 +87,8 @@ describe("searchDuffelFlights", () => {
         expect(result.offers[0].amount).toBe("450");
         expect(result.offers[0].segments[0].carrier).toBe("Example Air");
         expect(result.offers[0].segments[0].marketingCarrier).toBe("Example Marketing");
+        expect(result.offers[0].segments[0].duration).toBe("PT01H30M");
+        expect(result.offers[0].segments[0].baggage).toEqual(["1 checked bag", "1 carry_on bag"]);
       }
     } finally { globalThis.fetch = originalFetch; }
   });
