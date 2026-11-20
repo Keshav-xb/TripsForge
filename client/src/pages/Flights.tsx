@@ -14,7 +14,7 @@ const currencies = ["INR", "USD", "EUR", "GBP", "AED", "SGD", "CAD", "AUD"];
 const formatPrice = (amount: string, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(amount));
 const formatDuration = (value?: string) => {
   if (!value) return undefined;
-  const match = value.match(/^PT(?:(\\d+)H)?(?:(\\d+)M)?$/);
+  const match = value.match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/);
   if (!match) return undefined;
   const hours = Number(match[1] || 0), minutes = Number(match[2] || 0);
   return [hours ? `${hours}h` : "", minutes ? `${minutes}m` : ""].filter(Boolean).join(" ") || "0m";
