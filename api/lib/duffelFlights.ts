@@ -54,16 +54,47 @@ async function duffelRequest<T>(path: string, token: string, init: RequestInit =
   return parsed as T;
 }
 
+const INDIA_AIRPORT_FALLBACKS: Array<{ aliases: string[]; code: string }> = [
+  { aliases: ["srinagar"], code: "SXR" },
+  { aliases: ["jammu"], code: "IXJ" },
+  { aliases: ["delhi", "new delhi"], code: "DEL" },
+  { aliases: ["mumbai", "bombay"], code: "BOM" },
+  { aliases: ["bengaluru", "bangalore"], code: "BLR" },
+  { aliases: ["chennai", "madras"], code: "MAA" },
+  { aliases: ["kolkata", "calcutta"], code: "CCU" },
+  { aliases: ["hyderabad"], code: "HYD" },
+  { aliases: ["ahmedabad"], code: "AMD" },
+  { aliases: ["pune"], code: "PNQ" },
+  { aliases: ["goa"], code: "GOI" },
+  { aliases: ["leh"], code: "IXL" },
+  { aliases: ["amritsar"], code: "ATQ" },
+  { aliases: ["jaipur"], code: "JAI" },
+  { aliases: ["lucknow"], code: "LKO" },
+];
+
+function fallbackIndianAirportCode(query: string): string | undefined {
+  const normalized = query.normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return INDIA_AIRPORT_FALLBACKS.find(({ aliases }) =>
+    aliases.some(alias => normalized.split(" ").includes(alias) || normalized.includes(alias))
+  )?.code;
+}
+
 async function resolveDuffelPlace(query: string, token: string): Promise<string> {
   const url = new URL("https://api.duffel.com/places/suggestions");
   url.searchParams.set("query", query);
-  const result = await duffelRequest<{ data?: DuffelPlace[] }>(url.pathname + url.search, token);
-  const places = result.data ?? [];
-  const selected = places.find(place => place.type === "city" && place.iata_code)
-    ?? places.find(place => place.type === "airport" && place.iata_code);
-  const code = selected?.iata_code;
-  if (!code || !/^[A-Z]{3}$/.test(code)) throw new Error(`DUFFEL_PLACE_NOT_FOUND:${query}`);
-  return code;
+  try {
+    const result = await duffelRequest<{ data?: DuffelPlace[] }>(url.pathname + url.search, token);
+    const places = result.data ?? [];
+    const city = places.find(place => place.type === "city" && (place.iata_code || place.iata_city_code));
+    const airport = places.find(place => place.type === "airport" && place.iata_code);
+    const code = city?.iata_code || city?.iata_city_code || airport?.iata_code;
+    if (code && /^[A-Z]{3}$/.test(code)) return code;
+  } catch {
+    // Continue to the deterministic airport-code fallback for supported Indian cities.
+  }
+  const fallback = fallbackIndianAirportCode(query);
+  if (fallback) return fallback;
+  throw new Error(`DUFFEL_PLACE_NOT_FOUND:${query}`);
 }
 
 export async function searchDuffelFlights(input: {
