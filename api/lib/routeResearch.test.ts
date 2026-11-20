@@ -33,6 +33,29 @@ describe("buildRouteResearch", () => {
     expect(result.limitations.join(" ")).toContain("does not prove");
   });
 
+  it("surfaces infrastructure provider failures instead of hiding them", () => {
+    const result = buildRouteResearch({
+      origin: "Jammu",
+      destination: "Srinagar",
+      travelDate: "2026-12-10",
+      road: null,
+      infrastructure: [{
+        kind: "flight",
+        originCount: 0,
+        destinationCount: 0,
+        originExamples: [],
+        destinationExamples: [],
+        checked: false,
+        reason: "origin: OVERPASS_HTTP_504; destination: OVERPASS_TIMEOUT",
+      }],
+      retrievedAt: "2026-11-20T03:30:00.000Z",
+    });
+    const flight = result.modes.find(mode => mode.mode === "flight")!;
+    expect(flight.status).toBe("not_checked");
+    expect(flight.evidence).toContain("OVERPASS_HTTP_504");
+    expect(flight.evidence).toContain("OVERPASS_TIMEOUT");
+  });
+
   it("distinguishes a missing road result from an unavailable lookup", () => {
     const base = {
       origin: "Jammu",

@@ -7,6 +7,8 @@ export type InfrastructureEvidence = {
   originExamples: string[];
   destinationExamples: string[];
   checked: boolean;
+  reason?: string;
+  provider?: string;
 };
 
 export type RouteResearchResult = {
@@ -82,7 +84,7 @@ export function buildRouteResearch(input: {
         ? `Mapped infrastructure was found near only one endpoint. ${examples.join("; ")}`
         : status === "no_infrastructure_found"
           ? "No matching infrastructure was found in the searched radius. This does not prove the service does not exist."
-          : "Infrastructure data could not be checked.";
+          : `Infrastructure data could not be checked. ${evidence?.reason ? `Lookup detail: ${evidence.reason}.` : "The map-data providers did not return a usable response."}`;
 
     return {
       mode,
