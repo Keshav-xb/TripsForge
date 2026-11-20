@@ -12,6 +12,8 @@ export type FlightOfferSummary = {
     carrier: string;
     marketingCarrier?: string;
     flightNumber?: string;
+    duration?: string;
+    baggage?: string[];
   }>;
 };
 
@@ -33,6 +35,8 @@ type DuffelOffer = {
     operating_carrier?: { name?: string; iata_code?: string };
     marketing_carrier?: { name?: string; iata_code?: string };
     marketing_carrier_flight_number?: string;
+    duration?: string;
+    passengers?: Array<{ baggages?: Array<{ type?: string; quantity?: number }> }>;
   }> }>;
 };
 
@@ -155,6 +159,13 @@ export async function searchDuffelFlights(input: {
       carrier: segment.operating_carrier?.name ?? segment.marketing_carrier?.name ?? "Carrier details not supplied",
       ...(segment.marketing_carrier?.name && segment.operating_carrier?.name && segment.marketing_carrier.name !== segment.operating_carrier.name ? { marketingCarrier: segment.marketing_carrier.name } : {}),
       ...(segment.marketing_carrier_flight_number ? { flightNumber: segment.marketing_carrier_flight_number } : {}),
+      ...(segment.duration ? { duration: segment.duration } : {}),
+      ...(() => {
+        const baggage = [...new Set((segment.passengers ?? []).flatMap(passenger => (passenger.baggages ?? []).map(item =>
+          `${item.quantity ?? 0} ${item.type ?? "baggage"} bag${item.quantity === 1 ? "" : "s"}`
+        )))];
+        return baggage.length ? { baggage } : {};
+      })(),
     })));
     return [{ id: offer.id, amount: offer.total_amount, currency: offer.total_currency, owner: offer.owner?.name ?? "Airline not supplied", segments, ...(offer.expires_at ? { expiresAt: offer.expires_at } : {}) }];
   });
