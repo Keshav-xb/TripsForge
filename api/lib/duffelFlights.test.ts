@@ -38,6 +38,45 @@ describe("searchDuffelFlights", () => {
     } finally { globalThis.fetch = originalFetch; }
   });
 
+
+  it("shows operating airline names and returns more than five offers sorted by price", async () => {
+    process.env.DUFFEL_ACCESS_TOKEN = "duffel_live_example";
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/places/suggestions")) {
+        const query = new URL(url).searchParams.get("query");
+        return new Response(JSON.stringify({ data: [{ type: "city", name: query, iata_code: query?.includes("Jammu") ? "IXJ" : "DEL" }] }), { status: 200 });
+      }
+      const offers = Array.from({ length: 8 }, (_, index) => ({
+        id: `offer_${index}`,
+        total_amount: String(800 - index * 50),
+        total_currency: "INR",
+        owner: { name: "Duffel" },
+        slices: [{ segments: [{
+          origin: { name: "Jammu", iata_code: "IXJ" },
+          destination: { name: "Delhi", iata_code: "DEL" },
+          departing_at: "2026-12-20T10:00:00",
+          arriving_at: "2026-12-20T11:30:00",
+          operating_carrier: { name: "Example Air" },
+          marketing_carrier: { name: "Example Marketing" },
+          marketing_carrier_flight_number: "EA123",
+        }] }],
+      }));
+      return new Response(JSON.stringify({ data: { offers } }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const result = await searchDuffelFlights({ origin: "Jammu", destination: "Delhi", departureDate: "2026-12-20" });
+      expect(result.status).toBe("offers_found");
+      if (result.status === "offers_found") {
+        expect(result.offers).toHaveLength(8);
+        expect(result.offers[0].amount).toBe("450");
+        expect(result.offers[0].segments[0].carrier).toBe("Example Air");
+        expect(result.offers[0].segments[0].marketingCarrier).toBe("Example Marketing");
+      }
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
   it("rejects invalid travel dates before contacting the provider", async () => {
     process.env.DUFFEL_ACCESS_TOKEN = "test-token";
     await expect(searchDuffelFlights({
