@@ -14,10 +14,12 @@ export type FlightOfferSummary = {
   }>;
 };
 
+export type DuffelEnvironment = "test" | "live" | "unknown";
+
 export type FlightSearchResult =
-  | { status: "provider_not_configured"; provider: "Duffel"; message: string; offers: [] }
-  | { status: "no_offers"; provider: "Duffel"; checkedAt: string; originCode: string; destinationCode: string; offers: [] }
-  | { status: "offers_found"; provider: "Duffel"; checkedAt: string; originCode: string; destinationCode: string; offers: FlightOfferSummary[] };
+  | { status: "provider_not_configured"; provider: "Duffel"; environment: "unknown"; message: string; offers: [] }
+  | { status: "no_offers"; provider: "Duffel"; environment: DuffelEnvironment; checkedAt: string; originCode: string; destinationCode: string; offers: [] }
+  | { status: "offers_found"; provider: "Duffel"; environment: DuffelEnvironment; checkedAt: string; originCode: string; destinationCode: string; offers: FlightOfferSummary[] };
 
 type DuffelPlace = { type?: string; name?: string; city_name?: string; iata_code?: string; iata_city_code?: string };
 type DuffelOffer = {
@@ -102,7 +104,7 @@ export async function searchDuffelFlights(input: {
 }): Promise<FlightSearchResult> {
   const token = process.env.DUFFEL_ACCESS_TOKEN?.trim();
   if (!token) return {
-    status: "provider_not_configured", provider: "Duffel",
+    status: "provider_not_configured", provider: "Duffel", environment: "unknown",
     message: "Flight search is ready, but the Duffel access token has not been configured on the server.",
     offers: [],
   };
@@ -111,6 +113,7 @@ export async function searchDuffelFlights(input: {
   if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(input.departureDate) || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== input.departureDate) {
     throw new Error("INVALID_FLIGHT_DATE");
   }
+  const environment: DuffelEnvironment = token.startsWith("duffel_test_") ? "test" : token.startsWith("duffel_live_") ? "live" : "unknown";
   const adults = Math.min(9, Math.max(1, Math.floor(input.adults ?? 1)));
   const [originCode, destinationCode] = await Promise.all([
     resolveDuffelPlace(input.origin, token),
@@ -145,6 +148,6 @@ export async function searchDuffelFlights(input: {
     return [{ id: offer.id, amount: offer.total_amount, currency: offer.total_currency, owner: offer.owner?.name ?? "Airline not supplied", segments, ...(offer.expires_at ? { expiresAt: offer.expires_at } : {}) }];
   });
   return offers.length
-    ? { status: "offers_found", provider: "Duffel", checkedAt: new Date().toISOString(), originCode, destinationCode, offers: offers.slice(0, 5) }
-    : { status: "no_offers", provider: "Duffel", checkedAt: new Date().toISOString(), originCode, destinationCode, offers: [] };
+    ? { status: "offers_found", provider: "Duffel", environment, checkedAt: new Date().toISOString(), originCode, destinationCode, offers: offers.slice(0, 5) }
+    : { status: "no_offers", provider: "Duffel", environment, checkedAt: new Date().toISOString(), originCode, destinationCode, offers: [] };
 }
