@@ -22,7 +22,7 @@ export type DuffelEnvironment = "test" | "live" | "unknown";
 export type FlightSearchResult =
   | { status: "provider_not_configured"; provider: "Duffel"; environment: "unknown"; message: string; offers: [] }
   | { status: "no_offers"; provider: "Duffel"; environment: DuffelEnvironment; checkedAt: string; originCode: string; destinationCode: string; offers: [] }
-  | { status: "offers_found"; provider: "Duffel"; environment: DuffelEnvironment; checkedAt: string; originCode: string; destinationCode: string; offers: FlightOfferSummary[] };
+  | { status: "offers_found"; provider: "Duffel"; environment: DuffelEnvironment; checkedAt: string; originCode: string; destinationCode: string; totalOffersReturned: number; hasMoreOffers: boolean; offers: FlightOfferSummary[] };
 
 type DuffelPlace = { type?: string; name?: string; city_name?: string; iata_code?: string; iata_city_code?: string };
 type DuffelOffer = {
@@ -147,7 +147,10 @@ export async function searchDuffelFlights(input: {
   offersUrl.searchParams.set("offer_request_id", offerRequestId);
   offersUrl.searchParams.set("limit", "200");
   offersUrl.searchParams.set("sort", "total_amount");
-  const offerResult = await duffelRequest<{ data?: DuffelOffer[] }>(offersUrl.pathname + offersUrl.search, token);
+  offersUrl.searchParams.set("max_connections", "1");
+  const offerResult = await duffelRequest<{ data?: DuffelOffer[]; meta?: { after?: string | null; limit?: number } }>(offersUrl.pathname + offersUrl.search, token);
+  const totalOffersReturned = offerResult.data?.length ?? 0;
+  const hasMoreOffers = Boolean(offerResult.meta?.after);
 
   const offers = (offerResult.data ?? []).flatMap(offer => {
     if (!offer.id || !offer.total_amount || !offer.total_currency) return [];
@@ -170,6 +173,6 @@ export async function searchDuffelFlights(input: {
     return [{ id: offer.id, amount: offer.total_amount, currency: offer.total_currency, owner: offer.owner?.name ?? "Airline not supplied", segments, ...(offer.expires_at ? { expiresAt: offer.expires_at } : {}) }];
   });
   return offers.length
-    ? { status: "offers_found", provider: "Duffel", environment, checkedAt: new Date().toISOString(), originCode, destinationCode, offers: offers.sort((a, b) => Number(a.amount) - Number(b.amount)).slice(0, 20) }
+    ? { status: "offers_found", provider: "Duffel", environment, checkedAt: new Date().toISOString(), originCode, destinationCode, totalOffersReturned, hasMoreOffers, offers: offers.sort((a, b) => Number(a.amount) - Number(b.amount)).slice(0, 20) }
     : { status: "no_offers", provider: "Duffel", environment, checkedAt: new Date().toISOString(), originCode, destinationCode, offers: [] };
 }
