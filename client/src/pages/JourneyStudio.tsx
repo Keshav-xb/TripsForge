@@ -10,6 +10,7 @@ import { calculateAllBudgetScenarios, type BudgetCategory, type BudgetCostItem, 
 import { createEmptyTransportLeg, getTransportLegTotal, validateTransportLegs, type TransportLeg, type TransportMode } from "@/lib/transportLegs";
 import { useTrip } from "@/contexts/TripContext";
 import { defaultPlan, type Interest, type PlanInputs } from "@/lib/tripData";
+import { assessTripReadiness } from "@/lib/tripReadiness";
 
 const interests: Interest[] = ["Nature", "Food", "History", "Adventure", "Shopping", "Nightlife", "Photography", "Culture", "Beaches", "Architecture", "Family"];
 const budgetDefaults: Array<{ category: BudgetCategory; label: string; rule: BudgetQuantityRule }> = [
@@ -169,6 +170,15 @@ export default function JourneyStudio() {
     items: budgetItems.map(item => item.category === "transport" ? { ...item, unitCost: transportTotal, enabled: transportTotal > 0 } : item),
   }), [draft.startDate, draft.endDate, draft.adults, draft.children, draft.currency, infants, rooms, budgetItems, transportTotal]);
   const currentBudget = budgetScenarios[activeScenario];
+  const readiness = useMemo(() => assessTripReadiness({
+    origin: draft.startLocation, destination: draft.destination,
+    originConfirmed: !!draft.startLocationPoint, destinationConfirmed: !!draft.destinationLocation,
+    startDate: draft.startDate, endDate: draft.endDate,
+    travellers: draft.adults + draft.children + infants, budgetLimit: draft.budget,
+    estimatedTotal: currentBudget.total, pricedCategoryCoverage: currentBudget.pricedCategoryCoverage,
+    enabledLegs: transportLegs.filter(leg => leg.enabled), interests: draft.interests,
+    routeResearchCompleted: !!routeResearch,
+  }), [draft, infants, currentBudget.total, currentBudget.pricedCategoryCoverage, transportLegs, routeResearch]);
   const updateBudgetItem = (id: string, updates: Partial<BudgetCostItem>) =>
     setBudgetItems(items => items.map(item => item.id === id ? { ...item, ...updates } : item));
   const destinationPoint = draft.destinationLocation;
@@ -378,6 +388,15 @@ export default function JourneyStudio() {
             <p className="text-xs leading-5 text-[#87958f]">This creates a draft itinerary using the current planning engine. Live availability and AI-generated recommendations are not yet connected.</p>
           </section>
           <aside className="space-y-4 lg:sticky lg:top-6">
+            <section className="overflow-hidden rounded-[1.7rem] border border-[#123a35]/10 bg-[#123a35] p-5 text-white">
+              <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#ffbd70]">TripsForge control tower</p><h2 className="mt-1 font-display text-2xl">Plan readiness</h2></div>
+                <div className="grid h-16 w-16 place-items-center rounded-full border-[5px] border-[#ffbd70]/80 text-xl font-black tabular-nums">{readiness.score}<span className="text-[9px] font-bold">/100</span></div></div>
+              <p className="mt-3 text-sm font-semibold text-white">{readiness.status}</p>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-[#ffbd70] transition-all" style={{ width: `${readiness.score}%` }} /></div>
+              <div className="mt-4 space-y-2">{readiness.checks.map(check => <div key={check.id} className="flex items-start gap-2 text-xs leading-5"><span className={check.complete ? "text-[#9bd5b2]" : check.severity === "blocker" ? "text-[#ffbd70]" : "text-white/45"}>{check.complete ? "✓" : "○"}</span><span className={check.complete ? "text-white/75" : "text-white"}>{check.label}</span></div>)}</div>
+              <div className="mt-4 rounded-xl bg-white/10 p-3"><p className="text-[10px] font-black uppercase tracking-wider text-[#ffbd70]">Next best action</p><p className="mt-1 text-xs leading-5 text-white">{readiness.nextBestAction}</p></div>
+              <p className="mt-3 text-[10px] leading-4 text-white/55">{readiness.disclaimer}</p>
+            </section>
             <div className="overflow-hidden rounded-[1.7rem] border border-[#123a35]/10 bg-white">
               <div className="border-b border-[#123a35]/10 px-4 py-3 text-sm font-bold">Journey preview</div>
               {hasDestinationPoint ? <MapView initialCenter={destinationPoint!} initialZoom={11} markers={markers} className="h-[300px]" /> : <div className="grid h-[300px] place-items-center bg-[#eaf1ed] p-6 text-center text-sm text-[#71857e]">Select a destination from the suggestions to preview its location.</div>}
