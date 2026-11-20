@@ -70,7 +70,7 @@ export default function JourneyStudio() {
     findings: Array<{ mode: string; level: string; headline: string; details: string[] }>;
     missingEvidence: string[]; recommendedNextSteps: string[]; safetyRules: string[];
   } | null>(null);
-  const [flightSearch, setFlightSearch] = useState<{ status: string; message?: string; originCode?: string; destinationCode?: string; environment?: "test" | "live" | "unknown"; displayCurrency?: string; offers: Array<{ id: string; amount: string; currency: string; owner: string; priceDisplay?: { originalAmount: string; originalCurrency: string; displayAmount?: string; displayCurrency: string; exchangeRate?: number; rateSource?: string; rateUpdatedAt?: string; conversionStatus: string }; segments: Array<{ from: string; to: string; departure: string; arrival: string; carrier: string; flightNumber?: string }> }> } | null>(null);
+  const [flightSearch, setFlightSearch] = useState<{ status: string; message?: string; originCode?: string; destinationCode?: string; environment?: "test" | "live" | "unknown"; displayCurrency?: string; offers: Array<{ id: string; amount: string; currency: string; owner: string; priceDisplay?: { originalAmount: string; originalCurrency: string; displayAmount?: string; displayCurrency: string; exchangeRate?: number; rateSource?: string; rateUpdatedAt?: string; conversionStatus: string }; segments: Array<{ from: string; to: string; departure: string; arrival: string; carrier: string; marketingCarrier?: string; flightNumber?: string }> }> } | null>(null);
   const [searchingFlights, setSearchingFlights] = useState(false);
   const [flightSearchError, setFlightSearchError] = useState("");
   const runFlightSearch = async () => {
