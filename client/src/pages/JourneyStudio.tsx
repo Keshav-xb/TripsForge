@@ -192,10 +192,16 @@ export default function JourneyStudio() {
           <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.18em] text-[#e6651b]"><Compass className="h-4 w-4" /> TripsForge Journey Studio</p>
           <h1 className="mt-4 max-w-3xl font-display text-5xl leading-[.98] tracking-[-.06em] sm:text-6xl">Shape a journey around <em>your way of travelling.</em></h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-[#637e76]">Set the essentials in one workspace. Your destination stays attached as you plan.</p>
+          <nav aria-label="Trip planning steps" className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <a href="#trip-details" className="rounded-xl border border-[#123a35]/10 bg-white px-3 py-3 text-sm font-bold hover:border-[#e6651b]"><span className="mr-2 text-[#e6651b]">01</span>Trip details</a>
+            <a href="#transport-plan" className="rounded-xl border border-[#123a35]/10 bg-white px-3 py-3 text-sm font-bold hover:border-[#e6651b]"><span className="mr-2 text-[#e6651b]">02</span>Transport</a>
+            <a href="#trip-budget" className="rounded-xl border border-[#123a35]/10 bg-white px-3 py-3 text-sm font-bold hover:border-[#e6651b]"><span className="mr-2 text-[#e6651b]">03</span>Budget</a>
+            <a href="#trip-interests" className="rounded-xl border border-[#123a35]/10 bg-white px-3 py-3 text-sm font-bold hover:border-[#e6651b]"><span className="mr-2 text-[#e6651b]">04</span>Experiences</a>
+          </nav>
         </div>
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
           <section className="space-y-6 rounded-[2rem] border border-[#123a35]/8 bg-[#fffdf8] p-5 shadow-sm sm:p-8">
-            <div>
+            <div id="trip-details" className="scroll-mt-6">
               <LocationSearch
                 label="Destination"
                 value={draft.destination}
@@ -248,9 +254,9 @@ export default function JourneyStudio() {
               </div>
               <p className="mt-2 text-xs leading-5 text-[#71857e]">This is your spending limit for the whole group. It stays fixed when traveller numbers change; the trip estimate below recalculates from the unit prices you enter.</p><div className="mt-3 flex flex-wrap gap-2">{(["Budget", "Balanced", "Premium"] as const).map(level => <button type="button" key={level} onClick={() => patch({ budgetLevel: level })} className={`rounded-full border px-4 py-2 text-sm font-semibold ${draft.budgetLevel === level ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{level}</button>)}</div>
             </div>
-            <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
+            <div id="transport-plan" className="scroll-mt-6 rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div><h2 className="font-display text-2xl">Journey transport legs</h2><p className="mt-1 text-sm text-[#71857e]">Break a complex journey into separately planned segments.</p></div>
+                <div><h2 className="font-display text-2xl">Your transport plan</h2><p className="mt-1 text-sm text-[#71857e]">Break a complex journey into separately planned segments.</p></div>
                 <button type="button" onClick={() => setTransportLegs(legs => [...legs, createEmptyTransportLeg(legs.at(-1)?.destination || draft.startLocation, draft.destination)])} className="rounded-xl bg-[#123a35] px-3 py-2 text-sm font-bold text-white">Add leg +</button>
               </div>
               <div className="mt-4 rounded-xl border border-[#123a35]/10 bg-white p-4">
@@ -315,9 +321,9 @@ export default function JourneyStudio() {
               </div>
               <p className="mt-3 text-sm font-bold">Transport total: {money(transportTotal, draft.currency)}</p><p className="mt-2 rounded-lg bg-[#fff4e8] px-3 py-2 text-xs leading-5 text-[#8b542d]">A selected mode is only your planning assumption. TripsForge has not verified that a scheduled service operates on this segment. “Not decided” is the default until route research can confirm realistic connections. Prices entered here are not live fares.</p>
             </div>
-            <div className="rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
+            <div id="trip-budget" className="scroll-mt-6 rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h2 className="font-display text-2xl">Trip cost breakdown</h2><p className="mt-1 text-sm text-[#71857e]">Enter a cost per unit. Totals recalculate when prices, traveller counts, rooms or dates change.</p></div>
+                <div><h2 className="font-display text-2xl">Trip budget</h2><p className="mt-1 text-sm text-[#71857e]">Enter a cost per unit. Totals recalculate when prices, traveller counts, rooms or dates change.</p></div>
                 <Select value={draft.currency} onValueChange={currency => { patch({ currency }); setBudgetItems(items => items.map(item => ({ ...item, currency }))); }}>
                   <SelectTrigger aria-label="Budget currency" className="h-10 w-[112px] rounded-xl border-[#123a35]/15 bg-white px-3 text-sm font-semibold text-[#123a35] shadow-none">
                     <SelectValue />
@@ -350,8 +356,8 @@ export default function JourneyStudio() {
               </div>
               <p className="mt-2 text-xs leading-5 text-[#87958f]">Only entered prices are included, so an empty breakdown can show zero. Per-person items scale with travellers; room items scale with rooms and nights; per-trip items are counted once. These are traveller-entered planning amounts, not live supplier quotes. Live fares, timetables and bookable availability are not connected yet.</p>
             </div>
-            <div>
-              <h2 className="mb-3 font-display text-2xl">What do you want from this trip?</h2>
+            <div id="trip-interests" className="scroll-mt-6">
+              <h2 className="mb-3 font-display text-2xl">Experiences you care about</h2>
               <div className="flex flex-wrap gap-2">{interests.map(interest => <button type="button" key={interest} onClick={() => toggleInterest(interest)} className={`rounded-full border px-4 py-2.5 text-sm font-semibold ${draft.interests.includes(interest) ? "border-[#e6651b] bg-[#e6651b] text-white" : "border-[#123a35]/15 bg-white text-[#496961]"}`}>{interest}</button>)}</div>
             </div>
             {error && <p role="alert" className="rounded-xl bg-[#fff0e5] p-3 text-sm font-semibold text-[#bd4a10]">{error}</p>}
