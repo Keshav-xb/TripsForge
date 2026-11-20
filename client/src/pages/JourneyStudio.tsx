@@ -70,6 +70,29 @@ export default function JourneyStudio() {
     findings: Array<{ mode: string; level: string; headline: string; details: string[] }>;
     missingEvidence: string[]; recommendedNextSteps: string[]; safetyRules: string[];
   } | null>(null);
+  const [flightSearch, setFlightSearch] = useState<{ status: string; message?: string; originCode?: string; destinationCode?: string; offers: Array<{ id: string; amount: string; currency: string; owner: string; segments: Array<{ from: string; to: string; departure: string; arrival: string; carrier: string; flightNumber?: string }> }> } | null>(null);
+  const [searchingFlights, setSearchingFlights] = useState(false);
+  const [flightSearchError, setFlightSearchError] = useState("");
+  const runFlightSearch = async () => {
+    if (!draft.startLocation.trim() || !draft.destination.trim()) return;
+    setSearchingFlights(true);
+    setFlightSearchError("");
+    setFlightSearch(null);
+    try {
+      const input = { origin: draft.startLocation, destination: draft.destination, departureDate: transportLegs.find(leg => leg.travelDate)?.travelDate || draft.startDate, adults: draft.adults };
+      const response = await fetch(`/api/trpc/flights.search?input=${encodeURIComponent(JSON.stringify({ json: input }))}`);
+      const text = await response.text();
+      let payload: { result?: { data?: { json?: typeof flightSearch } }; error?: { json?: { message?: string } } };
+      try { payload = JSON.parse(text); } catch { throw new Error(`Flight provider returned an invalid response (HTTP ${response.status}).`); }
+      const result = payload.result?.data?.json;
+      if (!response.ok || !result) throw new Error(payload.error?.json?.message || `Flight search failed (HTTP ${response.status}).`);
+      setFlightSearch(result);
+    } catch (error) {
+      setFlightSearchError(error instanceof Error ? error.message : "Flight search could not be completed.");
+    } finally {
+      setSearchingFlights(false);
+    }
+  };
   const runRouteResearch = async () => {
     if (!draft.startLocationPoint || !draft.destinationLocation) {
       setResearchError("Select both departure and destination from the location suggestions first.");
@@ -252,6 +275,13 @@ export default function JourneyStudio() {
                 {researchError && <p role="alert" className="mt-3 text-xs font-semibold text-red-700">{researchError}</p>}
                 {routeResearch && <div className="mt-4 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#71857e]"><span>Sources: {routeResearch.provider}</span><span>Checked {new Date(routeResearch.retrievedAt).toLocaleString()}</span></div>
+                  <div className="rounded-xl border border-[#123a35]/10 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold">Live flight offers</p><p className="mt-1 text-xs text-[#71857e]">Search airline-sourced offers for your selected date.</p></div><button type="button" onClick={() => void runFlightSearch()} disabled={searchingFlights || !draft.startLocation.trim() || !draft.destination.trim()} className="rounded-xl bg-[#123a35] px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">{searchingFlights ? "Searching flights…" : "Search flights"}</button></div>
+                    {flightSearchError && <p role="alert" className="mt-3 text-xs font-semibold text-red-700">{flightSearchError}</p>}
+                    {flightSearch?.status === "provider_not_configured" && <p className="mt-3 text-xs leading-5 text-[#8b542d]">Duffel is not connected yet. Add the server-side DUFFEL_ACCESS_TOKEN in Vercel project environment variables to enable live offers.</p>}
+                    {flightSearch?.status === "no_offers" && <p className="mt-3 text-xs text-[#637e76]">Duffel returned no offers for {flightSearch.originCode} to {flightSearch.destinationCode} on this date. This does not prove no flights operate.</p>}
+                    {flightSearch?.status === "offers_found" && <div className="mt-3 space-y-2"><p className="text-[11px] text-[#71857e]">Source: Duffel · {flightSearch.originCode} to {flightSearch.destinationCode}</p>{flightSearch.offers.map(offer => <div key={offer.id} className="rounded-lg border border-[#123a35]/10 p-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">{offer.currency} {offer.amount}</p><p className="text-xs text-[#637e76]">{offer.owner}</p></div>{offer.segments.map((segment,index) => <p key={index} className="mt-2 text-xs leading-5 text-[#637e76]">{segment.carrier}{segment.flightNumber ? ` · ${segment.flightNumber}` : ""}: {segment.from} → {segment.to}<br/>Depart {new Date(segment.departure).toLocaleString()} · Arrive {new Date(segment.arrival).toLocaleString()}</p>)}</div>)}</div>}
+                  </div>
                   {intelligenceReport && <div className="rounded-xl border border-[#123a35]/10 bg-[#f5f7f2] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-display text-xl">TripsForge Intelligence</p><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase">{intelligenceReport.confidence} confidence</span></div>
                     <p className="mt-2 text-sm leading-6 text-[#45645b]">{intelligenceReport.summary}</p>
