@@ -10,6 +10,7 @@ export type FlightOfferSummary = {
     departure: string;
     arrival: string;
     carrier: string;
+    marketingCarrier?: string;
     flightNumber?: string;
   }>;
 };
@@ -29,7 +30,8 @@ type DuffelOffer = {
     departing_at?: string; arriving_at?: string;
     origin?: { name?: string; iata_code?: string };
     destination?: { name?: string; iata_code?: string };
-    operating_carrier?: { name?: string };
+    operating_carrier?: { name?: string; iata_code?: string };
+    marketing_carrier?: { name?: string; iata_code?: string };
     marketing_carrier_flight_number?: string;
   }> }>;
 };
@@ -142,12 +144,13 @@ export async function searchDuffelFlights(input: {
       to: [segment.destination?.name, segment.destination?.iata_code].filter(Boolean).join(" (") + (segment.destination?.name && segment.destination?.iata_code ? ")" : ""),
       departure: segment.departing_at ?? "",
       arrival: segment.arriving_at ?? "",
-      carrier: segment.operating_carrier?.name ?? "Carrier not supplied",
+      carrier: segment.operating_carrier?.name ?? segment.marketing_carrier?.name ?? "Carrier details not supplied",
+      ...(segment.marketing_carrier?.name && segment.operating_carrier?.name && segment.marketing_carrier.name !== segment.operating_carrier.name ? { marketingCarrier: segment.marketing_carrier.name } : {}),
       ...(segment.marketing_carrier_flight_number ? { flightNumber: segment.marketing_carrier_flight_number } : {}),
     })));
     return [{ id: offer.id, amount: offer.total_amount, currency: offer.total_currency, owner: offer.owner?.name ?? "Airline not supplied", segments, ...(offer.expires_at ? { expiresAt: offer.expires_at } : {}) }];
   });
   return offers.length
-    ? { status: "offers_found", provider: "Duffel", environment, checkedAt: new Date().toISOString(), originCode, destinationCode, offers: offers.slice(0, 5) }
+    ? { status: "offers_found", provider: "Duffel", environment, checkedAt: new Date().toISOString(), originCode, destinationCode, offers: offers.sort((a, b) => Number(a.amount) - Number(b.amount)).slice(0, 20) }
     : { status: "no_offers", provider: "Duffel", environment, checkedAt: new Date().toISOString(), originCode, destinationCode, offers: [] };
 }
