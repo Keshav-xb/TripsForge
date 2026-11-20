@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../lib/routeResearch.js";
 import { buildTravelIntelligence } from "../lib/travelIntelligence.js";
 import { searchDuffelFlights } from "../lib/duffelFlights.js";
+import { convertFlightPrice } from "../lib/currencyConversion.js";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
@@ -217,9 +218,19 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const destination = String(input.destination ?? "").trim();
       const departureDate = String(input.departureDate ?? "");
       const adults = Number(input.adults ?? 1);
+      const displayCurrency = String(input.currency ?? "USD").toUpperCase();
+      if (!/^[A-Z]{3}$/.test(displayCurrency)) throw new Error("INVALID_DISPLAY_CURRENCY");
       const result = await searchDuffelFlights({ origin, destination, departureDate, adults });
+      if (result.status === "offers_found") {
+        const offers = await Promise.all(result.offers.map(async offer => ({
+          ...offer,
+          priceDisplay: await convertFlightPrice(offer.amount, offer.currency, displayCurrency),
+        })));
+        res.setHeader("cache-control", "no-store");
+        return send(req, res, 200, trpcData({ ...result, offers, displayCurrency }));
+      }
       res.setHeader("cache-control", "no-store");
-      return send(req, res, 200, trpcData(result));
+      return send(req, res, 200, trpcData({ ...result, displayCurrency }));
     }
     if (path === "route.intelligence") {
       const research = input.research as Parameters<typeof buildTravelIntelligence>[0] | undefined;
