@@ -77,7 +77,7 @@ export async function searchDuffelFlights(input: {
   };
   if (input.origin.trim().length < 2 || input.destination.trim().length < 2) throw new Error("INVALID_FLIGHT_LOCATIONS");
   const date = new Date(input.departureDate + "T00:00:00Z");
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(input.departureDate) || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== input.departureDate) {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(input.departureDate) || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== input.departureDate) {
     throw new Error("INVALID_FLIGHT_DATE");
   }
   const adults = Math.min(9, Math.max(1, Math.floor(input.adults ?? 1)));
