@@ -65,6 +65,11 @@ export default function JourneyStudio() {
   } | null>(null);
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState("");
+  const [intelligenceReport, setIntelligenceReport] = useState<{
+    engine: string; summary: string; confidence: string;
+    findings: Array<{ mode: string; level: string; headline: string; details: string[] }>;
+    missingEvidence: string[]; recommendedNextSteps: string[]; safetyRules: string[];
+  } | null>(null);
   const runRouteResearch = async () => {
     if (!draft.startLocationPoint || !draft.destinationLocation) {
       setResearchError("Select both departure and destination from the location suggestions first.");
@@ -103,6 +108,12 @@ export default function JourneyStudio() {
         throw new Error((payload.error?.json?.message || `Route research failed (HTTP ${response.status}).`) + suffix);
       }
       setRouteResearch(result);
+      const intelligenceResponse = await fetch(`/api/trpc/route.intelligence?input=${encodeURIComponent(JSON.stringify({ json: { research: result } }))}`);
+      const intelligenceText = await intelligenceResponse.text();
+      if (!intelligenceResponse.ok) throw new Error("The evidence summary could not be generated.");
+      const intelligencePayload = JSON.parse(intelligenceText) as { result?: { data?: { json?: typeof intelligenceReport } } };
+      const report = intelligencePayload.result?.data?.json;
+      if (report) setIntelligenceReport(report);
     } catch (error) {
       setResearchError(error instanceof Error ? error.message : "Route research failed. Please try again.");
     } finally {
@@ -241,6 +252,18 @@ export default function JourneyStudio() {
                 {researchError && <p role="alert" className="mt-3 text-xs font-semibold text-red-700">{researchError}</p>}
                 {routeResearch && <div className="mt-4 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#71857e]"><span>Sources: {routeResearch.provider}</span><span>Checked {new Date(routeResearch.retrievedAt).toLocaleString()}</span></div>
+                  {intelligenceReport && <div className="rounded-xl border border-[#123a35]/10 bg-[#f5f7f2] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-display text-xl">TripsForge Intelligence</p><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase">{intelligenceReport.confidence} confidence</span></div>
+                    <p className="mt-2 text-sm leading-6 text-[#45645b]">{intelligenceReport.summary}</p>
+                    <div className="mt-3 space-y-2">{intelligenceReport.findings.map(item => <div key={item.mode} className="rounded-lg bg-white p-3">
+                      <p className="text-xs font-bold">{item.headline}</p>
+                      {item.details.map((detail, index) => <p key={index} className="mt-1 text-xs leading-5 text-[#637e76]">{detail}</p>)}
+                    </div>)}</div>
+                    <p className="mt-3 text-xs font-bold">What still needs verification</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-[#637e76]">{intelligenceReport.missingEvidence.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                    <p className="mt-3 text-xs font-bold">Recommended next steps</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-[#637e76]">{intelligenceReport.recommendedNextSteps.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                  </div>}
                   {routeResearch.road && <div className={`rounded-xl p-3 text-sm ${routeResearch.road.status === "route_found" ? "bg-[#edf5ef]" : "bg-[#fff4e8]"}`}>{routeResearch.road.status === "route_found" ? <><strong>Road network route found:</strong> {routeResearch.road.distanceKm} km · approximately {Math.round((routeResearch.road.durationMinutes || 0) / 60 * 10) / 10} hours by car. This is not a live traffic or road-open check.</> : routeResearch.road.status === "no_route_returned" ? <>OSRM returned no drivable route for these coordinates. This does not prove that no road connection exists.</> : <>Road-network lookup unavailable: {routeResearch.road.reason || "The routing provider could not complete the request."}</>}</div>}
                   {routeResearch.modes.map(item => <div key={item.mode} className="rounded-xl border border-[#123a35]/10 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold capitalize">{item.mode}</p><span className="rounded-full bg-[#f2eddf] px-2 py-1 text-[10px] font-bold uppercase tracking-wide">{item.status.replaceAll("_", " ")}</span></div>
