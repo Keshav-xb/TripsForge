@@ -37,7 +37,8 @@ describe("searchDuffelFlights", () => {
       expect(url).toContain("offer_request_id=orq_test");
       expect(url).toContain("limit=200");
       expect(url).toContain("sort=total_amount");
-      return new Response(JSON.stringify({ data: [{ id: "off_test", total_amount: "100.00", total_currency: "USD", slices: [] }] }), { status: 200 });
+      expect(url).toContain("max_connections=1");
+      return new Response(JSON.stringify({ meta: { limit: 200, after: null }, data: [{ id: "off_test", total_amount: "100.00", total_currency: "USD", slices: [] }] }), { status: 200 });
     }) as typeof fetch;
     try {
       const result = await searchDuffelFlights({ origin: "Jammu", destination: "Delhi", departureDate: "2026-12-20" });
@@ -60,6 +61,8 @@ describe("searchDuffelFlights", () => {
         return new Response(JSON.stringify({ data: { id: "orq_many" } }), { status: 200 });
       }
       expect(url).toContain("offer_request_id=orq_many");
+      expect(url).toContain("limit=200");
+      expect(url).toContain("sort=total_amount");
       const offers = Array.from({ length: 8 }, (_, index) => ({
         id: `offer_${index}`,
         total_amount: String(800 - index * 50),
@@ -77,13 +80,15 @@ describe("searchDuffelFlights", () => {
           passengers: [{ baggages: [{ type: "checked", quantity: 1 }, { type: "carry_on", quantity: 1 }] }],
         }] }],
       }));
-      return new Response(JSON.stringify({ data: offers }), { status: 200 });
+      return new Response(JSON.stringify({ meta: { limit: 200, after: "next_page_cursor" }, data: offers }), { status: 200 });
     }) as typeof fetch;
     try {
       const result = await searchDuffelFlights({ origin: "Jammu", destination: "Delhi", departureDate: "2026-12-20" });
       expect(result.status).toBe("offers_found");
       if (result.status === "offers_found") {
         expect(result.offers).toHaveLength(8);
+        expect(result.totalOffersReturned).toBe(8);
+        expect(result.hasMoreOffers).toBe(true);
         expect(result.offers[0].amount).toBe("450");
         expect(result.offers[0].segments[0].carrier).toBe("Example Air");
         expect(result.offers[0].segments[0].marketingCarrier).toBe("Example Marketing");
