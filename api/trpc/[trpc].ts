@@ -255,7 +255,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         { kind: "bus", filter: '["amenity"="bus_station"]' },
         { kind: "ferry", filter: '["amenity"="ferry_terminal"]' },
       ];
-      const searchInfrastructure = async (point: Point) => {
+      const searchInfrastructure = async (point: Point): Promise<Array<{ kind: TransportResearchMode; count: number; examples: string[]; checked: boolean; reason?: string; provider?: string }>> => {
         const around = `(around:20000,${point.lat},${point.lng})`;
         const query = `[out:json][timeout:8];(
           node${around}["aeroway"="aerodrome"];way${around}["aeroway"="aerodrome"];relation${around}["aeroway"="aerodrome"];
