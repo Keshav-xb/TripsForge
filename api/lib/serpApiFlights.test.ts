@@ -69,6 +69,57 @@ describe("searchSerpApiFlights", () => {
     }
   });
 
+
+  it("builds a verified Delhi connection when the complete route has no returned itinerary", async () => {
+    process.env.SERPAPI_API_KEY = "server-only-test-key";
+    const calls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      const from = url.searchParams.get("departure_id");
+      const to = url.searchParams.get("arrival_id");
+      calls.push(from + "-" + to);
+      if (from === "IXJ" && to === "CDG") {
+        return new Response(JSON.stringify({ best_flights: [], other_flights: [] }), { status: 200 });
+      }
+      if (from === "IXJ" && to === "DEL") {
+        return new Response(JSON.stringify({ best_flights: [{
+          price: 5000,
+          flights: [{
+            departure_airport: { name: "Jammu Airport", id: "IXJ", time: "2026-12-20 08:00" },
+            arrival_airport: { name: "Delhi Airport", id: "DEL", time: "2026-12-20 09:30" },
+            airline: "North Air", flight_number: "NA101", duration: 90,
+          }],
+        }] }), { status: 200 });
+      }
+      if (from === "DEL" && to === "CDG") {
+        return new Response(JSON.stringify({ best_flights: [{
+          price: 28000,
+          flights: [{
+            departure_airport: { name: "Delhi Airport", id: "DEL", time: "2026-12-20 13:00" },
+            arrival_airport: { name: "Paris Charles de Gaulle", id: "CDG", time: "2026-12-20 19:00" },
+            airline: "Example International", flight_number: "EI202", duration: 600,
+          }],
+        }] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ best_flights: [], other_flights: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    const result = await searchSerpApiFlights({
+      origin: "Jammu", destination: "Paris", departureDate: "2026-12-20", adults: 1, currency: "INR",
+    });
+    expect(result.status).toBe("offers_found");
+    if (result.status === "offers_found") {
+      expect(result.offers[0].amount).toBe("33000");
+      expect(result.offers[0].segments).toHaveLength(2);
+      expect(result.offers[0].segments[0].to).toContain("DEL");
+      expect(result.offers[0].segments[1].from).toContain("DEL");
+      expect(result.offers[0].connectionNote).toContain("separately searched flight legs");
+    }
+    expect(calls).toContain("IXJ-CDG");
+    expect(calls).toContain("IXJ-DEL");
+    expect(calls).toContain("DEL-CDG");
+  });
+
   it("rejects unsupported city names and invalid dates", async () => {
     process.env.SERPAPI_API_KEY = "server-only-test-key";
     await expect(searchSerpApiFlights({
