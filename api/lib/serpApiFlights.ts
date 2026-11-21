@@ -4,6 +4,7 @@ export type SerpApiFlightOffer = {
   currency: string;
   owner: string;
   totalDurationMinutes?: number;
+  connectionNote?: string;
   segments: Array<{
     from: string;
     to: string;
@@ -151,7 +152,72 @@ export async function searchSerpApiFlights(input: {
     }];
   });
   offers.sort((a, b) => Number(a.amount) - Number(b.amount));
-  return offers.length
-    ? { status: "offers_found", provider: "SerpApi", environment: "live", checkedAt: new Date().toISOString(), originCode, destinationCode, totalOffersReturned: offers.length, hasMoreOffers: false, offers: offers.slice(0, 30) }
-    : { status: "no_offers", provider: "SerpApi", environment: "live", checkedAt: new Date().toISOString(), originCode, destinationCode, offers: [] };
+  if (offers.length) {
+    return { status: "offers_found", provider: "SerpApi", environment: "live", checkedAt: new Date().toISOString(), originCode, destinationCode, totalOffersReturned: offers.length, hasMoreOffers: false, offers: offers.slice(0, 30) };
+  }
+
+  // Route recovery: construct a connection only when both legs are independently returned by Google Flights.
+  const hubs = ["DEL", "BOM", "DXB", "DOH"].filter(code => code !== originCode && code !== destinationCode);
+  const recovered: SerpApiFlightOffer[] = [];
+  for (const hub of hubs.slice(0, 3)) {
+    const firstParams = new URLSearchParams(params);
+    firstParams.set("arrival_id", hub);
+    const firstResponse = await serpApiRequest(firstParams, apiKey);
+    const firstOptions = [...(firstResponse.best_flights ?? []), ...(firstResponse.other_flights ?? [])]
+      .filter(item => item.price !== undefined && item.flights?.length).slice(0, 3);
+
+    for (const first of firstOptions) {
+      const firstLeg = first.flights![first.flights!.length - 1];
+      const arrivalText = firstLeg.arrival_airport?.time ?? "";
+      const arrivalDate = arrivalText.slice(0, 10);
+      const arrivalMs = Date.parse(arrivalText.replace(" ", "T"));
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(arrivalDate) || !Number.isFinite(arrivalMs)) continue;
+
+      const secondParams = new URLSearchParams(params);
+      secondParams.set("departure_id", hub);
+      secondParams.set("arrival_id", destinationCode);
+      secondParams.set("outbound_date", arrivalDate);
+      const secondResponse = await serpApiRequest(secondParams, apiKey);
+      const secondOptions = [...(secondResponse.best_flights ?? []), ...(secondResponse.other_flights ?? [])]
+        .filter(item => item.price !== undefined && item.flights?.length);
+      const second = secondOptions.find(item => {
+        const nextLeg = item.flights![0];
+        const departureMs = Date.parse((nextLeg.departure_airport?.time ?? "").replace(" ", "T"));
+        return Number.isFinite(departureMs) && departureMs >= arrivalMs + 2 * 60 * 60 * 1000 &&
+          departureMs <= arrivalMs + 24 * 60 * 60 * 1000 && nextLeg.departure_airport?.id === hub;
+      });
+      if (!second) continue;
+
+      const mapLegs = (item: GoogleFlightItinerary) => item.flights!.map(leg => ({
+        from: [leg.departure_airport?.name, leg.departure_airport?.id].filter(Boolean).join(" (") + (leg.departure_airport?.name && leg.departure_airport?.id ? ")" : ""),
+        to: [leg.arrival_airport?.name, leg.arrival_airport?.id].filter(Boolean).join(" (") + (leg.arrival_airport?.name && leg.arrival_airport?.id ? ")" : ""),
+        departure: leg.departure_airport?.time ?? "",
+        arrival: leg.arrival_airport?.time ?? "",
+        carrier: leg.airline ?? "Airline details unavailable",
+        ...(leg.flight_number ? { flightNumber: leg.flight_number } : {}),
+        ...(durationLabel(leg.duration) ? { duration: durationLabel(leg.duration) } : {}),
+        ...(baggageDetails([...(leg.extensions ?? []), ...(item.extensions ?? [])]).length
+          ? { baggage: baggageDetails([...(leg.extensions ?? []), ...(item.extensions ?? [])]) } : {}),
+      }));
+      const segments = [...mapLegs(first), ...mapLegs(second)];
+      const startMs = Date.parse(segments[0].departure.replace(" ", "T"));
+      const endMs = Date.parse(segments[segments.length - 1].arrival.replace(" ", "T"));
+      recovered.push({
+        id: "serpapi-connection-" + hub + "-" + recovered.length,
+        amount: String(Number(first.price) + Number(second.price)),
+        currency,
+        owner: "Google Flights via SerpApi",
+        ...(Number.isFinite(startMs) && Number.isFinite(endMs) ? { totalDurationMinutes: Math.round((endMs - startMs) / 60000) } : {}),
+        connectionNote: "Suggested connection via " + hub + ". These are separately searched flight legs. Confirm baggage collection, terminal transfer and ticket conditions before travel.",
+        segments,
+      });
+    }
+    if (recovered.length >= 6) break;
+  }
+
+  recovered.sort((a, b) => Number(a.amount) - Number(b.amount));
+  if (recovered.length) {
+    return { status: "offers_found", provider: "SerpApi", environment: "live", checkedAt: new Date().toISOString(), originCode, destinationCode, totalOffersReturned: recovered.length, hasMoreOffers: false, offers: recovered.slice(0, 30) };
+  }
+  return { status: "no_offers", provider: "SerpApi", environment: "live", checkedAt: new Date().toISOString(), originCode, destinationCode, offers: [] };
 }
