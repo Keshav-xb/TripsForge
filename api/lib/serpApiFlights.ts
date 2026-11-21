@@ -260,7 +260,7 @@ export async function searchSerpApiFlights(input: {
             amount: String(Number(first.price) + Number(second.price)),
             currency, owner: "Google Flights via SerpApi",
             ...(Number.isFinite(startMs) && Number.isFinite(endMs) ? { totalDurationMinutes: Math.round((endMs - startMs) / 60000) } : {}),
-            connectionNote: "Suggested connection via " + hub + ". Each leg was searched separately. These may be separate tickets; confirm baggage, terminal transfers and ticket conditions before travel.",
+            connectionNote: "Suggested connection via " + hub + ". These are separately searched flight legs and may be separate tickets; confirm baggage, terminal transfers and ticket conditions before travel.",
             segments,
           });
         }
