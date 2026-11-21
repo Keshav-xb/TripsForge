@@ -120,6 +120,45 @@ describe("searchSerpApiFlights", () => {
     expect(calls).toContain("DEL-CDG");
   });
 
+  it("discovers a global connection for a non-Indian origin and destination", async () => {
+    process.env.SERPAPI_API_KEY = "server-only-test-key";
+    const calls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      const from = url.searchParams.get("departure_id");
+      const to = url.searchParams.get("arrival_id");
+      calls.push(from + "-" + to);
+      if (from === "YYZ" && to === "SIN") return new Response(JSON.stringify({ best_flights: [], other_flights: [] }), { status: 200 });
+      if (from === "YYZ" && to === "FRA") return new Response(JSON.stringify({ best_flights: [{
+        price: 600, flights: [{
+          departure_airport: { name: "Toronto Pearson", id: "YYZ", time: "2026-12-20 08:00" },
+          arrival_airport: { name: "Frankfurt Airport", id: "FRA", time: "2026-12-20 20:00" },
+          airline: "North Atlantic Air", flight_number: "NA501", duration: 480,
+        }],
+      }] }), { status: 200 });
+      if (from === "FRA" && to === "SIN") return new Response(JSON.stringify({ best_flights: [{
+        price: 700, flights: [{
+          departure_airport: { name: "Frankfurt Airport", id: "FRA", time: "2026-12-21 00:30" },
+          arrival_airport: { name: "Singapore Changi", id: "SIN", time: "2026-12-21 18:00" },
+          airline: "Global Air", flight_number: "GA502", duration: 780,
+        }],
+      }] }), { status: 200 });
+      return new Response(JSON.stringify({ best_flights: [], other_flights: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    const result = await searchSerpApiFlights({
+      origin: "Toronto", destination: "Singapore", departureDate: "2026-12-20", adults: 1, currency: "USD",
+    });
+    expect(result.status).toBe("offers_found");
+    if (result.status === "offers_found") {
+      expect(result.offers[0].amount).toBe("1300");
+      expect(result.offers[0].segments).toHaveLength(2);
+      expect(result.offers[0].segments[0].to).toContain("FRA");
+      expect(result.offers[0].segments[1].from).toContain("FRA");
+    }
+    expect(calls).toContain("YYZ-FRA");
+    expect(calls).toContain("FRA-SIN");
+  });
   it("returns a clearly labelled nearby-airport option when the requested origin has no flight", async () => {
     process.env.SERPAPI_API_KEY = "server-only-test-key";
     globalThis.fetch = (async (input: RequestInfo | URL) => {
