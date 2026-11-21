@@ -120,6 +120,36 @@ describe("searchSerpApiFlights", () => {
     expect(calls).toContain("DEL-CDG");
   });
 
+  it("returns a clearly labelled nearby-airport option when the requested origin has no flight", async () => {
+    process.env.SERPAPI_API_KEY = "server-only-test-key";
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      const from = url.searchParams.get("departure_id");
+      const to = url.searchParams.get("arrival_id");
+      if (from === "SXR" && to === "DEL") {
+        return new Response(JSON.stringify({ best_flights: [{
+          price: 4200,
+          flights: [{
+            departure_airport: { name: "Sheikh ul Alam Airport", id: "SXR", time: "2026-12-20 09:00" },
+            arrival_airport: { name: "Indira Gandhi International Airport", id: "DEL", time: "2026-12-20 10:30" },
+            airline: "Example Air", flight_number: "EA303", duration: 90,
+          }],
+        }] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ best_flights: [], other_flights: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    const result = await searchSerpApiFlights({
+      origin: "Jammu", destination: "Delhi", departureDate: "2026-12-20", adults: 1, currency: "INR",
+    });
+    expect(result.status).toBe("offers_found");
+    if (result.status === "offers_found") {
+      expect(result.offers[0].segments[0].from).toContain("SXR");
+      expect(result.offers[0].connectionNote).toContain("Alternative departure airport: Srinagar");
+      expect(result.offers[0].connectionNote).toContain("does not depart from Jammu");
+    }
+  });
+
   it("rejects unsupported city names and invalid dates", async () => {
     process.env.SERPAPI_API_KEY = "server-only-test-key";
     await expect(searchSerpApiFlights({
