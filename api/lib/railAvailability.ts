@@ -14,27 +14,44 @@ export type RailSearchResult =
   | { status: "provider_not_configured"; provider: "RailCore"; trains: []; message: string }
   | { status: "lookup_unavailable"; provider: "RailCore"; trains: []; message: string };
 
-type RailCoreResponse = {
-  success?: boolean;
-  data?: {
-    trains?: Array<{
-      train_number?: string;
-      train_name?: string;
-      departure_time?: string;
-      arrival_time?: string;
-      duration_minutes?: number;
-      classes?: string[];
-      running_days?: string[];
-    }>;
-  };
-  error?: { code?: string; message?: string };
-};
+type RailCoreEnvelope<T> = { success?: boolean; data?: T; error?: { code?: string; message?: string } };
+type StationSearchResponse = RailCoreEnvelope<{ results?: Array<{ station_code?: string; confidence?: number; is_major?: boolean }> }>;
+type TrainSearchResponse = RailCoreEnvelope<{ trains?: Array<{
+  train_number?: string;
+  train_name?: string;
+  departure_time?: string;
+  arrival_time?: string;
+  duration_minutes?: number;
+  classes?: string[];
+  running_days?: string[];
+}> }>;
+
+const baseUrl = "https://ir.railcore.tech/v1";
+const disclaimer = "Read-only timetable information from an independent third-party provider. Confirm current timings and seat availability with the railway before travel.";
 
 function validDate(value: string) {
   const parsed = new Date(value + "T00:00:00Z");
   return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)
     && !Number.isNaN(parsed.getTime())
     && parsed.toISOString().slice(0, 10) === value;
+}
+
+async function resolveStationCode(city: string, key: string) {
+  const url = new URL(`${baseUrl}/stations/search`);
+  url.searchParams.set("q", city);
+  url.searchParams.set("limit", "8");
+  const response = await fetch(url, {
+    headers: { "X-RailCore-Key": key, accept: "application/json" },
+    signal: AbortSignal.timeout(6500),
+  });
+  if (!response.ok) throw new Error(`RAIL_STATION_SEARCH_HTTP_${response.status}`);
+  const body = await response.json() as StationSearchResponse;
+  const stations = body.success ? body.data?.results ?? [] : [];
+  const best = stations
+    .filter(station => typeof station.station_code === "string" && /^[A-Z0-9]{2,5}$/.test(station.station_code))
+    .sort((a, b) => Number(b.is_major) - Number(a.is_major) || (b.confidence ?? 0) - (a.confidence ?? 0))[0];
+  if (!best?.station_code) throw new Error("RAIL_STATION_NOT_FOUND");
+  return best.station_code;
 }
 
 export async function searchIndianTrains(input: {
@@ -52,30 +69,37 @@ export async function searchIndianTrains(input: {
     };
   }
   if (!validDate(input.travelDate)) throw new Error("INVALID_TRAVEL_DATE");
-  const url = new URL("https://ir.railcore.tech/v1/routes/trains");
-  url.searchParams.set("from", input.origin);
-  url.searchParams.set("to", input.destination);
-  url.searchParams.set("date", input.travelDate);
-  url.searchParams.set("quota", "GN");
-  url.searchParams.set("match", "city");
   try {
+    const [fromCode, toCode] = await Promise.all([
+      resolveStationCode(input.origin, key),
+      resolveStationCode(input.destination, key),
+    ]);
+    const url = new URL(`${baseUrl}/routes/trains`);
+    url.searchParams.set("from", fromCode);
+    url.searchParams.set("to", toCode);
+    url.searchParams.set("date", input.travelDate);
+    url.searchParams.set("quota", "GN");
+    url.searchParams.set("match", "city");
     const response = await fetch(url, {
       headers: { "X-RailCore-Key": key, accept: "application/json" },
       signal: AbortSignal.timeout(9000),
     });
+    if (response.status === 404) {
+      return { status: "no_service_found", provider: "RailCore", retrievedAt: new Date().toISOString(), trains: [], disclaimer };
+    }
     if (!response.ok) {
       return {
         status: "lookup_unavailable",
         provider: "RailCore",
         trains: [],
         message: response.status === 401 || response.status === 403
-          ? "Train data credentials are invalid or lack the required API scope."
+          ? "Train data credentials are invalid or lack the journeys:read API scope."
           : response.status === 429 || response.status === 402
             ? "Train data provider rate limit or request allowance reached."
             : "Train timetable provider is temporarily unavailable.",
       };
     }
-    const body = await response.json() as RailCoreResponse;
+    const body = await response.json() as TrainSearchResponse;
     if (!body.success) {
       return { status: "lookup_unavailable", provider: "RailCore", trains: [], message: body.error?.message ?? "Train timetable response was not successful." };
     }
@@ -91,11 +115,13 @@ export async function searchIndianTrains(input: {
         runningDays: Array.isArray(train.running_days) ? train.running_days : [],
       }];
     });
-    const disclaimer = "Read-only timetable information from an independent third-party provider. Confirm current timings and seat availability with the railway before travel.";
     return trains.length
       ? { status: "offers_found", provider: "RailCore", retrievedAt: new Date().toISOString(), trains, disclaimer }
       : { status: "no_service_found", provider: "RailCore", retrievedAt: new Date().toISOString(), trains: [], disclaimer };
-  } catch {
-    return { status: "lookup_unavailable", provider: "RailCore", trains: [], message: "Train timetable provider could not be reached. Try again shortly." };
+  } catch (error) {
+    const message = error instanceof Error && error.message === "RAIL_STATION_NOT_FOUND"
+      ? "A matching railway station could not be resolved for one of the selected cities."
+      : "Train timetable provider could not be reached. Try again shortly.";
+    return { status: "lookup_unavailable", provider: "RailCore", trains: [], message };
   }
 }
