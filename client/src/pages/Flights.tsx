@@ -13,10 +13,14 @@ const today = new Date().toISOString().slice(0, 10);
 const currencies = ["INR", "USD", "EUR", "GBP", "AED", "SGD", "CAD", "AUD"];
 const initialSearch = new URLSearchParams(window.location.search);
 const formatPrice = (amount: string, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(amount));
-const formatDuration = (value?: string) => {
+const formatDuration = (value?: string | number) => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const hours = Math.floor(value / 60), minutes = value % 60;
+    return [hours ? `${hours}h` : "", minutes ? `${minutes}m` : ""].filter(Boolean).join(" ") || "0m";
+  }
   if (!value) return undefined;
   const match = value.match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/);
-  if (!match) return undefined;
+  if (!match) return value;
   const hours = Number(match[1] || 0), minutes = Number(match[2] || 0);
   return [hours ? `${hours}h` : "", minutes ? `${minutes}m` : ""].filter(Boolean).join(" ") || "0m";
 };
