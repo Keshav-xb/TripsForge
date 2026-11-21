@@ -4,7 +4,7 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 
 type FlightOffer = {
-  id: string; amount: string; currency: string; owner: string; totalDurationMinutes?: number;
+  id: string; amount: string; currency: string; owner: string; totalDurationMinutes?: number; connectionNote?: string;
   priceDisplay?: { originalAmount: string; originalCurrency: string; displayAmount?: string; displayCurrency: string; rateSource?: string; conversionStatus: string };
   segments: Array<{ from: string; to: string; departure: string; arrival: string; carrier: string; marketingCarrier?: string; flightNumber?: string; duration?: string; baggage?: string[] }>;
 };
@@ -103,7 +103,8 @@ export default function Flights() {
         {result.environment === "live" && <div className="flex items-start gap-3 rounded-2xl border border-[#c9dfd1] bg-[#edf5ef] p-4 text-sm leading-6 text-[#45645b]"><span className="mt-0.5 rounded-full bg-white p-1.5"><Plane className="h-4 w-4" /></span><div><strong className="block text-[#123a35]">Results retrieved from Google Flights</strong><span>Prices and availability can change. TripsForge is for viewing and comparing flights. No booking has been made.</span></div></div>}
         {result.status === "provider_not_configured" && <div className="rounded-xl bg-[#fff0df] p-4 text-sm text-[#8b542d]">Flight search is not configured for this Preview deployment yet. Add `SERPAPI_API_KEY` to the Vercel Preview environment for this branch, then redeploy.</div>}
         {result.status === "no_offers" && <div className="rounded-[1.6rem] border border-[#ead9c8] bg-[#fffaf3] p-5 sm:p-6">
-          <div className="flex items-start gap-3"><span className="rounded-xl bg-[#fff0df] p-2 text-[#a9571d]"><AlertCircle className="h-5 w-5" /></span><div><h3 className="text-lg font-extrabold text-[#123a35]">No matching flights found for this date</h3><p className="mt-1 text-sm leading-6 text-[#637e76]">Google Flights returned no options for {result.originCode} to {result.destinationCode} on {departureDate}. This is a date-specific result, not proof that the route has no flights.</p></div></div>
+          <div className="flex items-start gap-3"><span className="rounded-xl bg-[#fff0df] p-2 text-[#a9571d]"><AlertCircle className="h-5 w-5" /></span><div><h3 className="text-lg font-extrabold text-[#123a35]">We couldn't build a verified flight journey for this date</h3><p className="mt-1 text-sm leading-6 text-[#637e76]">We checked {result.originCode} to {result.destinationCode}, then looked for separate connecting flights through major hubs. We couldn't verify both legs with a safe connection window, so we won't show guessed routes or prices.</p></div></div>
+          <div className="mt-4 rounded-xl bg-white/80 p-3 text-xs leading-5 text-[#71857e]"><strong className="block text-[#45645b]">What you can try</strong>Choose another date, search from a nearby airport, or check the route in separate stages. Any connection shown by TripsForge must be supported by actual flight results for both legs.</div>
           <p className="mt-5 text-xs font-bold uppercase tracking-[.12em] text-[#87958f]">Try a nearby departure date</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {([-1, 1] as const).map(offset => {
@@ -139,6 +140,7 @@ export default function Flights() {
                   </div>
                   <div className="text-right"><p className="text-2xl font-black tracking-tight text-[#123a35] sm:text-3xl">{price}</p><p className="mt-1 text-[11px] text-[#87958f]">Total shown by provider</p></div>
                 </div>
+                {offer.connectionNote && <div className="mt-4 rounded-xl border border-[#e9cda9] bg-[#fff6e9] p-3 text-xs leading-5 text-[#85551f]"><strong className="block text-sm">Suggested connection</strong>{offer.connectionNote}</div>}
                 <div className="mt-5 grid grid-cols-2 gap-3 rounded-2xl bg-[#f3f5ef] p-4">
                   <div><p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#87958f]"><Clock3 className="h-3.5 w-3.5" /> Total journey</p><p className="mt-1 text-lg font-extrabold text-[#123a35]">{formatDuration(total) || "Not supplied"}</p></div>
                   <div><p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#87958f]"><Luggage className="h-3.5 w-3.5" /> Stops</p><p className="mt-1 text-lg font-extrabold text-[#123a35]">{stops === 0 ? "Direct" : stops}</p></div>
