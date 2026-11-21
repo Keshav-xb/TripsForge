@@ -190,17 +190,31 @@ export async function searchSerpApiFlights(input: {
       const arrivalMs = Date.parse(arrivalText.replace(" ", "T"));
       if (!/^\d{4}-\d{2}-\d{2}$/.test(arrivalDate) || !Number.isFinite(arrivalMs)) continue;
 
-      const onwardParams = new URLSearchParams(params);
-      onwardParams.set("departure_id", hub);
-      onwardParams.set("outbound_date", arrivalDate);
-      const onwardResponse = await serpApiRequest(onwardParams, apiKey);
-      const onwardOptions = [...(onwardResponse.best_flights ?? []), ...(onwardResponse.other_flights ?? [])]
+      // A same-day-only onward search misses overnight connections. Search the arrival
+      // date plus the next two calendar days, then keep departures inside the 48-hour window.
+      const onwardDates = [0, 1, 2].map(offset => {
+        const day = new Date(arrivalDate + "T00:00:00Z");
+        day.setUTCDate(day.getUTCDate() + offset);
+        return day.toISOString().slice(0, 10);
+      });
+      const onwardResponses = await Promise.all(onwardDates.map(async date => {
+        const onwardParams = new URLSearchParams(params);
+        onwardParams.set("departure_id", hub);
+        onwardParams.set("outbound_date", date);
+        const response = await serpApiRequest(onwardParams, apiKey);
+        return [...(response.best_flights ?? []), ...(response.other_flights ?? [])];
+      }));
+      const onwardOptions = onwardResponses.flat()
         .filter(item => item.price !== undefined && item.flights?.length);
       const validOnward = onwardOptions.filter(item => {
         const next = item.flights![0];
         const departureMs = Date.parse((next.departure_airport?.time ?? "").replace(" ", "T"));
         return next.departure_airport?.id === hub && Number.isFinite(departureMs) &&
-          departureMs >= arrivalMs + 2 * 60 * 60 * 1000 && departureMs <= arrivalMs + 30 * 60 * 60 * 1000;
+          departureMs >= arrivalMs + 2 * 60 * 60 * 1000 && departureMs <= arrivalMs + 48 * 60 * 60 * 1000;
+      }).sort((left, right) => {
+        const leftTime = Date.parse((left.flights![0].departure_airport?.time ?? "").replace(" ", "T"));
+        const rightTime = Date.parse((right.flights![0].departure_airport?.time ?? "").replace(" ", "T"));
+        return leftTime - rightTime;
       });
 
       for (const second of validOnward.slice(0, 2)) {
