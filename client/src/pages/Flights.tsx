@@ -15,7 +15,7 @@ const initialSearch = new URLSearchParams(window.location.search);
 const formatPrice = (amount: string, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(amount));
 type FlightSort = "recommended" | "cheapest" | "fastest";
 const durationMinutes = (offer: FlightOffer) => offer.totalDurationMinutes ?? offer.segments.reduce((sum, segment) => {
-  const match = segment.duration?.match(/(?:(\\d+)h)?\\s*(?:(\\d+)m)?/i);
+  const match = segment.duration?.match(/(?:(\d+)h)?\s*(?:(\d+)m)?/i);
   return sum + (match ? Number(match[1] || 0) * 60 + Number(match[2] || 0) : 0);
 }, 0);
 const numericPrice = (offer: FlightOffer) => Number(offer.priceDisplay?.displayAmount ?? offer.amount);
