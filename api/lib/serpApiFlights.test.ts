@@ -189,6 +189,41 @@ describe("searchSerpApiFlights", () => {
     }
   });
 
+
+  it("resolves Meghalaya to Guwahati as its practical regional gateway airport", async () => {
+    process.env.SERPAPI_API_KEY = "server-only-test-key";
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      expect(url.searchParams.get("departure_id")).toBe("IXJ");
+      expect(url.searchParams.get("arrival_id")).toBe("GAU");
+      return new Response(JSON.stringify({
+        best_flights: [{
+          price: 6800,
+          flights: [{
+            departure_airport: { name: "Jammu Airport", id: "IXJ", time: "2026-12-21 09:00" },
+            arrival_airport: { name: "Lokpriya Gopinath Bordoloi International Airport", id: "GAU", time: "2026-12-21 11:45" },
+            airline: "Example Air", flight_number: "EA401", duration: 165,
+          }],
+        }],
+        other_flights: [],
+      }), { status: 200 });
+    }) as typeof fetch;
+
+    const result = await searchSerpApiFlights({
+      origin: "Jammu, Jammu and Kashmir, India",
+      destination: "Meghalaya, India",
+      departureDate: "2026-12-21",
+      adults: 2,
+      currency: "INR",
+    });
+    expect(result.status).toBe("offers_found");
+    if (result.status === "offers_found") {
+      expect(result.originCode).toBe("IXJ");
+      expect(result.destinationCode).toBe("GAU");
+      expect(result.offers[0].segments[0].to).toContain("GAU");
+    }
+  });
+
   it("rejects unsupported city names and invalid dates", async () => {
     process.env.SERPAPI_API_KEY = "server-only-test-key";
     await expect(searchSerpApiFlights({

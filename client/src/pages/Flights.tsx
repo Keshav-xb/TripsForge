@@ -119,7 +119,8 @@ export default function Flights() {
         </div>}
         {result.status === "offers_found" && <>
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#e6651b]">Your flight shortlist</p><h2 className="mt-1 font-display text-3xl">Compare your options</h2><p className="mt-1 text-sm text-[#71857e]">{result.originCode} <ArrowLeftRight className="mx-1 inline h-3 w-3" /> {result.destinationCode} · {result.offers.length} options found</p></div>
+            <div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#e6651b]">Your flight shortlist</p><h2 className="mt-1 font-display text-3xl">Compare your options</h2><p className="mt-1 text-sm text-[#71857e]">{result.originCode} <ArrowLeftRight className="mx-1 inline h-3 w-3" /> {result.destinationCode} · {result.offers.length} options found</p>
+            {destination.toLowerCase().includes("meghalaya") && result.destinationCode === "GAU" && <p className="mt-2 text-xs leading-5 text-[#637e76]">Meghalaya searches use Guwahati (GAU) as the practical regional gateway. Airport and ground-transfer details are shown in the flight itinerary.</p>}</div>
             <span className="rounded-full bg-[#e9eee7] px-3 py-1.5 text-xs font-bold text-[#45645b]">View only · No booking</span>
           </div>
           <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[#123a35]/10 bg-[#fffdf8] p-2 shadow-sm">

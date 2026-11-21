@@ -41,6 +41,8 @@ type GoogleFlightItinerary = {
 
 const AIRPORT_CODES: Array<{ aliases: string[]; code: string }> = [
   { aliases: ["jammu"], code: "IXJ" }, { aliases: ["srinagar"], code: "SXR" },
+  // Meghalaya has no dependable scheduled commercial service at Shillong Airport; Guwahati (GAU) is the practical regional gateway.
+  { aliases: ["meghalaya", "shillong", "meghalaya state"], code: "GAU" },
   { aliases: ["delhi", "new delhi"], code: "DEL" }, { aliases: ["mumbai", "bombay"], code: "BOM" },
   { aliases: ["bengaluru", "bangalore"], code: "BLR" }, { aliases: ["chennai", "madras"], code: "MAA" },
   { aliases: ["kolkata", "calcutta"], code: "CCU" }, { aliases: ["hyderabad"], code: "HYD" },
