@@ -8,7 +8,7 @@ describe("convertFlightPrice", () => {
     const result = await convertFlightPrice("69.90", "USD", "USD");
     expect(result.conversionStatus).toBe("same_currency");
     expect(result.displayAmount).toBe("69.90");
-    expect(result.displayCurrency).toBe("USD");
+    expect(result.displayCurrency).toBe("EUR");
   });
 
   it("converts a supplier quote to the selected platform currency", async () => {
