@@ -214,6 +214,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const places = await nearbyPlaces(input as { lat: number; lng: number; category: string; radius?: number });
       return send(req, res, 200, trpcData({ provider: "OpenStreetMap / Overpass", retrievedAt: new Date().toISOString(), places }));
     }
+    if (path === "trains.search") {
+      const origin = String(input.origin ?? "").trim();
+      const destination = String(input.destination ?? "").trim();
+      const travelDate = String(input.travelDate ?? "");
+      if (origin.length < 2 || origin.length > 180 || destination.length < 2 || destination.length > 180) throw new Error("INVALID_ROUTE_LABELS");
+      const result = await searchIndianTrains({ origin, destination, travelDate });
+      res.setHeader("cache-control", "no-store");
+      return send(req, res, 200, trpcData(result));
+    }
     if (path === "flights.search") {
       const origin = String(input.origin ?? "").trim();
       const destination = String(input.destination ?? "").trim();
