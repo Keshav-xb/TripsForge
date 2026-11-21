@@ -209,8 +209,6 @@ export async function searchSerpApiFlights(input: {
         const secondArrivalText = secondLast.arrival_airport?.time ?? "";
         const secondArrivalDate = secondArrivalText.slice(0, 10);
         const secondArrivalMs = Date.parse(secondArrivalText.replace(" ", "T"));
-        const firstCode = first.flights![0].departure_airport?.id;
-        const secondCode = second.flights![0].departure_airport?.id;
         const isDestination = secondDestination === destinationCode;
         if (!isDestination && secondDestination && hubs.includes(secondDestination) &&
             secondDestination !== hub && /^\d{4}-\d{2}-\d{2}$/.test(secondArrivalDate) && Number.isFinite(secondArrivalMs)) {
@@ -236,7 +234,7 @@ export async function searchSerpApiFlights(input: {
             amount: String(Number(first.price) + Number(second.price) + Number(final.price)),
             currency, owner: "Google Flights via SerpApi",
             ...(Number.isFinite(startMs) && Number.isFinite(endMs) ? { totalDurationMinutes: Math.round((endMs - startMs) / 60000) } : {}),
-            connectionNote: "Suggested route via " + hub + " and " + secondDestination + ". Each leg was searched separately. These may be separate tickets; confirm baggage, terminal transfers and ticket conditions before travel.",
+            connectionNote: "Suggested route via " + hub + " and " + secondDestination + ". These are separately searched flight legs and may be separate tickets; confirm baggage, terminal transfers and ticket conditions before travel.",
             segments,
           });
         } else if (isDestination) {
