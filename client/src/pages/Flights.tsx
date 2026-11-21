@@ -45,7 +45,7 @@ export default function Flights() {
   const [origin, setOrigin] = useState(initialSearch.get("origin") ?? "");
   const [destination, setDestination] = useState(initialSearch.get("destination") ?? "");
   const [departureDate, setDepartureDate] = useState(initialSearch.get("departureDate") ?? "");
-  const [adults, setAdults] = useState(Math.max(1, Math.min(9, Number(initialSearch.get("adults")) || 1)));
+  const [adults, setAdults] = useState<number | "">(Math.max(1, Math.min(9, Number(initialSearch.get("adults")) || 1)));
   const [currency, setCurrency] = useState(currencies.includes(initialSearch.get("currency") ?? "") ? initialSearch.get("currency")! : "INR");
   const [result, setResult] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -68,7 +68,7 @@ export default function Flights() {
   const search = async (event: React.FormEvent) => {
     event.preventDefault(); setError(""); setResult(null); setLoading(true);
     try {
-      const input = { origin, destination, departureDate, adults, currency };
+      const input = { origin, destination, departureDate, adults: adults === "" ? 1 : adults, currency };
       const response = await fetch(`/api/trpc/flights.search?input=${encodeURIComponent(JSON.stringify({ json: input }))}`);
       const body = await response.json();
       const data = body.result?.data?.json as SearchResult | undefined;
@@ -92,7 +92,7 @@ export default function Flights() {
           <label className="grid gap-2 text-sm font-bold">To<input required minLength={2} maxLength={180} value={destination} onChange={e => setDestination(e.target.value)} placeholder="e.g. Delhi" className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-3.5 font-medium outline-none focus:border-[#e6651b]" /></label>
           <label className="grid gap-2 text-sm font-bold"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-[#e6651b]" /> Departure</span><input required type="date" min={today} value={departureDate} onChange={e => setDepartureDate(e.target.value)} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-3.5 font-medium" /></label>
           <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-2 text-sm font-bold"><span className="flex items-center gap-2"><Users className="h-4 w-4 text-[#e6651b]" /> Adults</span><input type="number" min="1" max="9" value={adults} onChange={e => setAdults(Math.max(1, Math.min(9, Number(e.target.value) || 1)))} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-3.5 font-medium" /></label>
+            <label className="grid gap-2 text-sm font-bold"><span className="flex items-center gap-2"><Users className="h-4 w-4 text-[#e6651b]" /> Adults</span><input type="number" inputMode="numeric" min="1" max="9" step="1" value={adults} onChange={e => { const value = e.target.value; if (value === "") { setAdults(""); return; } const parsed = Number(value); if (Number.isInteger(parsed)) setAdults(Math.max(1, Math.min(9, parsed))); }} onBlur={() => { if (adults === "") setAdults(1); }} aria-label="Number of adults" className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-3.5 font-medium" /></label>
             <label className="grid gap-2 text-sm font-bold">Currency<select value={currency} onChange={e => setCurrency(e.target.value)} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3.5 font-medium">{currencies.map(code => <option key={code}>{code}</option>)}</select></label>
           </div>
         </div>
