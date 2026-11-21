@@ -261,7 +261,7 @@ export default function JourneyStudio() {
               </div>
               <div className="mt-4 rounded-xl border border-[#123a35]/10 bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div><p className="font-bold">Research this route</p><p className="mt-1 text-xs leading-5 text-[#71857e]">Check mapped transport infrastructure near both endpoints and look for a drivable road-network route.</p></div>
+                  <div><p className="font-bold">Research this route</p><p className="mt-1 text-xs leading-5 text-[#71857e]">Check for a real road route. Flight options are searched separately using flight-provider results.</p></div>
                   <button type="button" onClick={() => void runRouteResearch()} disabled={researching || !draft.startLocationPoint || !draft.destinationLocation} className="rounded-xl bg-[#e6651b] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{researching ? "Researching…" : "Research route"}</button>
                   <a href={`/flights?${new URLSearchParams({ origin: draft.startLocation.trim(), destination: draft.destination.trim(), departureDate: draft.startDate, adults: String(draft.adults), currency: draft.currency }).toString()}`} aria-label={`Compare flights from ${draft.startLocation} to ${draft.destination}`} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-2.5 text-sm font-bold text-[#123a35]">Compare flights{draft.startLocation.trim() && draft.destination.trim() ? ` · ${draft.startLocation} → ${draft.destination}` : ""}</a>
                 </div>
@@ -282,12 +282,12 @@ export default function JourneyStudio() {
                     <ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-[#637e76]">{intelligenceReport.recommendedNextSteps.map((item, index) => <li key={index}>{item}</li>)}</ul>
                   </div>}
                   {routeResearch.road && <div className={`rounded-xl p-3 text-sm ${routeResearch.road.status === "route_found" ? "bg-[#edf5ef]" : "bg-[#fff4e8]"}`}>{routeResearch.road.status === "route_found" ? <><strong>Road network route found:</strong> {routeResearch.road.distanceKm} km · approximately {Math.round((routeResearch.road.durationMinutes || 0) / 60 * 10) / 10} hours by car. This is not a live traffic or road-open check.</> : routeResearch.road.status === "no_route_returned" ? <>OSRM returned no drivable route for these coordinates. This does not prove that no road connection exists.</> : <>Road-network lookup unavailable: {routeResearch.road.reason || "The routing provider could not complete the request."}</>}</div>}
-                  {routeResearch.modes.map(item => <div key={item.mode} className="rounded-xl border border-[#123a35]/10 p-3">
+                  {routeResearch.modes.filter(item => item.mode === "car" && item.status === "road_route_found").map(item => <div key={item.mode} className="rounded-xl border border-[#123a35]/10 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold capitalize">{item.mode}</p><span className="rounded-full bg-[#f2eddf] px-2 py-1 text-[10px] font-bold uppercase tracking-wide">{item.status.replaceAll("_", " ")}</span></div>
                     <p className="mt-2 text-xs leading-5 text-[#637e76]">{item.evidence}</p>
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] font-semibold text-[#8b542d]">Scheduled service: unverified · Booking: not connected</p><button type="button" onClick={() => updateTransportLeg(transportLegs[0].id, { mode: item.mode })} className="text-xs font-bold text-[#e6651b]">Use as planning assumption</button></div>
                   </div>)}
-                  <div className="rounded-xl bg-[#fff4e8] p-3"><p className="text-xs font-bold text-[#8b542d]">Research limitations</p><ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] leading-5 text-[#8b542d]">{routeResearch.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul></div>
+                  <p className="text-xs leading-5 text-[#71857e]">Only verified route results are shown here. Flight availability is checked in Flight comparison. Train and bus options stay hidden until a timetable provider confirms service for this route and date.</p><div className="rounded-xl bg-[#fff4e8] p-3"><p className="text-xs font-bold text-[#8b542d]">Research limitations</p><ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] leading-5 text-[#8b542d]">{routeResearch.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul></div>
                 </div>}
               </div>
               <div className="mt-4 space-y-3">
@@ -319,7 +319,7 @@ export default function JourneyStudio() {
                   <p className="mt-2 text-[11px] text-[#87958f]">Traveller-entered amount for this segment. Not a live fare or availability result.</p>
                 </div>)}
               </div>
-              <p className="mt-3 text-sm font-bold">Transport total: {money(transportTotal, draft.currency)}</p><p className="mt-2 rounded-lg bg-[#fff4e8] px-3 py-2 text-xs leading-5 text-[#8b542d]">A selected mode is only your planning assumption. TripsForge has not verified that a scheduled service operates on this segment. “Not decided” is the default until route research can confirm realistic connections. Prices entered here are not live fares.</p>
+              <p className="mt-3 text-sm font-bold">Transport total: {money(transportTotal, draft.currency)}</p><p className="mt-2 rounded-lg bg-[#fff4e8] px-3 py-2 text-xs leading-5 text-[#8b542d]">Only verified route options should be selected. Flight comparison uses live supplier search results. Train and bus services are not shown until a timetable source confirms the selected route and date. Manually entered costs remain estimates, not live fares.</p>
             </div>
             <div id="trip-budget" className="scroll-mt-6 rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
