@@ -159,12 +159,12 @@ export async function searchSerpApiFlights(input: {
   // Route recovery: construct a connection only when both legs are independently returned by Google Flights.
   const hubs = ["DEL", "BOM", "DXB", "DOH"].filter(code => code !== originCode && code !== destinationCode);
   const recovered: SerpApiFlightOffer[] = [];
-  for (const hub of hubs.slice(0, 3)) {
+  for (const hub of hubs.slice(0, 2)) {
     const firstParams = new URLSearchParams(params);
     firstParams.set("arrival_id", hub);
     const firstResponse = await serpApiRequest(firstParams, apiKey);
     const firstOptions = [...(firstResponse.best_flights ?? []), ...(firstResponse.other_flights ?? [])]
-      .filter(item => item.price !== undefined && item.flights?.length).slice(0, 3);
+      .filter(item => item.price !== undefined && item.flights?.length).slice(0, 2);
 
     for (const first of firstOptions) {
       const firstLeg = first.flights![first.flights!.length - 1];
