@@ -67,6 +67,7 @@ export default function JourneyStudio() {
   const [budgetInput, setBudgetInput] = useState(String(plan.budget > 0 ? plan.budget : defaultPlan.budget));
   const [transportLegs, setTransportLegs] = useState<TransportLeg[]>(() => [createEmptyTransportLeg(routeOrigin, routeDestination)]);
   const transportTotal = getTransportLegTotal(transportLegs);
+  const transportQuery = new URLSearchParams({ origin: draft.startLocation, destination: draft.destination, travelDate: draft.startDate, ...(draft.startLocationPoint ? { originLat: String(draft.startLocationPoint.lat), originLng: String(draft.startLocationPoint.lng) } : {}), ...(draft.destinationLocation ? { destinationLat: String(draft.destinationLocation.lat), destinationLng: String(draft.destinationLocation.lng) } : {}) }).toString();
   const [routeResearch, setRouteResearch] = useState<{
     retrievedAt: string;
     provider: string;
