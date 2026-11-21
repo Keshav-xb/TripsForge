@@ -34,7 +34,7 @@ const formatDuration = (value?: string | number) => {
     const hours = Math.floor(value / 60), minutes = value % 60;
     return [hours ? `${hours}h` : "", minutes ? `${minutes}m` : ""].filter(Boolean).join(" ") || "0m";
   }
-  if (!value) return undefined;
+  if (typeof value !== "string" || !value) return undefined;
   const match = value.match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/);
   if (!match) return value;
   const hours = Number(match[1] || 0), minutes = Number(match[2] || 0);

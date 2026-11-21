@@ -164,9 +164,9 @@ export async function searchDuffelFlights(input: {
       ...(segment.marketing_carrier_flight_number ? { flightNumber: segment.marketing_carrier_flight_number } : {}),
       ...(segment.duration ? { duration: segment.duration } : {}),
       ...(() => {
-        const baggage = [...new Set((segment.passengers ?? []).flatMap(passenger => (passenger.baggages ?? []).map(item =>
+        const baggage = Array.from(new Set((segment.passengers ?? []).flatMap(passenger => (passenger.baggages ?? []).map(item =>
           `${item.quantity ?? 0} ${(item.type ?? "baggage").replace(/_/g, " ")} bag${item.quantity === 1 ? "" : "s"}`
-        )))];
+        ))));
         return baggage.length ? { baggage } : {};
       })(),
     })));

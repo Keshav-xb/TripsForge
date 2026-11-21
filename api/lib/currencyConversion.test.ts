@@ -31,9 +31,9 @@ describe("convertFlightPrice", () => {
 
   it("falls back to supplier currency when exchange rates are unavailable", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network unavailable")));
-    const result = await convertFlightPrice("69.90", "USD", "INR");
+    const result = await convertFlightPrice("69.90", "EUR", "INR");
     expect(result.conversionStatus).toBe("rate_unavailable");
-    expect(result.displayCurrency).toBe("USD");
+    expect(result.displayCurrency).toBe("EUR");
     expect(result.displayAmount).toBeUndefined();
   });
 });
