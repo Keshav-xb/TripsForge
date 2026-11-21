@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../lib/routeResearch.js";
 import { buildTravelIntelligence } from "../lib/travelIntelligence.js";
-import { searchDuffelFlights } from "../lib/duffelFlights.js";
+import { searchSerpApiFlights } from "../lib/serpApiFlights.js";
 import { convertFlightPrice } from "../lib/currencyConversion.js";
 
 type Point = { lat: number; lng: number };
@@ -220,7 +220,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const adults = Number(input.adults ?? 1);
       const displayCurrency = String(input.currency ?? "USD").toUpperCase();
       if (!/^[A-Z]{3}$/.test(displayCurrency)) throw new Error("INVALID_DISPLAY_CURRENCY");
-      const result = await searchDuffelFlights({ origin, destination, departureDate, adults });
+      const result = await searchSerpApiFlights({ origin, destination, departureDate, adults, currency: displayCurrency });
       if (result.status === "offers_found") {
         const offers = await Promise.all(result.offers.map(async offer => ({
           ...offer,
