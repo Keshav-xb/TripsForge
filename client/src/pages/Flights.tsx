@@ -102,7 +102,20 @@ export default function Flights() {
       {result && <section className="mx-auto mt-8 max-w-4xl space-y-5">
         {result.environment === "live" && <div className="flex items-start gap-3 rounded-2xl border border-[#c9dfd1] bg-[#edf5ef] p-4 text-sm leading-6 text-[#45645b]"><span className="mt-0.5 rounded-full bg-white p-1.5"><Plane className="h-4 w-4" /></span><div><strong className="block text-[#123a35]">Results retrieved from Google Flights</strong><span>Prices and availability can change. TripsForge is for viewing and comparing flights. No booking has been made.</span></div></div>}
         {result.status === "provider_not_configured" && <div className="rounded-xl bg-[#fff0df] p-4 text-sm text-[#8b542d]">Flight search is not configured for this Preview deployment yet. Add `SERPAPI_API_KEY` to the Vercel Preview environment for this branch, then redeploy.</div>}
-        {result.status === "no_offers" && <div className="rounded-2xl border border-[#123a35]/10 bg-white p-5 text-sm text-[#637e76]">No offers were returned for {result.originCode} to {result.destinationCode} on this date. This does not prove that no flights operate.</div>}
+        {result.status === "no_offers" && <div className="rounded-[1.6rem] border border-[#ead9c8] bg-[#fffaf3] p-5 sm:p-6">
+          <div className="flex items-start gap-3"><span className="rounded-xl bg-[#fff0df] p-2 text-[#a9571d]"><AlertCircle className="h-5 w-5" /></span><div><h3 className="text-lg font-extrabold text-[#123a35]">No matching flights found for this date</h3><p className="mt-1 text-sm leading-6 text-[#637e76]">Google Flights returned no options for {result.originCode} to {result.destinationCode} on {departureDate}. This is a date-specific result, not proof that the route has no flights.</p></div></div>
+          <p className="mt-5 text-xs font-bold uppercase tracking-[.12em] text-[#87958f]">Try a nearby departure date</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {([-1, 1] as const).map(offset => {
+              const date = new Date(departureDate + "T12:00:00");
+              date.setDate(date.getDate() + offset);
+              const value = date.toISOString().slice(0, 10);
+              const label = offset < 0 ? "Previous day" : "Next day";
+              return <button key={offset} type="button" disabled={value < today} onClick={() => { setDepartureDate(value); setError(""); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3 text-sm font-bold text-[#123a35] transition hover:border-[#e6651b] disabled:opacity-40">{label}<span className="mt-1 block text-xs font-medium text-[#87958f]">{new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(date)}</span></button>;
+            })}
+          </div>
+          <p className="mt-3 text-xs text-[#87958f]">Change the date above, then tap Search flights to check again. You can also try a nearby airport or a different date.</p>
+        </div>}
         {result.status === "offers_found" && <>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#e6651b]">Your flight shortlist</p><h2 className="mt-1 font-display text-3xl">Compare your options</h2><p className="mt-1 text-sm text-[#71857e]">{result.originCode} <ArrowLeftRight className="mx-1 inline h-3 w-3" /> {result.destinationCode} · {result.offers.length} options found</p></div>
