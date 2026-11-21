@@ -121,6 +121,7 @@ export async function searchSerpApiFlights(input: {
     travel_class: "1",
     sort_by: "2",
     show_hidden: "true",
+    deep_search: "true",
     currency,
     gl: "in",
     hl: "en",
