@@ -57,6 +57,22 @@ const AIRPORT_CODES: Array<{ aliases: string[]; code: string }> = [
   { aliases: ["dubai"], code: "DXB" }, { aliases: ["abu dhabi"], code: "AUH" },
   { aliases: ["singapore"], code: "SIN" }, { aliases: ["london"], code: "LHR" },
   { aliases: ["paris"], code: "CDG" }, { aliases: ["new york"], code: "JFK" },
+  { aliases: ["tokyo"], code: "HND" }, { aliases: ["osaka"], code: "KIX" },
+  { aliases: ["seoul"], code: "ICN" }, { aliases: ["hong kong"], code: "HKG" },
+  { aliases: ["bangkok"], code: "BKK" }, { aliases: ["kuala lumpur"], code: "KUL" },
+  { aliases: ["jakarta"], code: "CGK" }, { aliases: ["manila"], code: "MNL" },
+  { aliases: ["sydney"], code: "SYD" }, { aliases: ["melbourne"], code: "MEL" },
+  { aliases: ["auckland"], code: "AKL" }, { aliases: ["toronto"], code: "YYZ" },
+  { aliases: ["vancouver"], code: "YVR" }, { aliases: ["chicago"], code: "ORD" },
+  { aliases: ["los angeles"], code: "LAX" }, { aliases: ["san francisco"], code: "SFO" },
+  { aliases: ["atlanta"], code: "ATL" }, { aliases: ["miami"], code: "MIA" },
+  { aliases: ["dallas"], code: "DFW" }, { aliases: ["doha"], code: "DOH" },
+  { aliases: ["istanbul"], code: "IST" }, { aliases: ["frankfurt"], code: "FRA" },
+  { aliases: ["amsterdam"], code: "AMS" }, { aliases: ["madrid"], code: "MAD" },
+  { aliases: ["zurich"], code: "ZRH" }, { aliases: ["rome"], code: "FCO" },
+  { aliases: ["johannesburg"], code: "JNB" }, { aliases: ["nairobi"], code: "NBO" },
+  { aliases: ["addis ababa"], code: "ADD" }, { aliases: ["cairo"], code: "CAI" },
+  { aliases: ["sao paulo"], code: "GRU" }, { aliases: ["mexico city"], code: "MEX" },
 ];
 
 function resolveAirportCode(value: string): string {
@@ -156,11 +172,14 @@ export async function searchSerpApiFlights(input: {
     return { status: "offers_found", provider: "SerpApi", environment: "live", checkedAt: new Date().toISOString(), originCode, destinationCode, totalOffersReturned: offers.length, hasMoreOffers: false, offers: offers.slice(0, 30) };
   }
 
-  // Route builder: discover multiple transfer airports, then combine only independently returned flight legs.
-  // Each candidate hub is searched from the requested origin; onward legs are searched for the
-  // actual arrival date of that first flight. This supports routes such as IXJ -> DEL -> DXB -> CDG.
-  const hubs = ["DEL", "BOM", "DXB", "DOH", "AUH", "SIN", "IST", "FRA", "LHR", "AMS"]
-    .filter(code => code !== originCode && code !== destinationCode);
+  // Route builder: use a globally distributed transfer-airport network for every origin/destination.
+  // This network is not tied to a particular city pair. Search each candidate independently and
+  // combine only provider-returned legs whose airport and timing data form a valid connection.
+  const hubs = [
+    "DEL", "BOM", "DXB", "DOH", "AUH", "SIN", "IST", "FRA",
+    "LHR", "AMS", "HKG", "ICN", "NRT", "BKK", "JFK", "ORD",
+    "YYZ", "GRU", "JNB", "NBO", "ADD", "CAI", "SYD", "KUL",
+  ].filter(code => code !== originCode && code !== destinationCode);
   const recovered: SerpApiFlightOffer[] = [];
   const mapItineraryLegs = (item: GoogleFlightItinerary) => (item.flights ?? []).map(leg => ({
     from: [leg.departure_airport?.name, leg.departure_airport?.id].filter(Boolean).join(" (") + (leg.departure_airport?.name && leg.departure_airport?.id ? ")" : ""),
@@ -174,12 +193,12 @@ export async function searchSerpApiFlights(input: {
       ? { baggage: baggageDetails([...(leg.extensions ?? []), ...(item.extensions ?? [])]) } : {}),
   }));
 
-  const firstLegResults = await Promise.all(hubs.slice(0, 6).map(async hub => {
+  const firstLegResults = await Promise.all(hubs.map(async hub => {
     const query = new URLSearchParams(params);
     query.set("arrival_id", hub);
     const response = await serpApiRequest(query, apiKey);
     return { hub, options: [...(response.best_flights ?? []), ...(response.other_flights ?? [])]
-      .filter(item => item.price !== undefined && item.flights?.length).slice(0, 2) };
+      .filter(item => item.price !== undefined && item.flights?.length).slice(0, 3) };
   }));
 
   for (const { hub, options } of firstLegResults) {
@@ -192,7 +211,7 @@ export async function searchSerpApiFlights(input: {
 
       // A same-day-only onward search misses overnight connections. Search the arrival
       // date plus the next two calendar days, then keep departures inside the 48-hour window.
-      const onwardDates = [0, 1, 2].map(offset => {
+      const onwardDates = [0, 1].map(offset => {
         const day = new Date(arrivalDate + "T00:00:00Z");
         day.setUTCDate(day.getUTCDate() + offset);
         return day.toISOString().slice(0, 10);
@@ -217,7 +236,7 @@ export async function searchSerpApiFlights(input: {
         return leftTime - rightTime;
       });
 
-      for (const second of validOnward.slice(0, 2)) {
+      for (const second of validOnward.slice(0, 3)) {
         const secondLast = second.flights![second.flights!.length - 1];
         const secondDestination = secondLast.arrival_airport?.id;
         const secondArrivalText = secondLast.arrival_airport?.time ?? "";
