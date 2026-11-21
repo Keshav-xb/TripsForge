@@ -219,5 +219,46 @@ export async function searchSerpApiFlights(input: {
   if (recovered.length) {
     return { status: "offers_found", provider: "SerpApi", environment: "live", checkedAt: new Date().toISOString(), originCode, destinationCode, totalOffersReturned: recovered.length, hasMoreOffers: false, offers: recovered.slice(0, 30) };
   }
+
+  // Nearby-airport fallback: only show real offers from an alternate airport with an explicit warning.
+  const nearbyAirports: Record<string, Array<{ code: string; city: string }>> = {
+    IXJ: [{ code: "SXR", city: "Srinagar" }, { code: "ATQ", city: "Amritsar" }, { code: "IXC", city: "Chandigarh" }],
+    SXR: [{ code: "IXJ", city: "Jammu" }, { code: "ATQ", city: "Amritsar" }, { code: "IXC", city: "Chandigarh" }],
+    ATQ: [{ code: "IXJ", city: "Jammu" }, { code: "IXC", city: "Chandigarh" }, { code: "SXR", city: "Srinagar" }],
+    IXC: [{ code: "ATQ", city: "Amritsar" }, { code: "IXJ", city: "Jammu" }, { code: "SXR", city: "Srinagar" }],
+  };
+  const nearbyOffers: SerpApiFlightOffer[] = [];
+  for (const alternate of (nearbyAirports[originCode] ?? []).slice(0, 3)) {
+    const alternateParams = new URLSearchParams(params);
+    alternateParams.set("departure_id", alternate.code);
+    alternateParams.set("arrival_id", destinationCode);
+    const alternateResult = await serpApiRequest(alternateParams, apiKey);
+    const alternateItineraries = [...(alternateResult.best_flights ?? []), ...(alternateResult.other_flights ?? [])];
+    for (const itinerary of alternateItineraries) {
+      if (itinerary.price === undefined || !itinerary.flights?.length) continue;
+      const segments = itinerary.flights.map(leg => ({
+        from: [leg.departure_airport?.name, leg.departure_airport?.id].filter(Boolean).join(" (") + (leg.departure_airport?.name && leg.departure_airport?.id ? ")" : ""),
+        to: [leg.arrival_airport?.name, leg.arrival_airport?.id].filter(Boolean).join(" (") + (leg.arrival_airport?.name && leg.arrival_airport?.id ? ")" : ""),
+        departure: leg.departure_airport?.time ?? "",
+        arrival: leg.arrival_airport?.time ?? "",
+        carrier: leg.airline ?? "Airline details unavailable",
+        ...(leg.flight_number ? { flightNumber: leg.flight_number } : {}),
+        ...(durationLabel(leg.duration) ? { duration: durationLabel(leg.duration) } : {}),
+        ...(baggageDetails([...(leg.extensions ?? []), ...(itinerary.extensions ?? [])]).length
+          ? { baggage: baggageDetails([...(leg.extensions ?? []), ...(itinerary.extensions ?? [])]) } : {}),
+      }));
+      nearbyOffers.push({
+        id: "serpapi-nearby-" + alternate.code + "-" + nearbyOffers.length,
+        amount: String(itinerary.price), currency, owner: "Google Flights via SerpApi",
+        ...(itinerary.total_duration ? { totalDurationMinutes: itinerary.total_duration } : {}),
+        connectionNote: "Alternative departure airport: " + alternate.city + " (" + alternate.code + "). This flight does not depart from " + input.origin + ". Arrange your own transport to " + alternate.city + " and allow enough time before departure.",
+        segments,
+      });
+    }
+  }
+  nearbyOffers.sort((a, b) => Number(a.amount) - Number(b.amount));
+  if (nearbyOffers.length) {
+    return { status: "offers_found", provider: "SerpApi", environment: "live", checkedAt: new Date().toISOString(), originCode, destinationCode, totalOffersReturned: nearbyOffers.length, hasMoreOffers: false, offers: nearbyOffers.slice(0, 12) };
+  }
   return { status: "no_offers", provider: "SerpApi", environment: "live", checkedAt: new Date().toISOString(), originCode, destinationCode, offers: [] };
 }
