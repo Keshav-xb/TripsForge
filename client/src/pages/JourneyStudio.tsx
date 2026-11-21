@@ -63,6 +63,15 @@ export default function JourneyStudio() {
     modes: Array<{ mode: TransportMode; status: string; evidence: string; serviceStatus: string; bookingStatus: string }>;
     limitations: string[];
     road: null | { status: string; distanceKm?: number; durationMinutes?: number; provider: string; reason?: string };
+    trainAvailability: {
+      status: "offers_found" | "no_service_found" | "provider_not_configured" | "lookup_unavailable";
+      provider: string;
+      retrievedAt?: string;
+      trains: Array<{ trainNumber: string; trainName: string; departureTime?: string; arrivalTime?: string; durationMinutes?: number; classes: string[]; runningDays: string[] }>;
+      disclaimer?: string;
+      message?: string;
+    };
+    busAvailability: { status: string; provider: string; message: string };
   } | null>(null);
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState("");
@@ -287,7 +296,19 @@ export default function JourneyStudio() {
                     <p className="mt-2 text-xs leading-5 text-[#637e76]">{item.evidence}</p>
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] font-semibold text-[#8b542d]">Scheduled service: unverified · Booking: not connected</p><button type="button" onClick={() => updateTransportLeg(transportLegs[0].id, { mode: item.mode })} className="text-xs font-bold text-[#e6651b]">Use as planning assumption</button></div>
                   </div>)}
-                  <p className="text-xs leading-5 text-[#71857e]">Only verified route results are shown here. Flight availability is checked in Flight comparison. Train and bus options stay hidden until a timetable provider confirms service for this route and date.</p><div className="rounded-xl bg-[#fff4e8] p-3"><p className="text-xs font-bold text-[#8b542d]">Research limitations</p><ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] leading-5 text-[#8b542d]">{routeResearch.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul></div>
+                  {routeResearch.trainAvailability.status === "offers_found" && <div className="space-y-2 rounded-xl border border-[#28745c]/20 bg-[#edf5ef] p-3">
+                    <div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">Trains found for {routeResearch.trainAvailability.provider}</p><span className="text-[10px] font-bold uppercase text-[#28745c]">Date checked</span></div>
+                    {routeResearch.trainAvailability.trains.map(train => <div key={train.trainNumber} className="rounded-lg border border-[#123a35]/10 bg-white p-3">
+                      <p className="text-sm font-bold">{train.trainName} <span className="text-xs font-medium text-[#71857e]">#{train.trainNumber}</span></p>
+                      <p className="mt-1 text-xs text-[#496961]">{train.departureTime || "Departure time unavailable"} → {train.arrivalTime || "Arrival time unavailable"}{train.durationMinutes ? ` · ${Math.floor(train.durationMinutes / 60)}h ${train.durationMinutes % 60}m` : ""}</p>
+                      <p className="mt-1 text-[11px] text-[#71857e]">{train.classes.length ? `Classes: ${train.classes.join(", ")}` : "Class details unavailable"} · {train.runningDays.length ? train.runningDays.join(", ") : "Running-day details unavailable"}</p>
+                      <button type="button" onClick={() => updateTransportLeg(transportLegs[0].id, { mode: "train" })} className="mt-2 text-xs font-bold text-[#e6651b]">Use train for this leg</button>
+                    </div>)}
+                    <p className="text-[10px] leading-4 text-[#71857e]">{routeResearch.trainAvailability.disclaimer}</p>
+                  </div>}
+                  {routeResearch.trainAvailability.status !== "offers_found" && <p className="rounded-xl bg-[#fff4e8] p-3 text-xs leading-5 text-[#8b542d]"><strong>Train:</strong> {routeResearch.trainAvailability.status === "no_service_found" ? "No train service was returned for this route and date." : routeResearch.trainAvailability.message}</p>}
+                  <p className="rounded-xl bg-[#fff4e8] p-3 text-xs leading-5 text-[#8b542d]"><strong>Bus:</strong> {routeResearch.busAvailability.message}</p>
+                  <p className="text-xs leading-5 text-[#71857e]">Flights are checked separately in Flight comparison. Train results are read-only timetable data, not live seat availability or a booking confirmation.</p><div className="rounded-xl bg-[#fff4e8] p-3"><p className="text-xs font-bold text-[#8b542d]">Research limitations</p><ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] leading-5 text-[#8b542d]">{routeResearch.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul></div>
                 </div>}
               </div>
               <div className="mt-4 space-y-3">

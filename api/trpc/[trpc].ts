@@ -3,6 +3,7 @@ import { buildRouteResearch, type InfrastructureEvidence, type TransportResearch
 import { buildTravelIntelligence } from "../lib/travelIntelligence.js";
 import { searchSerpApiFlights } from "../lib/serpApiFlights.js";
 import { convertFlightPrice } from "../lib/currencyConversion.js";
+import { searchIndianTrains } from "../lib/railAvailability.js";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
@@ -279,6 +280,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const parsedTravelDate = new Date(travelDate + "T00:00:00Z");
       if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(travelDate) || Number.isNaN(parsedTravelDate.getTime()) || parsedTravelDate.toISOString().slice(0, 10) !== travelDate) throw new Error("INVALID_TRAVEL_DATE");
 
+      const railPromise = searchIndianTrains({ origin, destination, travelDate });
+
       const infrastructureQueries: Array<{ kind: TransportResearchMode; filter: string }> = [
         { kind: "flight", filter: '["aeroway"="aerodrome"]' },
         { kind: "train", filter: '["railway"~"station|halt"]' },
@@ -349,7 +352,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       });
 
       const road = await roadPromise;
-      const result = buildRouteResearch({ origin, destination, travelDate, road, infrastructure, retrievedAt: new Date().toISOString() });
+      const [trainAvailability] = await Promise.all([railPromise]);
+      const result = {
+        ...buildRouteResearch({ origin, destination, travelDate, road, infrastructure, retrievedAt: new Date().toISOString() }),
+        trainAvailability,
+        busAvailability: {
+          status: "provider_not_configured" as const,
+          provider: "RedBus SeatSeller / approved bus partner",
+          message: "Bus timetable search requires approved partner API credentials. Nearby bus stations are not treated as proof of a scheduled service.",
+        },
+      };
       res.setHeader("cache-control", "no-store");
       return send(req, res, 200, trpcData(result));
     }
