@@ -157,7 +157,7 @@ export async function searchSerpApiFlights(input: {
   }
 
   // Route recovery: construct a connection only when both legs are independently returned by Google Flights.
-  const hubs = ["DEL", "BOM", "DXB", "DOH"].filter(code => code !== originCode && code !== destinationCode);
+  const hubs = (destinationCode === "DEL" || destinationCode === "BOM" ? [] : ["DEL", "BOM", "DXB", "DOH"]).filter(code => code !== originCode && code !== destinationCode);
   const recovered: SerpApiFlightOffer[] = [];
   for (const hub of hubs.slice(0, 2)) {
     const firstParams = new URLSearchParams(params);
@@ -228,13 +228,15 @@ export async function searchSerpApiFlights(input: {
     IXC: [{ code: "ATQ", city: "Amritsar" }, { code: "IXJ", city: "Jammu" }, { code: "SXR", city: "Srinagar" }],
   };
   const nearbyOffers: SerpApiFlightOffer[] = [];
-  for (const alternate of (nearbyAirports[originCode] ?? []).slice(0, 3)) {
+  const nearbyResults = await Promise.all((nearbyAirports[originCode] ?? []).slice(0, 3).map(async alternate => {
     const alternateParams = new URLSearchParams(params);
     alternateParams.set("departure_id", alternate.code);
     alternateParams.set("arrival_id", destinationCode);
     const alternateResult = await serpApiRequest(alternateParams, apiKey);
-    const alternateItineraries = [...(alternateResult.best_flights ?? []), ...(alternateResult.other_flights ?? [])];
-    for (const itinerary of alternateItineraries) {
+    return { alternate, itineraries: [...(alternateResult.best_flights ?? []), ...(alternateResult.other_flights ?? [])] };
+  }));
+  for (const { alternate, itineraries } of nearbyResults) {
+    for (const itinerary of itineraries) {
       if (itinerary.price === undefined || !itinerary.flights?.length) continue;
       const segments = itinerary.flights.map(leg => ({
         from: [leg.departure_airport?.name, leg.departure_airport?.id].filter(Boolean).join(" (") + (leg.departure_airport?.name && leg.departure_airport?.id ? ")" : ""),
