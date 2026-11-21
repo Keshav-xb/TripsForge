@@ -82,14 +82,32 @@ describe("searchSerpApiFlights", () => {
         return new Response(JSON.stringify({ best_flights: [], other_flights: [] }), { status: 200 });
       }
       if (from === "IXJ" && to === "DEL") {
-        return new Response(JSON.stringify({ best_flights: [{
-          price: 5000,
-          flights: [{
-            departure_airport: { name: "Jammu Airport", id: "IXJ", time: "2026-12-20 08:00" },
-            arrival_airport: { name: "Delhi Airport", id: "DEL", time: "2026-12-20 09:30" },
-            airline: "North Air", flight_number: "NA101", duration: 90,
-          }],
-        }] }), { status: 200 });
+        return new Response(JSON.stringify({ best_flights: [
+          {
+            price: 4100,
+            flights: [{
+              departure_airport: { name: "Jammu Airport", id: "IXJ", time: "2026-12-20 08:00" },
+              arrival_airport: { name: "Delhi Airport", id: "DEL", time: "2026-12-20 20:00" },
+              airline: "Early Listed Air", flight_number: "EL101", duration: 720,
+            }],
+          },
+          {
+            price: 4500,
+            flights: [{
+              departure_airport: { name: "Jammu Airport", id: "IXJ", time: "2026-12-20 09:00" },
+              arrival_airport: { name: "Delhi Airport", id: "DEL", time: "2026-12-20 21:00" },
+              airline: "Late Listed Air", flight_number: "LL102", duration: 720,
+            }],
+          },
+          {
+            price: 5000,
+            flights: [{
+              departure_airport: { name: "Jammu Airport", id: "IXJ", time: "2026-12-20 08:00" },
+              arrival_airport: { name: "Delhi Airport", id: "DEL", time: "2026-12-20 09:30" },
+              airline: "North Air", flight_number: "NA101", duration: 90,
+            }],
+          },
+        ] }), { status: 200 });
       }
       if (from === "DEL" && to === "CDG") {
         return new Response(JSON.stringify({ best_flights: [{
