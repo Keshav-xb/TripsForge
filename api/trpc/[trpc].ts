@@ -1,5 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../lib/routeResearch.js";
+import { buildTravelIntelligence } from "../lib/travelIntelligence.js";
+import { searchSerpApiFlights } from "../lib/serpApiFlights.js";
+import { convertFlightPrice } from "../lib/currencyConversion.js";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
@@ -209,6 +212,33 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     if (path === "places.nearby") {
       const places = await nearbyPlaces(input as { lat: number; lng: number; category: string; radius?: number });
       return send(req, res, 200, trpcData({ provider: "OpenStreetMap / Overpass", retrievedAt: new Date().toISOString(), places }));
+    }
+    if (path === "flights.search") {
+      const origin = String(input.origin ?? "").trim();
+      const destination = String(input.destination ?? "").trim();
+      const departureDate = String(input.departureDate ?? "");
+      const adults = Number(input.adults ?? 1);
+      const displayCurrency = String(input.currency ?? "USD").toUpperCase();
+      if (!/^[A-Z]{3}$/.test(displayCurrency)) throw new Error("INVALID_DISPLAY_CURRENCY");
+      const result = await searchSerpApiFlights({ origin, destination, departureDate, adults, currency: displayCurrency });
+      if (result.status === "offers_found") {
+        const offers = await Promise.all(result.offers.map(async offer => ({
+          ...offer,
+          priceDisplay: await convertFlightPrice(offer.amount, offer.currency, displayCurrency),
+        })));
+        res.setHeader("cache-control", "no-store");
+        return send(req, res, 200, trpcData({ ...result, offers, displayCurrency }));
+      }
+      res.setHeader("cache-control", "no-store");
+      return send(req, res, 200, trpcData({ ...result, displayCurrency }));
+    }
+    if (path === "route.intelligence") {
+      const research = input.research as Parameters<typeof buildTravelIntelligence>[0] | undefined;
+      if (!research || typeof research !== "object" || !Array.isArray(research.modes) || typeof research.origin !== "string" || typeof research.destination !== "string" || typeof research.travelDate !== "string") {
+        throw new Error("INVALID_RESEARCH_EVIDENCE");
+      }
+      const report = buildTravelIntelligence(research);
+      return send(req, res, 200, trpcData(report));
     }
     if (path === "route.research") {
       const origin = String(input.origin ?? "").trim();
