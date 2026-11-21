@@ -52,7 +52,7 @@ export async function convertFlightPrice(amount: string, fromCurrency: string, t
   }
   const data = await getRates(from);
   const rate = data?.rates[to];
-  if (!data || !Number.isFinite(rate) || rate <= 0) {
+  if (!data || typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) {
     return { originalAmount: amount, originalCurrency: from, displayCurrency: from, conversionStatus: "rate_unavailable" };
   }
   return {
