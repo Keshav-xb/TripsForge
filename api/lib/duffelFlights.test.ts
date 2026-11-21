@@ -93,7 +93,7 @@ describe("searchDuffelFlights", () => {
         expect(result.offers[0].segments[0].carrier).toBe("Example Air");
         expect(result.offers[0].segments[0].marketingCarrier).toBe("Example Marketing");
         expect(result.offers[0].segments[0].duration).toBe("PT01H30M");
-        expect(result.offers[0].segments[0].baggage).toEqual(["1 checked bag", "1 carry_on bag"]);
+        expect(result.offers[0].segments[0].baggage).toEqual(["1 checked bag", "1 carry on bag"]);
       }
     } finally { globalThis.fetch = originalFetch; }
   });
