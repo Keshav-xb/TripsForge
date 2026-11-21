@@ -268,49 +268,25 @@ export default function JourneyStudio() {
                 <div><h2 className="font-display text-2xl">Your transport plan</h2><p className="mt-1 text-sm text-[#71857e]">Break a complex journey into separately planned segments.</p></div>
                 <button type="button" onClick={() => setTransportLegs(legs => [...legs, createEmptyTransportLeg(legs.at(-1)?.destination || draft.startLocation, draft.destination)])} className="rounded-xl bg-[#123a35] px-3 py-2 text-sm font-bold text-white">Add leg +</button>
               </div>
-              <div className="mt-4 rounded-xl border border-[#123a35]/10 bg-white p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div><p className="font-bold">Research this route</p><p className="mt-1 text-xs leading-5 text-[#71857e]">Check for a real road route. Flight options are searched separately using flight-provider results.</p></div>
-                  <button type="button" onClick={() => void runRouteResearch()} disabled={researching || !draft.startLocationPoint || !draft.destinationLocation} className="rounded-xl bg-[#e6651b] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{researching ? "Researching…" : "Research route"}</button>
-                  <a href={`/flights?${new URLSearchParams({ origin: draft.startLocation.trim(), destination: draft.destination.trim(), departureDate: draft.startDate, adults: String(draft.adults), currency: draft.currency }).toString()}`} aria-label={`Compare flights from ${draft.startLocation} to ${draft.destination}`} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-2.5 text-sm font-bold text-[#123a35]">Compare flights{draft.startLocation.trim() && draft.destination.trim() ? ` · ${draft.startLocation} → ${draft.destination}` : ""}</a>
-                </div>
-                {!draft.startLocationPoint || !draft.destinationLocation ? <p className="mt-3 text-xs text-[#8b542d]">Choose both locations from the search suggestions to enable research.</p> : null}
-                {researchError && <p role="alert" className="mt-3 text-xs font-semibold text-red-700">{researchError}</p>}
-                {routeResearch && <div className="mt-4 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#71857e]"><span>Sources: {routeResearch.provider}</span><span>Checked {new Date(routeResearch.retrievedAt).toLocaleString()}</span></div>
-                  {intelligenceReport && <div className="rounded-xl border border-[#123a35]/10 bg-[#f5f7f2] p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-display text-xl">TripsForge Intelligence</p><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase">{intelligenceReport.confidence} confidence</span></div>
-                    <p className="mt-2 text-sm leading-6 text-[#45645b]">{intelligenceReport.summary}</p><p className="mt-2 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-[#637e76]">Flight infrastructure research and Duffel flight-offer search are separate checks. The finding below reports mapped infrastructure research only; it does not invalidate or verify the supplier offers shown above. A supplier offer is not a booking confirmation.</p>
-                    <div className="mt-3 space-y-2">{intelligenceReport.findings.map(item => <div key={item.mode} className="rounded-lg bg-white p-3">
-                      <p className="text-xs font-bold">{item.headline}</p>
-                      {item.details.map((detail, index) => <p key={index} className="mt-1 text-xs leading-5 text-[#637e76]">{detail}</p>)}
-                    </div>)}</div>
-                    <p className="mt-3 text-xs font-bold">What still needs verification</p>
-                    <ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-[#637e76]">{intelligenceReport.missingEvidence.map((item, index) => <li key={index}>{item}</li>)}</ul>
-                    <p className="mt-3 text-xs font-bold">Recommended next steps</p>
-                    <ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5 text-[#637e76]">{intelligenceReport.recommendedNextSteps.map((item, index) => <li key={index}>{item}</li>)}</ul>
-                  </div>}
-                  {routeResearch.road && <div className={`rounded-xl p-3 text-sm ${routeResearch.road.status === "route_found" ? "bg-[#edf5ef]" : "bg-[#fff4e8]"}`}>{routeResearch.road.status === "route_found" ? <><strong>Road network route found:</strong> {routeResearch.road.distanceKm} km · approximately {Math.round((routeResearch.road.durationMinutes || 0) / 60 * 10) / 10} hours by car. This is not a live traffic or road-open check.</> : routeResearch.road.status === "no_route_returned" ? <>OSRM returned no drivable route for these coordinates. This does not prove that no road connection exists.</> : <>Road-network lookup unavailable: {routeResearch.road.reason || "The routing provider could not complete the request."}</>}</div>}
-                  {routeResearch.modes.filter(item => item.mode === "car" && item.status === "road_route_found").map(item => <div key={item.mode} className="rounded-xl border border-[#123a35]/10 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold capitalize">{item.mode}</p><span className="rounded-full bg-[#f2eddf] px-2 py-1 text-[10px] font-bold uppercase tracking-wide">{item.status.replaceAll("_", " ")}</span></div>
-                    <p className="mt-2 text-xs leading-5 text-[#637e76]">{item.evidence}</p>
-                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] font-semibold text-[#8b542d]">Scheduled service: unverified · Booking: not connected</p><button type="button" onClick={() => updateTransportLeg(transportLegs[0].id, { mode: item.mode })} className="text-xs font-bold text-[#e6651b]">Use as planning assumption</button></div>
-                  </div>)}
-                  {routeResearch.trainAvailability.status === "offers_found" && <div className="space-y-2 rounded-xl border border-[#28745c]/20 bg-[#edf5ef] p-3">
-                    <div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">Trains found for {routeResearch.trainAvailability.provider}</p><span className="text-[10px] font-bold uppercase text-[#28745c]">Date checked</span></div>
-                    {routeResearch.trainAvailability.trains.map(train => <div key={train.trainNumber} className="rounded-lg border border-[#123a35]/10 bg-white p-3">
-                      <p className="text-sm font-bold">{train.trainName} <span className="text-xs font-medium text-[#71857e]">#{train.trainNumber}</span></p>
-                      <p className="mt-1 text-xs text-[#496961]">{train.departureTime || "Departure time unavailable"} → {train.arrivalTime || "Arrival time unavailable"}{train.durationMinutes ? ` · ${Math.floor(train.durationMinutes / 60)}h ${train.durationMinutes % 60}m` : ""}</p>
-                      <p className="mt-1 text-[11px] text-[#71857e]">{train.classes.length ? `Classes: ${train.classes.join(", ")}` : "Class details unavailable"} · {train.runningDays.length ? train.runningDays.join(", ") : "Running-day details unavailable"}</p>
-                      <button type="button" onClick={() => updateTransportLeg(transportLegs[0].id, { mode: "train" })} className="mt-2 text-xs font-bold text-[#e6651b]">Use train for this leg</button>
-                    </div>)}
-                    <p className="text-[10px] leading-4 text-[#71857e]">{routeResearch.trainAvailability.disclaimer}</p>
-                  </div>}
-                  {routeResearch.trainAvailability.status !== "offers_found" && <p className="rounded-xl bg-[#fff4e8] p-3 text-xs leading-5 text-[#8b542d]"><strong>Train:</strong> {routeResearch.trainAvailability.status === "no_service_found" ? "No train service was returned for this route and date." : routeResearch.trainAvailability.message}</p>}
-                  <p className="rounded-xl bg-[#fff4e8] p-3 text-xs leading-5 text-[#8b542d]"><strong>Bus:</strong> {routeResearch.busAvailability.message}</p>
-                  <p className="text-xs leading-5 text-[#71857e]">Flights are checked separately in Flight comparison. Train results are read-only timetable data, not live seat availability or a booking confirmation.</p><div className="rounded-xl bg-[#fff4e8] p-3"><p className="text-xs font-bold text-[#8b542d]">Research limitations</p><ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] leading-5 text-[#8b542d]">{routeResearch.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul></div>
-                </div>}
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <a href={`/flights?${new URLSearchParams({ origin: draft.startLocation, destination: draft.destination, departureDate: draft.startDate, adults: String(draft.adults), currency: draft.currency }).toString()}`} className="group flex items-center justify-between rounded-2xl border border-[#123a35]/10 bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#e6651b]/50 hover:shadow-md">
+                  <div><p className="font-bold">Flights</p><p className="mt-1 text-xs text-[#71857e]">Compare available flight options</p></div><span className="rounded-full bg-[#fff0df] px-3 py-2 text-xs font-bold text-[#a9571d]">Check flights →</span>
+                </a>
+                {(["train", "bus", "car"] as const).map(mode => {
+                  const query = new URLSearchParams({
+                    origin: draft.startLocation,
+                    destination: draft.destination,
+                    travelDate: draft.startDate,
+                    ...(draft.startLocationPoint ? { originLat: String(draft.startLocationPoint.lat), originLng: String(draft.startLocationPoint.lng) } : {}),
+                    ...(draft.destinationLocation ? { destinationLat: String(draft.destinationLocation.lat), destinationLng: String(draft.destinationLocation.lng) } : {}),
+                  }).toString();
+                  const labels = { train: ["Trains", "Search timetable options", "Check trains →"], bus: ["Buses", "Check route-specific bus services", "Check buses →"], car: ["Car / road", "View driving route and distance", "Check road route →"] };
+                  return <a key={mode} href={`/transport/${mode}?${query}`} className="group flex items-center justify-between rounded-2xl border border-[#123a35]/10 bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#e6651b]/50 hover:shadow-md">
+                    <div><p className="font-bold">{labels[mode][0]}</p><p className="mt-1 text-xs text-[#71857e]">{labels[mode][1]}</p></div><span className="rounded-full bg-[#e9eee7] px-3 py-2 text-xs font-bold text-[#45645b]">{labels[mode][2]}</span>
+                  </a>;
+                })}
               </div>
+              <p className="mt-3 text-xs leading-5 text-[#71857e]">Each mode opens its own search page with your route and travel date prefilled. Options appear only when the connected source returns supporting data.</p>
               <div className="mt-4 space-y-3">
                 {transportLegs.map((leg, index) => <div key={leg.id} className="rounded-xl border border-[#123a35]/10 bg-white p-3">
                   <div className="mb-2 flex items-center justify-between"><p className="text-sm font-bold">Leg {index + 1}</p><div className="flex items-center gap-3"><label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={leg.enabled} onChange={e => updateTransportLeg(leg.id, { enabled: e.target.checked })}/> Include</label>{transportLegs.length > 1 && <button type="button" onClick={() => setTransportLegs(legs => legs.filter(item => item.id !== leg.id))} className="text-xs font-semibold text-red-600">Remove</button>}</div></div>
@@ -340,7 +316,7 @@ export default function JourneyStudio() {
                   <p className="mt-2 text-[11px] text-[#87958f]">Traveller-entered amount for this segment. Not a live fare or availability result.</p>
                 </div>)}
               </div>
-              <p className="mt-3 text-sm font-bold">Transport total: {money(transportTotal, draft.currency)}</p><p className="mt-2 rounded-lg bg-[#fff4e8] px-3 py-2 text-xs leading-5 text-[#8b542d]">Only verified route options should be selected. Flight comparison uses live supplier search results. Train and bus services are not shown until a timetable source confirms the selected route and date. Manually entered costs remain estimates, not live fares.</p>
+              <p className="mt-3 text-sm font-bold">Transport total: {money(transportTotal, draft.currency)}</p>
             </div>
             <div id="trip-budget" className="scroll-mt-6 rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">

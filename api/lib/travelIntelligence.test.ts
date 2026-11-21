@@ -27,9 +27,10 @@ describe("buildTravelIntelligence", () => {
   it("summarizes positive and partial evidence without claiming a scheduled service", () => {
     const report = buildTravelIntelligence(base, "2026-11-20T04:01:00.000Z");
     expect(report.findings.find(item => item.mode === "flight")?.level).toBe("positive");
-    expect(report.findings.find(item => item.mode === "train")?.level).toBe("partial");
+    expect(report.findings.find(item => item.mode === "train")?.level).toBe("unknown");
+    expect(report.findings.find(item => item.mode === "train")?.headline).toContain("Train timetable lookup unavailable");
     expect(report.findings.every(item => item.verifiedService === false)).toBe(true);
-    expect(report.summary).toContain("No scheduled transport service");
+    expect(report.summary).toContain("No train timetable options were confirmed");
   });
 
   it("keeps provider timeouts unknown, not unavailable", () => {
@@ -41,7 +42,7 @@ describe("buildTravelIntelligence", () => {
 
   it("always states the evidence gaps and anti-hallucination rules", () => {
     const report = buildTravelIntelligence(base);
-    expect(report.missingEvidence).toContain("Live departure times, journey duration, fares, seat availability and booking links.");
+    expect(report.missingEvidence).toContain("Live departure confirmation, fares and seat availability from the railway operator.");
     expect(report.safetyRules.join(" ")).toContain("Never generate a fare");
   });
 });
