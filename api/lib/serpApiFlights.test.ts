@@ -31,6 +31,7 @@ describe("searchSerpApiFlights", () => {
       expect(url.searchParams.get("type")).toBe("2");
       expect(url.searchParams.get("outbound_date")).toBe("2026-12-20");
       expect(url.searchParams.get("currency")).toBe("INR");
+      expect(url.searchParams.get("deep_search")).toBe("true");
       expect(url.searchParams.get("api_key")).toBe("server-only-test-key");
       return new Response(JSON.stringify({
         best_flights: [{
