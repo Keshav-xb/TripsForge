@@ -201,16 +201,6 @@ export default function JourneyStudio() {
         </div>
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
           <section className="space-y-6 rounded-[2rem] border border-[#123a35]/8 bg-[#fffdf8] p-5 shadow-sm sm:p-8">
-            <div id="trip-details" className="scroll-mt-6">
-              <LocationSearch
-                label="Destination"
-                value={draft.destination}
-                placeholder="Search your destination city"
-                onChange={value => { setRouteResearch(null); patch({ destination: value, destinationLocation: undefined }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: value } : leg)); }}
-                onSelect={location => { setRouteResearch(null); patch({ destination: location.label, destinationLocation: { lat: location.lat, lng: location.lng } }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: location.label } : leg)); }}
-              />
-              {hasDestinationPoint && <p className="mt-2 text-xs text-[#71857e]">Map location attached · {destinationPoint!.lat.toFixed(4)}, {destinationPoint!.lng.toFixed(4)}</p>}
-            </div>
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><MapPin className="h-5 w-5 text-[#e6651b]" /> Starting point</h2>
               <LocationSearch
@@ -222,6 +212,16 @@ export default function JourneyStudio() {
               />
               <p className="mt-2 text-xs text-[#71857e]">Required. Select a suggested place so TripsForge can estimate the journey from your actual starting point.</p>
               {draft.startLocationPoint && <p className="mt-1 text-xs font-semibold text-[#28745c]">Departure location selected · {draft.startLocationPoint.lat.toFixed(4)}, {draft.startLocationPoint.lng.toFixed(4)}</p>}
+            </div>
+            <div id="trip-details" className="scroll-mt-6">
+              <LocationSearch
+                label="Destination"
+                value={draft.destination}
+                placeholder="Search your destination city"
+                onChange={value => { setRouteResearch(null); patch({ destination: value, destinationLocation: undefined }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: value } : leg)); }}
+                onSelect={location => { setRouteResearch(null); patch({ destination: location.label, destinationLocation: { lat: location.lat, lng: location.lng } }); setTransportLegs(legs => legs.map((leg, index) => index === legs.length - 1 ? { ...leg, destination: location.label } : leg)); }}
+              />
+              {hasDestinationPoint && <p className="mt-2 text-xs text-[#71857e]">Map location attached · {destinationPoint!.lat.toFixed(4)}, {destinationPoint!.lng.toFixed(4)}</p>}
             </div>
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><CalendarDays className="h-5 w-5 text-[#e6651b]" /> Travel dates</h2>
@@ -263,7 +263,7 @@ export default function JourneyStudio() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div><p className="font-bold">Research this route</p><p className="mt-1 text-xs leading-5 text-[#71857e]">Check mapped transport infrastructure near both endpoints and look for a drivable road-network route.</p></div>
                   <button type="button" onClick={() => void runRouteResearch()} disabled={researching || !draft.startLocationPoint || !draft.destinationLocation} className="rounded-xl bg-[#e6651b] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{researching ? "Researching…" : "Research route"}</button>
-                  <a href={`/flights?${new URLSearchParams({ origin: draft.startLocation, destination: draft.destination, departureDate: transportLegs.find(leg => leg.travelDate)?.travelDate || draft.startDate, adults: String(draft.adults), currency: draft.currency }).toString()}`} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-2.5 text-sm font-bold text-[#123a35]">Compare flights</a>
+                  <a href={`/flights?${new URLSearchParams({ origin: draft.startLocation.trim(), destination: draft.destination.trim(), departureDate: draft.startDate, adults: String(draft.adults), currency: draft.currency }).toString()}`} aria-label={`Compare flights from ${draft.startLocation} to ${draft.destination}`} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-2.5 text-sm font-bold text-[#123a35]">Compare flights{draft.startLocation.trim() && draft.destination.trim() ? ` · ${draft.startLocation} → ${draft.destination}` : ""}</a>
                 </div>
                 {!draft.startLocationPoint || !draft.destinationLocation ? <p className="mt-3 text-xs text-[#8b542d]">Choose both locations from the search suggestions to enable research.</p> : null}
                 {researchError && <p role="alert" className="mt-3 text-xs font-semibold text-red-700">{researchError}</p>}
