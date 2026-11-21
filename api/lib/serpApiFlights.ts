@@ -158,7 +158,7 @@ export async function searchSerpApiFlights(input: {
 
   // Route builder: discover multiple transfer airports, then combine only independently returned flight legs.
   // Each candidate hub is searched from the requested origin; onward legs are searched for the
-  // actual arrival date of that first flight. This supports routes such as IXJ -> DEL -> DXB -> CDG.
+  // actual arrival date of that first flight. Prioritize DEL for Jammu-origin journeys and retain more first-leg candidates so a cheap but poorly timed option cannot hide a valid connection. This supports routes such as IXJ -> DEL -> DXB -> CDG.
   const hubs = ["DEL", "BOM", "DXB", "DOH", "AUH", "SIN", "IST", "FRA", "LHR", "AMS"]
     .filter(code => code !== originCode && code !== destinationCode);
   const recovered: SerpApiFlightOffer[] = [];
@@ -179,7 +179,7 @@ export async function searchSerpApiFlights(input: {
     query.set("arrival_id", hub);
     const response = await serpApiRequest(query, apiKey);
     return { hub, options: [...(response.best_flights ?? []), ...(response.other_flights ?? [])]
-      .filter(item => item.price !== undefined && item.flights?.length).slice(0, 2) };
+      .filter(item => item.price !== undefined && item.flights?.length).slice(0, 8) };
   }));
 
   for (const { hub, options } of firstLegResults) {
@@ -217,7 +217,7 @@ export async function searchSerpApiFlights(input: {
         return leftTime - rightTime;
       });
 
-      for (const second of validOnward.slice(0, 2)) {
+      for (const second of validOnward.slice(0, 5)) {
         const secondLast = second.flights![second.flights!.length - 1];
         const secondDestination = secondLast.arrival_airport?.id;
         const secondArrivalText = secondLast.arrival_airport?.time ?? "";
