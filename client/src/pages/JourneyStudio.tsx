@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowRight, CalendarDays, Compass, MapPin, Minus, Plus, Sparkles, Users, Wallet } from "lucide-react";
+import { ArrowRight, CalendarDays, Compass, MapPin, Minus, Plus, Sparkles, Users, Wallet, Plane, TrainFront, BusFront, CarFront, ArrowUpRight } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { MapView, type MapMarker } from "@/components/Map";
 import LocationSearch from "@/components/LocationSearch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { calculateAllBudgetScenarios, type BudgetCategory, type BudgetCostItem, type BudgetQuantityRule } from "@/lib/tripBudget";
 import { createEmptyTransportLeg, getTransportLegTotal, validateTransportLegs, type TransportLeg, type TransportMode } from "@/lib/transportLegs";
 import { useTrip } from "@/contexts/TripContext";
@@ -33,6 +35,14 @@ const dateOffset = (days: number) => {
   return date.toISOString().slice(0, 10);
 };
 
+
+function DateField({ label, value, min, onChange }: { label:string; value:string; min?:string; onChange:(value:string)=>void }) {
+ const [open,setOpen]=useState(false);
+ const selected=value?new Date(`${value}T12:00:00`):undefined;
+ const minimum=min?new Date(`${min}T12:00:00`):undefined;
+ return <div className="grid min-w-0 gap-2"><span className="text-xs font-bold uppercase tracking-[.12em] text-[#71857e]">{label}</span><Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><button type="button" className="flex min-h-[58px] w-full items-center gap-3 rounded-xl border border-[#123a35]/12 bg-white px-3 text-left transition hover:border-[#e6651b]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e6651b]"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#f3f5ef] text-[#45645b]"><CalendarDays className="h-5 w-5"/></span><span className="min-w-0 flex-1"><span className="block text-[10px] font-semibold uppercase tracking-wider text-[#87958f]">{label}</span><span className="block truncate text-sm font-bold text-[#123a35]">{selected?selected.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"}):"Choose date"}</span></span><ArrowUpRight className="h-4 w-4 text-[#9aaba4]"/></button></PopoverTrigger><PopoverContent align="start" className="z-[1400] w-[min(21rem,calc(100vw-2rem))] rounded-2xl border-[#123a35]/10 bg-white p-2 shadow-xl"><Calendar mode="single" selected={selected} onSelect={date=>{if(date){onChange(new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,10));setOpen(false);}}} disabled={date=>!!minimum&&date<minimum} initialFocus className="mx-auto [--cell-size:2.35rem]"/></PopoverContent></Popover></div>;
+}
+
 export default function JourneyStudio() {
   const [, navigate] = useLocation();
   const { forgeTrip, plan } = useTrip();
@@ -57,7 +67,10 @@ export default function JourneyStudio() {
   const [budgetInput, setBudgetInput] = useState(String(plan.budget > 0 ? plan.budget : defaultPlan.budget));
   const [transportLegs, setTransportLegs] = useState<TransportLeg[]>(() => [createEmptyTransportLeg(routeOrigin, routeDestination)]);
   const transportTotal = getTransportLegTotal(transportLegs);
+  const transportQuery = new URLSearchParams({ origin: draft.startLocation, destination: draft.destination, travelDate: draft.startDate, ...(draft.startLocationPoint ? { originLat: String(draft.startLocationPoint.lat), originLng: String(draft.startLocationPoint.lng) } : {}), ...(draft.destinationLocation ? { destinationLat: String(draft.destinationLocation.lat), destinationLng: String(draft.destinationLocation.lng) } : {}) }).toString();
   const [routeResearch, setRouteResearch] = useState<{
+    origin: string;
+    destination: string;
     retrievedAt: string;
     provider: string;
     modes: Array<{ mode: TransportMode; status: string; evidence: string; serviceStatus: string; bookingStatus: string }>;
@@ -209,7 +222,7 @@ export default function JourneyStudio() {
           </nav>
         </div>
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <section className="space-y-6 rounded-[2rem] border border-[#123a35]/8 bg-[#fffdf8] p-5 shadow-sm sm:p-8">
+          <section className="min-w-0 space-y-8">
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><MapPin className="h-5 w-5 text-[#e6651b]" /> Starting point</h2>
               <LocationSearch
@@ -232,13 +245,7 @@ export default function JourneyStudio() {
               />
               {hasDestinationPoint && <p className="mt-2 text-xs text-[#71857e]">Map location attached · {destinationPoint!.lat.toFixed(4)}, {destinationPoint!.lng.toFixed(4)}</p>}
             </div>
-            <div>
-              <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><CalendarDays className="h-5 w-5 text-[#e6651b]" /> Travel dates</h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-semibold">Departure<input type="date" min={dateOffset(0)} value={draft.startDate} onChange={e => { setRouteResearch(null); patch({ startDate: e.target.value }); }} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
-                <label className="grid gap-2 text-sm font-semibold">Return<input type="date" min={draft.startDate || dateOffset(0)} value={draft.endDate} onChange={e => patch({ endDate: e.target.value })} className="rounded-xl border border-[#123a35]/15 bg-white px-3 py-3" /></label>
-              </div>
-            </div>
+            <div><h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><CalendarDays className="h-5 w-5 text-[#e6651b]"/> Travel dates</h2><div className="grid gap-3 sm:grid-cols-2"><DateField label="Departure" value={draft.startDate} min={dateOffset(0)} onChange={value=>{setRouteResearch(null);patch({startDate:value,...(draft.endDate<value?{endDate:value}:{})});}}/><DateField label="Return" value={draft.endDate} min={draft.startDate||dateOffset(0)} onChange={value=>patch({endDate:value})}/></div></div>
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-display text-2xl"><Users className="h-5 w-5 text-[#e6651b]" /> Travellers</h2>
               <div className="grid gap-3 sm:grid-cols-2">{counter("Adults", draft.adults, adults => patch({ adults }), 1)}{counter("Children", draft.children, children => patch({ children }), 0)}{counter("Infants", infants, setInfants, 0)}{counter("Rooms", rooms, setRooms, 1)}</div>
@@ -263,60 +270,64 @@ export default function JourneyStudio() {
               </div>
               <p className="mt-2 text-xs leading-5 text-[#71857e]">This is your spending limit for the whole group. It stays fixed when traveller numbers change; the trip estimate below recalculates from the unit prices you enter.</p><div className="mt-3 flex flex-wrap gap-2">{(["Budget", "Balanced", "Premium"] as const).map(level => <button type="button" key={level} onClick={() => patch({ budgetLevel: level })} className={`rounded-full border px-4 py-2 text-sm font-semibold ${draft.budgetLevel === level ? "border-[#123a35] bg-[#123a35] text-white" : "border-[#123a35]/15 bg-white"}`}>{level}</button>)}</div>
             </div>
-            <div id="transport-plan" className="scroll-mt-6 rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div><h2 className="font-display text-2xl">Your transport plan</h2><p className="mt-1 text-sm text-[#71857e]">Break a complex journey into separately planned segments.</p></div>
-                <button type="button" onClick={() => setTransportLegs(legs => [...legs, createEmptyTransportLeg(legs.at(-1)?.destination || draft.startLocation, draft.destination)])} className="rounded-xl bg-[#123a35] px-3 py-2 text-sm font-bold text-white">Add leg +</button>
-              </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <a href={`/flights?${new URLSearchParams({ origin: draft.startLocation, destination: draft.destination, departureDate: draft.startDate, adults: String(draft.adults), currency: draft.currency }).toString()}`} className="group flex items-center justify-between rounded-2xl border border-[#123a35]/10 bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#e6651b]/50 hover:shadow-md">
-                  <div><p className="font-bold">Flights</p><p className="mt-1 text-xs text-[#71857e]">Compare available flight options</p></div><span className="rounded-full bg-[#fff0df] px-3 py-2 text-xs font-bold text-[#a9571d]">Check flights →</span>
-                </a>
-                {(["train", "bus", "car"] as const).map(mode => {
-                  const query = new URLSearchParams({
-                    origin: draft.startLocation,
-                    destination: draft.destination,
-                    travelDate: draft.startDate,
-                    ...(draft.startLocationPoint ? { originLat: String(draft.startLocationPoint.lat), originLng: String(draft.startLocationPoint.lng) } : {}),
-                    ...(draft.destinationLocation ? { destinationLat: String(draft.destinationLocation.lat), destinationLng: String(draft.destinationLocation.lng) } : {}),
-                  }).toString();
-                  const labels = { train: ["Trains", "Search timetable options", "Check trains →"], bus: ["Buses", "Check route-specific bus services", "Check buses →"], car: ["Car / road", "View driving route and distance", "Check road route →"] };
-                  return <a key={mode} href={`/transport/${mode}?${query}`} className="group flex items-center justify-between rounded-2xl border border-[#123a35]/10 bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#e6651b]/50 hover:shadow-md">
-                    <div><p className="font-bold">{labels[mode][0]}</p><p className="mt-1 text-xs text-[#71857e]">{labels[mode][1]}</p></div><span className="rounded-full bg-[#e9eee7] px-3 py-2 text-xs font-bold text-[#45645b]">{labels[mode][2]}</span>
-                  </a>;
+            <div id="transport-plan" className="scroll-mt-6 border-y border-[#123a35]/10 py-7">
+              <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#e6651b]">02 · Getting around</p><h2 className="mt-1 font-display text-2xl sm:text-3xl">Transport</h2><p className="mt-1 text-sm text-[#71857e]">Choose a mode to compare routes for your journey.</p></div><span className="text-xs font-semibold text-[#71857e]">{transportLegs.length} {transportLegs.length===1?"segment":"segments"}</span></div>
+              <div className="mt-5 grid grid-cols-2 gap-x-4 sm:grid-cols-4">{([{mode:"flight",title:"Flights",href:()=>`/flights?${new URLSearchParams({origin:draft.startLocation,destination:draft.destination,departureDate:draft.startDate,adults:String(draft.adults),currency:draft.currency}).toString()}`,Icon:Plane},{mode:"train",title:"Trains",href:()=>`/transport/train?${transportQuery}`,Icon:TrainFront},{mode:"bus",title:"Buses",href:()=>`/transport/bus?${transportQuery}`,Icon:BusFront},{mode:"car",title:"Road",href:()=>`/transport/car?${transportQuery}`,Icon:CarFront}] as const).map(item=><a key={item.mode} href={item.href()} className="flex min-w-0 items-center gap-2.5 border-b border-[#123a35]/10 py-3 text-sm font-semibold text-[#244b43] transition hover:text-[#d45d1b]"><item.Icon className="h-5 w-5 shrink-0 text-[#71857e]"/><span className="min-w-0 flex-1">{item.title}</span><ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-[#9aaba4]"/></a>)}</div>
+              <p className="mt-2 text-[11px] leading-5 text-[#87958f]">Each search opens with your route and date prefilled. Results depend on connected providers.</p>
+              <div className="mt-7 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-bold">Journey segments</h3><p className="mt-1 text-xs text-[#71857e]">Add a segment for each change of transport or stop.</p></div><button type="button" onClick={()=>setTransportLegs(legs=>[...legs,createEmptyTransportLeg(legs.at(-1)?.destination||draft.startLocation,draft.destination)])} className="inline-flex items-center gap-2 rounded-lg border border-[#123a35]/15 px-3 py-2 text-xs font-bold text-[#123a35] hover:bg-[#f3f5ef]"><Plus className="h-4 w-4"/> Add segment</button></div>
+              <div className="relative mt-5 space-y-4 pl-5 before:absolute before:bottom-5 before:left-[7px] before:top-5 before:w-px before:bg-[#cbd8ce]">
+                {transportLegs.map((leg,index)=>{
+                  const ModeIcon = leg.mode === "flight" ? Plane : leg.mode === "train" ? TrainFront : leg.mode === "bus" ? BusFront : leg.mode === "car" ? CarFront : Compass;
+                  const modeLabel = leg.mode === "unverified" ? "Choose transport" : leg.mode === "car" ? "Car / taxi" : leg.mode.charAt(0).toUpperCase()+leg.mode.slice(1);
+                  const dateLabel = leg.travelDate ? new Date(leg.travelDate+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "Date not set";
+                  return <article key={leg.id} className={`relative min-w-0 rounded-2xl border p-4 transition sm:p-5 ${leg.enabled ? "border-[#123a35]/10 bg-white shadow-[0_8px_28px_rgba(18,58,53,.045)]" : "border-dashed border-[#123a35]/20 bg-[#f7f8f4] opacity-70"}`}>
+                    <span className={`absolute -left-[25px] top-6 h-3.5 w-3.5 rounded-full border-[3px] border-[#f7f2e7] ${leg.enabled ? "bg-[#e6651b]" : "bg-[#aab8af]"}`}/>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#eef3ed] text-[#31584e]"><ModeIcon className="h-[18px] w-[18px]"/></span>
+                        <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#87958f]">Segment {index+1}</p><p className="mt-0.5 text-sm font-bold text-[#123a35]">{modeLabel}</p></div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#45645b]"><input type="checkbox" checked={leg.enabled} onChange={e=>updateTransportLeg(leg.id,{enabled:e.target.checked})} className="h-4 w-4 accent-[#123a35]"/> Include</label>
+                        {transportLegs.length>1&&<button type="button" onClick={()=>setTransportLegs(legs=>legs.filter(item=>item.id!==leg.id))} className="text-xs font-semibold text-[#b44b3e] hover:underline">Remove</button>}
+                      </div>
+                    </div>
+                    <div className="mt-4 grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-xl bg-[#f6f8f4] px-3 py-3">
+                      <div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-wider text-[#87958f]">From</p><p className="mt-1 truncate text-sm font-bold text-[#123a35]">{leg.origin||"Add origin"}</p></div>
+                      <ArrowRight className="h-4 w-4 text-[#a0afa6]"/>
+                      <div className="min-w-0 text-right"><p className="text-[9px] font-bold uppercase tracking-wider text-[#87958f]">To</p><p className="mt-1 truncate text-sm font-bold text-[#123a35]">{leg.destination||"Add destination"}</p></div>
+                    </div>
+                    <details className="group mt-3">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-2 text-xs font-bold text-[#45645b] marker:content-none hover:text-[#d45d1b]"><span>Edit segment details</span><span className="text-base leading-none transition group-open:rotate-45">+</span></summary>
+                      <div className="grid gap-3 border-t border-[#123a35]/10 pt-4 sm:grid-cols-2">
+                        <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-[#45645b]">From<input value={leg.origin} onChange={e=>updateTransportLeg(leg.id,{origin:e.target.value})} placeholder="Origin" className="min-w-0 rounded-lg border border-[#123a35]/15 bg-white px-3 py-2.5 text-sm font-medium text-[#123a35]"/></label>
+                        <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-[#45645b]">To<input value={leg.destination} onChange={e=>updateTransportLeg(leg.id,{destination:e.target.value})} placeholder="Destination" className="min-w-0 rounded-lg border border-[#123a35]/15 bg-white px-3 py-2.5 text-sm font-medium text-[#123a35]"/></label>
+                        <div className="grid min-w-0 gap-1.5 text-xs font-semibold text-[#45645b]"><span>Transport mode</span><Select value={leg.mode} onValueChange={value=>updateTransportLeg(leg.id,{mode:value as TransportMode})}><SelectTrigger className="h-11 w-full rounded-xl border-[#123a35]/15 bg-white px-3 text-sm font-medium text-[#123a35] shadow-none"><SelectValue placeholder="Choose transport"/></SelectTrigger><SelectContent className="z-[1300] rounded-xl bg-white text-[#123a35] shadow-xl"><SelectItem value="unverified">Not decided</SelectItem><SelectItem value="flight">Flight</SelectItem><SelectItem value="train">Train</SelectItem><SelectItem value="bus">Bus</SelectItem><SelectItem value="car">Car / taxi</SelectItem><SelectItem value="ferry">Ferry</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
+                        <DateField label="Travel date" value={leg.travelDate} min={draft.startDate} onChange={value=>{setRouteResearch(null);updateTransportLeg(leg.id,{travelDate:value});}}/>
+                        <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-[#45645b] sm:col-span-2">Estimated cost ({draft.currency})<input type="number" min="0" value={leg.unitCost||""} onChange={e=>updateTransportLeg(leg.id,{unitCost:Math.max(0,Number(e.target.value)||0)})} placeholder="Enter your estimate" className="rounded-lg border border-[#123a35]/15 bg-white px-3 py-2.5 text-sm font-medium text-[#123a35]"/></label>
+                      </div>
+                      <p className="mt-3 text-[11px] leading-5 text-[#87958f]">Traveller-entered estimate only. Not a live fare or availability result.</p>
+                    </details>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#123a35]/8 pt-3 text-xs"><span className="inline-flex items-center gap-1.5 text-[#71857e]"><CalendarDays className="h-3.5 w-3.5"/>{dateLabel}</span><strong className="tabular-nums text-[#123a35]">{leg.unitCost>0?money(leg.unitCost,draft.currency):"Cost not added"}</strong></div>
+                  </article>;
                 })}
               </div>
-              <p className="mt-3 text-xs leading-5 text-[#71857e]">Each mode opens its own search page with your route and travel date prefilled. Options appear only when the connected source returns supporting data.</p>
-              <div className="mt-4 space-y-3">
-                {transportLegs.map((leg, index) => <div key={leg.id} className="rounded-xl border border-[#123a35]/10 bg-white p-3">
-                  <div className="mb-2 flex items-center justify-between"><p className="text-sm font-bold">Leg {index + 1}</p><div className="flex items-center gap-3"><label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={leg.enabled} onChange={e => updateTransportLeg(leg.id, { enabled: e.target.checked })}/> Include</label>{transportLegs.length > 1 && <button type="button" onClick={() => setTransportLegs(legs => legs.filter(item => item.id !== leg.id))} className="text-xs font-semibold text-red-600">Remove</button>}</div></div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <label className="grid gap-1 text-xs font-semibold">From<input value={leg.origin} onChange={e => updateTransportLeg(leg.id, { origin: e.target.value })} placeholder="Origin" className="min-w-0 rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
-                    <label className="grid gap-1 text-xs font-semibold">To<input value={leg.destination} onChange={e => updateTransportLeg(leg.id, { destination: e.target.value })} placeholder="Destination" className="min-w-0 rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
-                    <div className="grid gap-1 text-xs font-semibold">
-                      <span>Transport assumption</span>
-                      <Select value={leg.mode} onValueChange={value => updateTransportLeg(leg.id, { mode: value as TransportMode })}>
-                        <SelectTrigger className="h-11 w-full rounded-xl border-[#123a35]/15 bg-white px-3 text-sm font-medium text-[#123a35] shadow-none focus:ring-2 focus:ring-[#e6651b]/20">
-                          <SelectValue placeholder="Choose transport" />
-                        </SelectTrigger>
-                        <SelectContent className="z-[1300] rounded-xl border-[#123a35]/10 bg-white text-[#123a35] shadow-xl">
-                          <SelectItem value="unverified">Not decided / needs research</SelectItem>
-                          <SelectItem value="flight">Flight</SelectItem>
-                          <SelectItem value="train">Train</SelectItem>
-                          <SelectItem value="bus">Bus</SelectItem>
-                          <SelectItem value="car">Car / taxi</SelectItem>
-                          <SelectItem value="ferry">Ferry</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <label className="grid gap-1 text-xs font-semibold">Travel date<input type="date" value={leg.travelDate} onChange={e => { setRouteResearch(null); updateTransportLeg(leg.id, { travelDate: e.target.value }); }} className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
-                    <label className="grid gap-1 text-xs font-semibold sm:col-span-2">Estimated total for this leg ({draft.currency})<input type="number" min="0" value={leg.unitCost || ""} onChange={e => updateTransportLeg(leg.id, { unitCost: Math.max(0, Number(e.target.value) || 0) })} placeholder="Enter a quote or estimate" className="rounded-lg border border-[#123a35]/15 px-2 py-2 text-sm"/></label>
+              <div className="mt-4 flex items-center justify-between text-sm"><span className="font-semibold text-[#71857e]">Estimated transport total</span><strong className="text-[#123a35]">{money(transportTotal,draft.currency)}</strong></div>
+              <div className="mt-7 border-t border-[#123a35]/10 pt-6">
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Route intelligence</p><h3 className="mt-1 font-display text-xl">Research this route</h3><p className="mt-1 text-xs leading-5 text-[#71857e]">Check mapped transport infrastructure, road routing and connected train timetable evidence for your selected endpoints.</p></div><button type="button" disabled={researching||!draft.startLocationPoint||!draft.destinationLocation} onClick={runRouteResearch} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#123a35] px-4 py-2.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">{researching?"Researching route…":"Research route"} <ArrowRight className="h-4 w-4"/></button></div>
+                {(!draft.startLocationPoint||!draft.destinationLocation)&&<p className="mt-3 text-xs text-[#9a6a35]">Select both endpoints from the location suggestions to enable route research.</p>}
+                {researchError&&<p role="alert" className="mt-3 rounded-lg bg-[#fff0e5] p-3 text-xs leading-5 text-[#a84b19]">{researchError}</p>}
+                {routeResearch&&<div className="mt-5 space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold">{routeResearch.origin} <span className="px-1 text-[#e6651b]">→</span> {routeResearch.destination}</p><span className="text-[10px] text-[#87958f]">Checked {new Date(routeResearch.retrievedAt).toLocaleString()}</span></div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl bg-[#f3f6f1] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Road network</p><p className="mt-1 text-lg font-black">{routeResearch.road?.status==="route_found"?routeResearch.road.distanceKm+" km":routeResearch.road?.status==="no_route_returned"?"No route returned":"Lookup unavailable"}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{routeResearch.road?.status==="route_found"?"Estimated drive: "+Math.floor((routeResearch.road.durationMinutes??0)/60)+"h "+(routeResearch.road.durationMinutes??0)%60+"m":routeResearch.road?.reason??"Road routing could not confirm a route."}</p><p className="mt-2 text-[10px] text-[#87958f]">{routeResearch.road?.provider??"OSRM / OpenStreetMap"}</p></div>
+                    <div className="rounded-xl bg-[#f3f6f1] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Train timetable</p><p className="mt-1 text-lg font-black">{routeResearch.trainAvailability.status==="offers_found"?routeResearch.trainAvailability.trains.length+" services":routeResearch.trainAvailability.status.replaceAll("_"," ")}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{routeResearch.trainAvailability.message??routeResearch.trainAvailability.disclaimer??"No train timetable details returned."}</p></div>
                   </div>
-                  <p className="mt-2 text-[11px] text-[#87958f]">Traveller-entered amount for this segment. Not a live fare or availability result.</p>
-                </div>)}
+                  <div><h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-[#87958f]">Transport evidence by mode</h4><div className="divide-y divide-[#123a35]/10 border-y border-[#123a35]/10">{routeResearch.modes.map(item=><div key={item.mode} className="flex items-start justify-between gap-3 py-3"><div className="min-w-0"><p className="text-sm font-bold capitalize">{item.mode}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{item.evidence}</p></div><span className="shrink-0 rounded-md bg-[#eef3ed] px-2 py-1 text-[9px] font-bold uppercase text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div>)}</div></div>
+                  {intelligenceReport&&<div className="rounded-xl border border-[#dce5dc] bg-white p-4"><p className="text-[10px] font-black uppercase tracking-wider text-[#e6651b]">TripsForge assessment · {intelligenceReport.confidence} confidence</p><p className="mt-2 text-sm font-semibold leading-6 text-[#123a35]">{intelligenceReport.summary}</p>{intelligenceReport.recommendedNextSteps.length>0&&<div className="mt-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Recommended next steps</p><ul className="mt-2 space-y-2">{intelligenceReport.recommendedNextSteps.map((step,index)=><li key={index} className="flex gap-2 text-xs leading-5 text-[#637e76]"><span className="font-bold text-[#e6651b]">{index+1}.</span>{step}</li>)}</ul></div>}</div>}
+                  {routeResearch.limitations.length>0&&<div><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">What this research cannot confirm</p><ul className="mt-2 space-y-1.5">{routeResearch.limitations.map((item,index)=><li key={index} className="text-[11px] leading-5 text-[#87958f]">• {item}</li>)}</ul></div>}
+                </div>}
               </div>
-              <p className="mt-3 text-sm font-bold">Transport total: {money(transportTotal, draft.currency)}</p>
             </div>
             <div id="trip-budget" className="scroll-mt-6 rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
