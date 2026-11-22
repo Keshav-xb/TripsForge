@@ -157,13 +157,13 @@ export async function searchPublicBuses(input: { origin: string; destination: st
         byTrip.set(stopTime.trip_id, list);
       }
       const offers: BusOffer[] = [];
-      for (const [tripId, times] of byTrip) {
+      byTrip.forEach((times: StopTime[], tripId: string) => {
         const trip = tripsById.get(tripId);
-        if (!trip || !serviceRuns(trip.service_id, input.travelDate, tables)) continue;
-        times.sort((a, b) => Number(a.stop_sequence) - Number(b.stop_sequence));
-        const fromIndex = times.findIndex(item => item.stop_id === from.stop_id);
-        const toIndex = times.findIndex(item => item.stop_id === to.stop_id);
-        if (fromIndex < 0 || toIndex <= fromIndex) continue;
+        if (!trip || !serviceRuns(trip.service_id, input.travelDate, tables)) return;
+        times.sort((a: StopTime, b: StopTime) => Number(a.stop_sequence) - Number(b.stop_sequence));
+        const fromIndex = times.findIndex((item: StopTime) => item.stop_id === from.stop_id);
+        const toIndex = times.findIndex((item: StopTime) => item.stop_id === to.stop_id);
+        if (fromIndex < 0 || toIndex <= fromIndex) return;
         const first = times[fromIndex], last = times[toIndex];
         const route = routeIndex.get(trip.route_id);
         offers.push({
@@ -175,7 +175,7 @@ export async function searchPublicBuses(input: { origin: string; destination: st
           fromStop: stopIndex.get(first.stop_id)?.stop_name ?? from.stop_name,
           toStop: stopIndex.get(last.stop_id)?.stop_name ?? to.stop_name,
         });
-      }
+      });
       const unique = Array.from(new Map(offers.map(offer => [`${offer.route}|${offer.departureTime}|${offer.arrivalTime}`, offer])).values()).sort((a, b) => a.departureTime.localeCompare(b.departureTime)).slice(0, 30);
       if (unique.length) return { status: "offers_found", provider: "Reclaim India GTFS", retrievedAt: new Date().toISOString(), feed: feed.name, state: feed.state, offers: unique, disclaimer: DISCLAIMER, sourceLicence: feed.source?.licence ?? "Not stated by source; verify commercial-use rights before launch." };
     }
