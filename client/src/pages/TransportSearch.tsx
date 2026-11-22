@@ -4,7 +4,9 @@ import { ArrowLeft, Bus, CarFront, Clock3, TrainFront, CalendarDays, ArrowRight,
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 
-type BusResult = { status: string; provider?: string; retrievedAt?: string; feed?: string; state?: string; offers?: Array<{ route: string; headsign: string; departureTime: string; arrivalTime: string; intermediateStops: number; fromStop: string; toStop: string }>; message?: string; disclaimer?: string; sourceLicence?: string; };\n\ntype TrainResult = {
+type BusResult = { status: string; provider?: string; retrievedAt?: string; feed?: string; state?: string; offers?: Array<{ route: string; headsign: string; departureTime: string; arrivalTime: string; intermediateStops: number; fromStop: string; toStop: string }>; message?: string; disclaimer?: string; sourceLicence?: string; };
+
+type TrainResult = {
   status: string;
   provider?: string;
   trains?: Array<{ trainNumber: string; trainName: string; departureTime?: string; arrivalTime?: string; durationMinutes?: number; classes: string[]; runningDays: string[] }>;
@@ -22,7 +24,8 @@ export default function TransportSearch() {
   const [destination, setDestination] = useState(params.get("destination") ?? "");
   const [travelDate, setTravelDate] = useState(params.get("travelDate") ?? "");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<TrainResult | null>(null);\n  const [busResult, setBusResult] = useState<BusResult | null>(null);
+  const [result, setResult] = useState<TrainResult | null>(null);
+  const [busResult, setBusResult] = useState<BusResult | null>(null);
   const [road, setRoad] = useState<{ distanceKm: number; durationMinutes: number } | null>(null);
   const [error, setError] = useState("");
   const title = mode === "bus" ? "Bus options" : mode === "car" ? "Road journey" : "Train options";
@@ -32,7 +35,13 @@ export default function TransportSearch() {
     event.preventDefault();
     setError(""); setResult(null); setBusResult(null); setRoad(null); setLoading(true);
     try {
-      if (mode === "bus") {\n        const response = await fetch(`/api/trpc/buses.search?input=${encodeURIComponent(JSON.stringify({ json: { origin, destination, travelDate } }))}`);\n        const body = await response.json();\n        const data = body.result?.data?.json as BusResult | undefined;\n        if (!response.ok || !data) throw new Error(body.error?.json?.message ?? "Bus timetable search could not be completed.");\n        setBusResult(data);\n      } else if (mode === "train") {
+      if (mode === "bus") {
+        const response = await fetch(`/api/trpc/buses.search?input=${encodeURIComponent(JSON.stringify({ json: { origin, destination, travelDate } }))}`);
+        const body = await response.json();
+        const data = body.result?.data?.json as BusResult | undefined;
+        if (!response.ok || !data) throw new Error(body.error?.json?.message ?? "Bus timetable search could not be completed.");
+        setBusResult(data);
+      } else if (mode === "train") {
         const response = await fetch(`/api/trpc/trains.search?input=${encodeURIComponent(JSON.stringify({ json: { origin, destination, travelDate } }))}`);
         const body = await response.json();
         const data = body.result?.data?.json as TrainResult | undefined;
@@ -70,7 +79,8 @@ export default function TransportSearch() {
         <label className="grid gap-2 text-sm font-bold">From<input required value={origin} onChange={e => setOrigin(e.target.value)} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-3 font-medium" /></label>
         <label className="grid gap-2 text-sm font-bold">To<input required value={destination} onChange={e => setDestination(e.target.value)} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-3 font-medium" /></label>
         <label className="grid gap-2 text-sm font-bold sm:col-span-2">Travel date<input required type="date" min={today} value={travelDate} onChange={e => setTravelDate(e.target.value)} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-3 font-medium" /></label>
-        {mode !== "bus" && <button disabled={loading} className="rounded-xl bg-[#123a35] px-5 py-4 font-bold text-white disabled:opacity-60 sm:col-span-2">{loading ? "Checking…" : mode === "car" ? "Check road route" : "Search trains"}</button>}\n        {mode === "bus" && <button disabled={loading} className="rounded-xl bg-[#123a35] px-5 py-4 font-bold text-white disabled:opacity-60 sm:col-span-2">{loading ? "Checking public timetables…" : "Search public buses"}</button>}
+        {mode !== "bus" && <button disabled={loading} className="rounded-xl bg-[#123a35] px-5 py-4 font-bold text-white disabled:opacity-60 sm:col-span-2">{loading ? "Checking…" : mode === "car" ? "Check road route" : "Search trains"}</button>}
+        {mode === "bus" && <button disabled={loading} className="rounded-xl bg-[#123a35] px-5 py-4 font-bold text-white disabled:opacity-60 sm:col-span-2">{loading ? "Checking public timetables…" : "Search public buses"}</button>}
       </form>
       {mode === "bus" && <div className="mt-4 flex items-start gap-2 rounded-xl border border-[#dce5dc] bg-white p-4 text-xs leading-5 text-[#637e76]"><Info className="mt-0.5 h-4 w-4 shrink-0" />Free public transport timetable data. This does not include private bus inventory, fares, live seats, or ticket booking.</div>}
       {busResult?.status === "offers_found" && <section className="mt-7 space-y-4">
