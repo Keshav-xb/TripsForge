@@ -4,7 +4,7 @@ import { buildTravelIntelligence } from "../lib/travelIntelligence.js";
 import { searchSerpApiFlights } from "../lib/serpApiFlights.js";
 import { convertFlightPrice } from "../lib/currencyConversion.js";
 import { searchIndianTrains } from "../lib/railAvailability.js";
-import { searchPublicBuses } from "../lib/publicBus.js";
+import { searchPublicBuses } from "../../server/lib/publicBus.js";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
