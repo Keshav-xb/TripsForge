@@ -4,6 +4,7 @@ import { buildTravelIntelligence } from "../lib/travelIntelligence.js";
 import { searchSerpApiFlights } from "../lib/serpApiFlights.js";
 import { convertFlightPrice } from "../lib/currencyConversion.js";
 import { searchIndianTrains } from "../lib/railAvailability.js";
+import { searchPublicBuses } from "../lib/publicBus.js";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
@@ -221,6 +222,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (origin.length < 2 || origin.length > 180 || destination.length < 2 || destination.length > 180) throw new Error("INVALID_ROUTE_LABELS");
       const result = await searchIndianTrains({ origin, destination, travelDate });
       res.setHeader("cache-control", "no-store");
+      return send(req, res, 200, trpcData(result));
+    }
+    if (path === "buses.search") {
+      const origin = String(input.origin ?? "").trim();
+      const destination = String(input.destination ?? "").trim();
+      const travelDate = String(input.travelDate ?? "");
+      if (origin.length < 2 || origin.length > 180 || destination.length < 2 || destination.length > 180) throw new Error("INVALID_ROUTE_LABELS");
+      const result = await searchPublicBuses({ origin, destination, travelDate });
+      res.setHeader("cache-control", "public, max-age=300, s-maxage=300");
       return send(req, res, 200, trpcData(result));
     }
     if (path === "flights.search") {
