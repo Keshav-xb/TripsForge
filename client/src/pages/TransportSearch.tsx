@@ -4,6 +4,8 @@ import { ArrowLeft, Bus, CarFront, Clock3, TrainFront, CalendarDays, ArrowRight,
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 
+type BusResult = { status: string; provider?: string; retrievedAt?: string; feed?: string; state?: string; offers?: Array<{ route: string; headsign: string; departureTime: string; arrivalTime: string; intermediateStops: number; fromStop: string; toStop: string }>; message?: string; disclaimer?: string; sourceLicence?: string; };
+
 type TrainResult = {
   status: string;
   provider?: string;
@@ -23,6 +25,7 @@ export default function TransportSearch() {
   const [travelDate, setTravelDate] = useState(params.get("travelDate") ?? "");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<TrainResult | null>(null);
+  const [busResult, setBusResult] = useState<BusResult | null>(null);
   const [road, setRoad] = useState<{ distanceKm: number; durationMinutes: number } | null>(null);
   const [error, setError] = useState("");
   const title = mode === "bus" ? "Bus options" : mode === "car" ? "Road journey" : "Train options";
@@ -30,9 +33,15 @@ export default function TransportSearch() {
 
   const search = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError(""); setResult(null); setRoad(null); setLoading(true);
+    setError(""); setResult(null); setBusResult(null); setRoad(null); setLoading(true);
     try {
-      if (mode === "train") {
+      if (mode === "bus") {
+        const response = await fetch(`/api/trpc/buses.search?input=${encodeURIComponent(JSON.stringify({ json: { origin, destination, travelDate } }))}`);
+        const body = await response.json();
+        const data = body.result?.data?.json as BusResult | undefined;
+        if (!response.ok || !data) throw new Error(body.error?.json?.message ?? "Bus timetable search could not be completed.");
+        setBusResult(data);
+      } else if (mode === "train") {
         const response = await fetch(`/api/trpc/trains.search?input=${encodeURIComponent(JSON.stringify({ json: { origin, destination, travelDate } }))}`);
         const body = await response.json();
         const data = body.result?.data?.json as TrainResult | undefined;
@@ -71,8 +80,19 @@ export default function TransportSearch() {
         <label className="grid gap-2 text-sm font-bold">To<input required value={destination} onChange={e => setDestination(e.target.value)} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-3 font-medium" /></label>
         <label className="grid gap-2 text-sm font-bold sm:col-span-2">Travel date<input required type="date" min={today} value={travelDate} onChange={e => setTravelDate(e.target.value)} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-3 font-medium" /></label>
         {mode !== "bus" && <button disabled={loading} className="rounded-xl bg-[#123a35] px-5 py-4 font-bold text-white disabled:opacity-60 sm:col-span-2">{loading ? "Checking…" : mode === "car" ? "Check road route" : "Search trains"}</button>}
+        {mode === "bus" && <button disabled={loading} className="rounded-xl bg-[#123a35] px-5 py-4 font-bold text-white disabled:opacity-60 sm:col-span-2">{loading ? "Checking public timetables…" : "Search public buses"}</button>}
       </form>
-      {mode === "bus" && <div className="mt-6 rounded-2xl border border-[#123a35]/10 bg-white p-5"><p className="font-bold">Bus timetable connection not active yet</p><p className="mt-2 text-sm leading-6 text-[#637e76]">TripsForge will show bus options only after an operator confirms services for this route and date. No placeholder buses or guessed schedules will be displayed.</p></div>}
+      {mode === "bus" && <div className="mt-4 flex items-start gap-2 rounded-xl border border-[#dce5dc] bg-white p-4 text-xs leading-5 text-[#637e76]"><Info className="mt-0.5 h-4 w-4 shrink-0" />Free public transport timetable data. This does not include private bus inventory, fares, live seats, or ticket booking.</div>}
+      {busResult?.status === "offers_found" && <section className="mt-7 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#e6651b]">Free public timetable</p><h2 className="mt-1 font-display text-2xl">Scheduled public buses</h2><p className="mt-1 text-xs text-[#71857e]">{origin} to {destination} · {travelDate} · {busResult.feed}</p></div><span className="rounded-full bg-[#e8eee7] px-3 py-2 text-xs font-bold text-[#31584e]">{busResult.offers?.length ?? 0} trips</span></div>
+        {(busResult.offers ?? []).map((bus,index)=><article key={bus.route+"-"+bus.departureTime+"-"+index} className="rounded-2xl border border-[#123a35]/10 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-[#71857e]">Route {bus.route}</p><h3 className="mt-1 font-bold">{bus.headsign}</h3></div><span className="rounded-full bg-[#e8eee7] px-2.5 py-1 text-[10px] font-bold text-[#31584e]">Scheduled</span></div>
+          <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2"><div><p className="text-2xl font-black tabular-nums">{bus.departureTime}</p><p className="mt-1 text-xs text-[#71857e]">{bus.fromStop}</p></div><div className="flex items-center gap-1 text-[#87958f]"><span className="h-px w-6 bg-[#cbd8ce]"/><ArrowRight className="h-4 w-4"/><span className="h-px w-6 bg-[#cbd8ce]"/></div><div className="text-right"><p className="text-2xl font-black tabular-nums">{bus.arrivalTime}</p><p className="mt-1 text-xs text-[#71857e]">{bus.toStop}</p></div></div>
+          <p className="mt-4 border-t border-[#123a35]/8 pt-3 text-xs text-[#71857e]">{bus.intermediateStops} intermediate stops · {busResult.state}</p>
+        </article>)}
+        <div className="rounded-xl border border-[#dce5dc] bg-white p-4"><p className="text-xs font-bold text-[#31584e]">Data source: {busResult.provider}</p><p className="mt-2 text-xs leading-5 text-[#71857e]">{busResult.disclaimer}</p><p className="mt-2 text-[10px] text-[#87958f]">Source licence: {busResult.sourceLicence}</p></div>
+      </section>}
+      {busResult && busResult.status !== "offers_found" && <div className="mt-6 rounded-2xl border border-[#123a35]/10 bg-white p-5"><p className="font-bold">{busResult.status === "no_service_found" ? "No matching public bus timetable found" : "Public timetable temporarily unavailable"}</p><p className="mt-2 text-sm leading-6 text-[#637e76]">{busResult.message}</p></div>}
       {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
       {road && <div className="mt-6 rounded-2xl border border-[#123a35]/10 bg-white p-5"><p className="font-bold">Road route found</p><p className="mt-2 text-2xl font-black">{road.distanceKm.toLocaleString()} km</p><p className="mt-1 text-sm text-[#637e76]">About {Math.floor(road.durationMinutes / 60)}h {road.durationMinutes % 60}m in normal routing conditions. Not live traffic or road status.</p></div>}
       {result?.status === "offers_found" && <section className="mt-7 space-y-4">
