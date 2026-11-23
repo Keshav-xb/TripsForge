@@ -60,6 +60,28 @@ describe("buildJourneyOptions", () => {
     expect(option.priceComparable).toBe(false);
   });
 
+  it("does not treat unknown fares as zero-cost when ranking", () => {
+    const result = buildJourneyOptions({
+      legs: [
+        { ...legs[0], id: "unknown-price", price: undefined, currency: undefined },
+        { ...legs[2], id: "known-price" },
+      ],
+      originNode: "A", destinationNode: "C", priority: "cheapest",
+    });
+    expect(result.options).toHaveLength(2);
+    expect(result.options.find(option => option.legs[0].id === "unknown-price")?.price).toBeUndefined();
+    expect(result.options.find(option => option.legs[0].id === "unknown-price")?.priceComparable).toBe(false);
+  });
+
+  it("deduplicates provider leg identifiers", () => {
+    const result = buildJourneyOptions({
+      legs: [legs[2], { ...legs[2], price: 9000 }],
+      originNode: "A", destinationNode: "C",
+    });
+    expect(result.options).toHaveLength(1);
+    expect(result.discarded.invalid).toBe(1);
+  });
+
   it("rejects invalid legs", () => {
     const result = buildJourneyOptions({
       legs: [{ ...legs[0], arrivalAt: "not-a-date" }],
