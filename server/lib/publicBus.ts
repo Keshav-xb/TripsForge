@@ -1,4 +1,5 @@
 import { inflateRawSync } from "node:zlib";
+import { registerBusSearchProvider, runBusSearchProvider, type BusSearchInput } from "./busSearch";
 
 type Feed = { id: string; name: string; state: string; modes?: string[]; service_start?: string; service_end?: string; source?: { name?: string; licence?: string }; };
 type Stop = { stop_id: string; stop_name: string; stop_lat?: string; stop_lon?: string };
@@ -131,7 +132,7 @@ function validDate(date: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
 }
 
-export async function searchPublicBuses(input: { origin: string; destination: string; travelDate: string }): Promise<BusResult> {
+async function searchReclaimIndiaGtfs(input: BusSearchInput): Promise<BusResult> {
   if (!validDate(input.travelDate)) throw new Error("INVALID_TRAVEL_DATE");
   try {
     const feeds = await getCatalog();
@@ -184,4 +185,16 @@ export async function searchPublicBuses(input: { origin: string; destination: st
     console.error("[TripsForge public bus search]", error);
     return { status: "feed_not_available", provider: "Reclaim India GTFS", offers: [], message: "The public timetable feed is temporarily unavailable. Please try again later." };
   }
+}
+
+
+// Reclaim is the first adapter behind the provider-independent bus search contract.
+// Additional verified timetable sources can be registered without changing the API route.
+registerBusSearchProvider<BusResult>({
+  id: "reclaim-india-gtfs",
+  search: searchReclaimIndiaGtfs,
+});
+
+export function searchPublicBuses(input: BusSearchInput): Promise<BusResult> {
+  return runBusSearchProvider<BusResult>("reclaim-india-gtfs", input);
 }
