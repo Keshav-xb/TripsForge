@@ -1,6 +1,6 @@
 import { inflateRawSync } from "node:zlib";
 import "./mobilityIndiaBus.js";
-import { registerBusSearchProvider, runBusSearchProvider, type BusSearchInput } from "./busSearch";
+import { registerBusSearchProvider, runBusSearchProvider, type BusSearchInput } from "./busSearch.js";
 
 type Feed = { id: string; name: string; state: string; modes?: string[]; service_start?: string; service_end?: string; source?: { name?: string; licence?: string }; };
 type Stop = { stop_id: string; stop_name: string; stop_lat?: string; stop_lon?: string };
