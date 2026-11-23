@@ -340,59 +340,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         { kind: "bus", filter: '["amenity"="bus_station"]' },
         { kind: "ferry", filter: '["amenity"="ferry_terminal"]' },
       ];
-      const searchInfrastructure = async (point: Point): Promise<Array<{ kind: TransportResearchMode; count: number; examples: string[]; checked: boolean; reason?: string; provider?: string }>> => {
-        // A tighter 5 km radius avoids expensive city-wide bus-stop scans.
-        const around = `(around:5000,${point.lat},${point.lng})`;
-        const query = `[out:json][timeout:5];(
-          nwr${around}["aeroway"="aerodrome"];
-          nwr${around}["railway"~"station|halt"];
-          nwr${around}["amenity"~"bus_station|ferry_terminal"];
-          nwr${around}["highway"="bus_stop"];
-        );out center tags;`;
-        const providers = [
-          { name: "Overpass main", url: "https://overpass-api.de/api/interpreter" },
-          { name: "Overpass Kumi fallback", url: "https://overpass.kumi.systems/api/interpreter" },
-        ];
-        const classify = (tags: Record<string, string> = {}): TransportResearchMode | null => {
-          if (tags.aeroway === "aerodrome") return "flight";
-          if (tags.railway === "station" || tags.railway === "halt") return "train";
-          if (tags.amenity === "bus_station" || tags.highway === "bus_stop") return "bus";
-          if (tags.amenity === "ferry_terminal") return "ferry";
-          return null;
-        };
-        const requestProvider = async (provider: typeof providers[number]) => {
-          const response = await fetch(provider.url, {
-            method: "POST",
-            headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (route research)" },
-            body: new URLSearchParams({ data: query }),
-            signal: AbortSignal.timeout(5000),
-          });
-          if (!response.ok) throw new Error(`${provider.name}: OVERPASS_HTTP_${response.status}`);
-          const body = await response.text();
-          let data: { elements?: Array<{ tags?: Record<string, string> }> };
-          try {
-            data = JSON.parse(body);
-          } catch {
-            throw new Error(`${provider.name}: OVERPASS_INVALID_RESPONSE`);
-          }
-          return { provider: provider.name, elements: data.elements ?? [] };
-        };
-        try {
-          // Race providers instead of waiting for one timeout before trying the fallback.
-          const result = await Promise.any(providers.map(requestProvider));
-          return infrastructureQueries.map(({ kind }) => {
-            const matching = result.elements.filter(element => classify(element.tags) === kind);
-            const names = matching.map(element => element.tags?.name ?? element.tags?.["name:en"]).filter((name): name is string => !!name);
-            return { kind, count: matching.length, examples: Array.from(new Set(names)).slice(0, 4), checked: true, provider: result.provider };
-          });
-        } catch (error) {
-          const reasons = error instanceof AggregateError
-            ? error.errors.map(item => item instanceof Error ? item.message : String(item)).join("; ")
-            : error instanceof Error ? error.message : "OVERPASS_UNAVAILABLE";
-          console.error("[TripsForge route research] infrastructure lookup failed", { reason: reasons });
-          return infrastructureQueries.map(({ kind }) => ({ kind, count: 0, examples: [], checked: false, reason: reasons }));
-        }
-      };
       // Keep the core route response fast. Broad gateway discovery runs through
       // route.gateways independently and must not hold up road/rail results.
       const infrastructure: InfrastructureEvidence[] = infrastructureQueries.map(({ kind }) => ({
