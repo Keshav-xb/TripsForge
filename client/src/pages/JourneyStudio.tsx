@@ -150,7 +150,7 @@ export default function JourneyStudio() {
       try {
         const gatewayResponse = await fetch(`/api/trpc/route.gateways?input=${encodeURIComponent(JSON.stringify({ json: { origin: draft.startLocationPoint, destination: draft.destinationLocation, radiusKm: 150 } }))}`);
         const gatewayPayload = await gatewayResponse.json() as { result?: { data?: { json?: typeof gatewayDiscovery } } };
-        if (gatewayResponse.ok && gatewayPayload.result?.data?.json) setGatewayDiscovery(gatewayPayload.result.data.json);
+        if (activeRunId === researchRunId.current && gatewayResponse.ok && gatewayPayload.result?.data?.json) setGatewayDiscovery(gatewayPayload.result.data.json);
       } catch {
         // Gateway discovery is additional research; other mode results remain visible.
       }
