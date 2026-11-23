@@ -87,7 +87,7 @@ async function getCatalog(): Promise<Feed[]> {
 async function loadFeed(feed: Feed): Promise<FeedTables> {
   const cached = feedCache.get(feed.id);
   if (cached && cached.expiresAt > Date.now()) return cached.tables;
-  const response = await fetch(`${MIRROR}/${encodeURIComponent(feed.id)}.zip`, { signal: AbortSignal.timeout(12000), headers: { "User-Agent": "TripsForge/1.0 (public transport timetable search)" } });
+  const response = await fetch(`${MIRROR}/${encodeURIComponent(feed.id)}.zip`, { signal: AbortSignal.timeout(5000), headers: { "User-Agent": "TripsForge/1.0 (public transport timetable search)" } });
   if (!response.ok) throw new Error(`GTFS_FEED_HTTP_${response.status}`);
   const buffer = Buffer.from(await response.arrayBuffer());
   if (buffer.length > 25 * 1024 * 1024) throw new Error("GTFS_FEED_TOO_LARGE");
@@ -142,7 +142,7 @@ async function searchReclaimIndiaGtfs(input: BusSearchInput): Promise<BusResult>
       const scope = normalize(`${feed.name} ${feed.state}`);
       const tokens = scope.split(" ").filter(token => token.length > 2);
       return tokens.some(token => cityText.includes(token));
-    }).slice(0, 3);
+    }).slice(0, 1);
     if (!candidates.length) return { status: "no_service_found", provider: "Reclaim India GTFS", retrievedAt: new Date().toISOString(), offers: [], message: "No published public-bus timetable feed matched this route's city or state. This does not mean no bus service exists.", disclaimer: DISCLAIMER };
     for (const feed of candidates) {
       const tables = await loadFeed(feed);
