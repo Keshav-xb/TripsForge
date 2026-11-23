@@ -55,6 +55,8 @@ const AIRPORT_CODES: Array<{ aliases: string[]; code: string }> = [
   { aliases: ["patna"], code: "PAT" }, { aliases: ["indore"], code: "IDR" },
   { aliases: ["bhopal"], code: "BHO" }, { aliases: ["nagpur"], code: "NAG" },
   { aliases: ["chandigarh"], code: "IXC" }, { aliases: ["dehradun"], code: "DED" },
+  // Manali has no commercial airport; Bhuntar Airport (KUU) is the nearest regional airport.
+  { aliases: ["manali", "kullu", "bhuntar", "bhuntar airport"], code: "KUU" },
   { aliases: ["dhaka"], code: "DAC" }, { aliases: ["kathmandu"], code: "KTM" },
   { aliases: ["dubai"], code: "DXB" }, { aliases: ["abu dhabi"], code: "AUH" },
   { aliases: ["singapore"], code: "SIN" }, { aliases: ["london"], code: "LHR" },

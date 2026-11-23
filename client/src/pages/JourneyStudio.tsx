@@ -140,12 +140,27 @@ export default function JourneyStudio() {
           const parsed = JSON.parse(raw) as { result?: { data?: { json?: Record<string, unknown> } }; error?: { json?: { message?: string } } };
           if (!response.ok || !parsed.result?.data?.json) return { mode, status: "unavailable", headline: "Search unavailable", detail: parsed.error?.json?.message || `Provider returned HTTP ${response.status}.` };
           const data = parsed.result.data.json;
-          if (mode === "Flights") {
-            const offers = Array.isArray(data.offers) ? data.offers : [];
-            return { mode, status: String(data.status ?? "unknown"), headline: offers.length ? `${offers.length} flight options` : "No verified flight options", detail: String(data.message ?? (offers.length ? "Supplier-returned flight options. Check current price and availability with the provider." : "No complete flight option was verified for this route and date.")) };
-          }
           const offers = Array.isArray(data.offers) ? data.offers : [];
-          return { mode, status: String(data.status ?? "unknown"), headline: offers.length ? `${offers.length} public bus trips` : "No matching public timetable", detail: String(data.message ?? data.disclaimer ?? (offers.length ? "Published public timetable results, not private bus inventory." : "No matching published public timetable. Private intercity operators may still serve this route.")) };
+          if (mode === "Flights") {
+            const found = data.status === "offers_found" && offers.length > 0;
+            const airportRoute = data.originCode && data.destinationCode ? `${data.originCode} → ${data.destinationCode}` : "";
+            const direct = found && offers.some((offer: any) => Array.isArray(offer.segments) && offer.segments.length === 1);
+            return {
+              mode,
+              status: found ? "available" : data.status === "provider_not_configured" ? "not_configured" : "no_verified_options",
+              headline: found ? `${offers.length} flight options available` : data.status === "provider_not_configured" ? "Flight search not configured" : "No verified flights found",
+              detail: found ? `${airportRoute}${direct ? " · Direct option found" : " · Connecting options"} · Supplier-returned results; confirm price and availability before booking.` : String(data.message ?? "No complete flight itinerary was verified for this date.")
+            };
+          }
+          const found = data.status === "offers_found" && offers.length > 0;
+          const first = offers[0] as Record<string, unknown> | undefined;
+          const sample = first ? ` First departure: ${String(first.departureTime ?? "time not supplied")} from ${String(first.fromStop ?? "origin stop")}.` : "";
+          return {
+            mode,
+            status: found ? "available" : "no_published_timetable",
+            headline: found ? `${offers.length} public bus trips available` : "No matching public timetable",
+            detail: found ? `Published public timetable results, not private coach inventory.${sample}` : String(data.message ?? "No matching published public timetable. This does not mean buses do not operate on this route.")
+          };
         } catch {
           return { mode, status: "unavailable", headline: "Search unavailable", detail: "This provider could not be reached. Other transport results remain available." };
         }
@@ -155,11 +170,12 @@ export default function JourneyStudio() {
         safeModeSearch("Buses", "buses.search", { origin: draft.startLocation, destination: draft.destination, travelDate: input.travelDate }),
       ]);
       const roadMode = result.road?.status === "route_found"
-        ? { mode: "Car", status: "estimated", headline: `${result.road.distanceKm} km · ${Math.floor((result.road.durationMinutes ?? 0) / 60)}h ${(result.road.durationMinutes ?? 0) % 60}m`, detail: "Road-network estimate. Actual time depends on traffic, weather, road conditions and stops." }
-        : { mode: "Car", status: "unavailable", headline: "Road estimate unavailable", detail: "No reliable road route was returned for these selected points." };
-      const trainMode = result.trainAvailability.status === "offers_found"
-        ? { mode: "Trains", status: "scheduled", headline: `${result.trainAvailability.trains.length} train services`, detail: result.trainAvailability.disclaimer ?? "Published train timetable results. Verify running status and availability before travel." }
-        : { mode: "Trains", status: result.trainAvailability.status, headline: "No verified train options", detail: result.trainAvailability.message ?? result.trainAvailability.disclaimer ?? "No train schedule was returned for this route and date." };
+        ? { mode: "Car", status: "estimated", headline: `${result.road.distanceKm} km · ${Math.floor((result.road.durationMinutes ?? 0) / 60)}h ${(result.road.durationMinutes ?? 0) % 60}m`, detail: "Driving route estimate from OSRM. Time can change with traffic, weather, road conditions and stops." }
+        : { mode: "Car", status: "unavailable", headline: "Road estimate unavailable", detail: "No reliable driving route was returned for these selected points." };
+      const trainFound = result.trainAvailability.status === "offers_found" && result.trainAvailability.trains.length > 0;
+      const trainMode = trainFound
+        ? { mode: "Trains", status: "available", headline: `${result.trainAvailability.trains.length} train services available`, detail: result.trainAvailability.disclaimer ?? "Published train timetable results. Verify running status and seat availability before travel." }
+        : { mode: "Trains", status: "no_verified_options", headline: "No verified train options found", detail: result.trainAvailability.message ?? result.trainAvailability.disclaimer ?? "No matching train timetable was returned for this route and date." };
       setModeComparison([roadMode, busMode, flightMode, trainMode]);
       const intelligenceResponse = await fetch(`/api/trpc/route.intelligence?input=${encodeURIComponent(JSON.stringify({ json: { research: result } }))}`);
       const intelligenceText = await intelligenceResponse.text();
@@ -352,9 +368,9 @@ export default function JourneyStudio() {
                   <section className="rounded-2xl border border-[#123a35]/10 bg-white p-4 sm:p-5">
                     <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">All ways to get there</p><h3 className="mt-1 font-display text-xl">Compare transport modes</h3></div><span className="rounded-full bg-[#eef3ed] px-3 py-1.5 text-[10px] font-bold text-[#45645b]">4 modes checked</span></div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {modeComparison.map(item=><article key={item.mode} className="rounded-xl border border-[#123a35]/10 bg-[#fbfcf9] p-4"><div className="flex items-center justify-between gap-2"><h4 className="text-sm font-extrabold">{item.mode}</h4><span className="rounded-full bg-[#e9eee7] px-2 py-1 text-[9px] font-bold uppercase text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div><p className="mt-2 text-base font-black">{item.headline}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{item.detail}</p></article>)}
+                      {modeComparison.map(item=><article key={item.mode} className="rounded-xl border border-[#123a35]/10 bg-[#fbfcf9] p-4"><div className="flex items-center justify-between gap-2"><h4 className="text-sm font-extrabold">{item.mode}</h4><span className="rounded-full bg-[#e9eee7] px-2 py-1 text-[9px] font-bold uppercase text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div><p className="mt-3 text-lg font-black leading-snug">{item.headline}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{item.detail}</p></article>)}
                     </div>
-                    <p className="mt-3 text-[10px] leading-5 text-[#87958f]">Comparisons use the evidence each provider actually returned. Missing fares, live seats and schedules are not estimated or invented.</p>
+                    <p className="mt-3 text-[10px] leading-5 text-[#87958f]">Car distance is a driving estimate. Public bus timetable feeds do not provide a comparable intercity road distance, so TripsForge will not copy the car distance onto a bus result. Missing fares, seats and schedules are never invented.</p>
                   </section>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl bg-[#f3f6f1] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Road network</p><p className="mt-1 text-lg font-black">{routeResearch.road?.status==="route_found"?routeResearch.road.distanceKm+" km":routeResearch.road?.status==="no_route_returned"?"No route returned":"Lookup unavailable"}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{routeResearch.road?.status==="route_found"?"Estimated drive: "+Math.floor((routeResearch.road.durationMinutes??0)/60)+"h "+(routeResearch.road.durationMinutes??0)%60+"m":routeResearch.road?.reason??"Road routing could not confirm a route."}</p><p className="mt-2 text-[10px] text-[#87958f]">{routeResearch.road?.provider??"OSRM / OpenStreetMap"}</p></div>
