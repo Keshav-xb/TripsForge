@@ -1,9 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../lib/routeResearch.js";
-import { buildTravelIntelligence } from "../lib/travelIntelligence.js";
-import { searchSerpApiFlights } from "../lib/serpApiFlights.js";
-import { convertFlightPrice } from "../lib/currencyConversion.js";
-import { searchIndianTrains } from "../lib/railAvailability.js";
+import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../../server/lib/transport/routeResearch.js";
+import { buildTravelIntelligence } from "../../server/lib/transport/travelIntelligence.js";
+import { searchSerpApiFlights } from "../../server/lib/transport/serpApiFlights.js";
+import { convertFlightPrice } from "../../server/lib/transport/currencyConversion.js";
+import { searchIndianTrains } from "../../server/lib/transport/railAvailability.js";
 import { searchPublicBuses } from "../../server/lib/publicBus.js";
 
 type Point = { lat: number; lng: number };
