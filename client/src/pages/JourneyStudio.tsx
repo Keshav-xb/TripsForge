@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowRight, CalendarDays, Compass, MapPin, Minus, Plus, Sparkles, Users, Wallet, Plane, TrainFront, BusFront, CarFront, ArrowUpRight } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
@@ -96,6 +96,21 @@ export default function JourneyStudio() {
   const [journeySources, setJourneySources] = useState<{ flights?: any; buses?: any } | null>(null);
   const [gatewayDiscovery, setGatewayDiscovery] = useState<{ radiusKm: number; origin: Array<{ id: string; name: string; mode: string; distanceKm: number; iataCode?: string; stationCode?: string }>; destination: Array<{ id: string; name: string; mode: string; distanceKm: number; iataCode?: string; stationCode?: string }>; limitations: string[] } | null>(null);
   const [researchError, setResearchError] = useState("");
+  const researchRouteKey = [draft.startLocation, draft.destination, draft.startDate, draft.startLocationPoint?.lat, draft.startLocationPoint?.lng, draft.destinationLocation?.lat, draft.destinationLocation?.lng].join("|");
+  const lastResearchRouteKey = useRef(researchRouteKey);
+  useEffect(() => {
+    if (lastResearchRouteKey.current === researchRouteKey) return;
+    lastResearchRouteKey.current = researchRouteKey;
+    researchRunId.current += 1;
+    setResearching(false);
+    setRouteResearch(null);
+    setModeComparison([]);
+    setJourneyOptions(null);
+    setJourneySources(null);
+    setGatewayDiscovery(null);
+    setIntelligenceReport(null);
+    setResearchError("");
+  }, [researchRouteKey]);
   const [intelligenceReport, setIntelligenceReport] = useState<{
     engine: string; summary: string; confidence: string;
     findings: Array<{ mode: string; level: string; headline: string; details: string[] }>;
@@ -147,13 +162,14 @@ export default function JourneyStudio() {
       }
       setRouteResearch(result);
       setGatewayDiscovery(null);
-      try {
-        const gatewayResponse = await fetch(`/api/trpc/route.gateways?input=${encodeURIComponent(JSON.stringify({ json: { origin: draft.startLocationPoint, destination: draft.destinationLocation, radiusKm: 150 } }))}`);
-        const gatewayPayload = await gatewayResponse.json() as { result?: { data?: { json?: typeof gatewayDiscovery } } };
-        if (activeRunId === researchRunId.current && gatewayResponse.ok && gatewayPayload.result?.data?.json) setGatewayDiscovery(gatewayPayload.result.data.json);
-      } catch {
-        // Gateway discovery is additional research; other mode results remain visible.
-      }
+      // Gateway lookup is independent and must never delay the core results.
+      void fetch(`/api/trpc/route.gateways?input=${encodeURIComponent(JSON.stringify({ json: { origin: draft.startLocationPoint, destination: draft.destinationLocation, radiusKm: 150 } }))}`)
+        .then(response => response.ok ? response.json() : null)
+        .then(payload => {
+          const data = payload?.result?.data?.json as typeof gatewayDiscovery;
+          if (activeRunId === researchRunId.current && data) setGatewayDiscovery(data);
+        })
+        .catch(() => undefined);
       // Query independent mode providers together. A failure in one mode must not hide the others.
       const safeModeSearch = async (mode: string, path: string, payload: Record<string, unknown>): Promise<any> => {
         try {
@@ -399,9 +415,9 @@ export default function JourneyStudio() {
               </div>
               <div className="mt-4 flex items-center justify-between text-sm"><span className="font-semibold text-[#71857e]">Estimated transport total</span><strong className="text-[#123a35]">{money(transportTotal,draft.currency)}</strong></div>
               <div className="mt-7 border-t border-[#123a35]/10 pt-6">
-                <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Route intelligence</p><h3 className="mt-1 font-display text-xl">Research this route</h3><p className="mt-1 text-xs leading-5 text-[#71857e]">Research available road estimates, published train and bus services, and flight options for your selected route and date. Add a suitable result to your journey segments.</p></div><button type="button" disabled={researching||!draft.startLocationPoint||!draft.destinationLocation} onClick={runRouteResearch} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#123a35] px-4 py-2.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">{researching?"Researching route…":"Research route"} <ArrowRight className="h-4 w-4"/></button></div>
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Route intelligence</p><h3 className="mt-1 font-display text-xl">Research this route</h3><p className="mt-1 text-xs leading-5 text-[#71857e]">Research available road estimates, published train and bus services, and flight options for your selected route and date. Add a suitable result to your journey segments.</p></div><button type="button" disabled={researching||!draft.startLocationPoint||!draft.destinationLocation} onClick={runRouteResearch} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#123a35] px-4 py-2.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">{researching?"Researching sources…":"Research route"} <ArrowRight className="h-4 w-4"/></button></div>
                 {(!draft.startLocationPoint||!draft.destinationLocation)&&<p className="mt-3 text-xs text-[#9a6a35]">Select both endpoints from the location suggestions to enable route research.</p>}
-                {researchError&&<p role="alert" className="mt-3 rounded-lg bg-[#fff0e5] p-3 text-xs leading-5 text-[#a84b19]">{researchError}</p>}
+                {researching&&<div role="status" aria-live="polite" className="mt-5 overflow-hidden rounded-2xl border border-[#123a35]/10 bg-white p-4 shadow-[0_12px_36px_rgba(18,58,53,0.06)]"><div className="flex items-center gap-3"><span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#eef3ed]"><span className="absolute h-6 w-6 animate-ping rounded-full bg-[#e6651b]/15"/><Compass className="relative h-5 w-5 text-[#123a35]"/></span><div className="min-w-0 flex-1"><p className="text-sm font-extrabold text-[#123a35]">Building your route picture</p><p className="mt-0.5 text-xs leading-5 text-[#71857e]">Checking road, rail, flight and public transport sources independently. Results appear as each check completes.</p></div><span className="h-2 w-2 animate-pulse rounded-full bg-[#e6651b]"/></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#eef3ed]"><div className="h-full w-2/5 animate-pulse rounded-full bg-[#e6651b]"/></div></div>}{researchError&&<p role="alert" className="mt-3 rounded-lg bg-[#fff0e5] p-3 text-xs leading-5 text-[#a84b19]">{researchError}</p>}
                 {routeResearch&&<div className="mt-5 space-y-5">
                   <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold">{routeResearch.origin} <span className="px-1 text-[#e6651b]">→</span> {routeResearch.destination}</p><span className="text-[10px] text-[#87958f]">Checked {new Date(routeResearch.retrievedAt).toLocaleString()}</span></div>
                   <section className="rounded-2xl border border-[#123a35]/10 bg-white p-4 sm:p-5">
