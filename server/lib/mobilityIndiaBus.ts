@@ -103,16 +103,17 @@ async function search(input: BusSearchInput) {
       const byTrip = new Map<string, Row[]>();
       for (const st of t.stopTimes) { const list = byTrip.get(st.trip_id) ?? []; list.push(st); byTrip.set(st.trip_id, list); }
       const offers: Offer[] = [];
-      for (const [tripId, times] of byTrip) {
+      byTrip.forEach((times: Row[], tripId: string) => {
         const trip = trips.get(tripId);
-        if (!trip || !runs(trip.service_id, input.travelDate, t)) continue;
-        times.sort((a, b) => Number(a.stop_sequence) - Number(b.stop_sequence));
-        const a = times.findIndex(x => x.stop_id === from.stop_id), b = times.findIndex(x => x.stop_id === to.stop_id);
-        if (a < 0 || b <= a) continue;
-        const first = times[a], last = times[b], route = busRoutes.get(trip.route_id)!;
-        offers.push({ route: route.route_short_name || route.route_long_name || "Public bus", headsign: trip.trip_headsign || route.route_long_name || "Scheduled public bus", departureTime: first.departure_time || first.arrival_time, arrivalTime: last.arrival_time || last.departure_time, intermediateStops: Math.max(0, b - a - 1), fromStop: from.stop_name, toStop: to.stop_name });
-      }
-      const unique = [...new Map(offers.map(o => [o.route + "|" + o.departureTime + "|" + o.arrivalTime, o])).values()].sort((a, b) => a.departureTime.localeCompare(b.departureTime)).slice(0, 30);
+        if (!trip || !runs(trip.service_id, input.travelDate, t)) return;
+        times.sort((left: Row, right: Row) => Number(left.stop_sequence) - Number(right.stop_sequence));
+        const fromIndex = times.findIndex((stopTime: Row) => stopTime.stop_id === from.stop_id);
+        const toIndex = times.findIndex((stopTime: Row) => stopTime.stop_id === to.stop_id);
+        if (fromIndex < 0 || toIndex <= fromIndex) return;
+        const first = times[fromIndex], last = times[toIndex], route = busRoutes.get(trip.route_id)!;
+        offers.push({ route: route.route_short_name || route.route_long_name || "Public bus", headsign: trip.trip_headsign || route.route_long_name || "Scheduled public bus", departureTime: first.departure_time || first.arrival_time, arrivalTime: last.arrival_time || last.departure_time, intermediateStops: Math.max(0, toIndex - fromIndex - 1), fromStop: from.stop_name, toStop: to.stop_name });
+      });
+      const unique = Array.from(new Map(offers.map((offer: Offer) => [offer.route + "|" + offer.departureTime + "|" + offer.arrivalTime, offer])).values()).sort((left: Offer, right: Offer) => left.departureTime.localeCompare(right.departureTime)).slice(0, 30);
       if (unique.length) return { status: "offers_found" as const, provider: feed.provider || feed.name || "Mobility Database GTFS", retrievedAt: new Date().toISOString(), feed: feed.name, state: feed.subdivisionName, offers: unique, disclaimer: DISCLAIMER, sourceLicence: feed.licenseUrl || "Licence not supplied by catalog; verify before commercial use." };
     } catch (error) { lastError = error instanceof Error ? error.message : "GTFS_FEED_ERROR"; }
   }
