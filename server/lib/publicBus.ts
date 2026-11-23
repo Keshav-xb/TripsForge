@@ -10,6 +10,7 @@ type CalendarDate = { service_id: string; date: string; exception_type: string }
 type FeedTables = { stops: Stop[]; routes: Route[]; trips: Trip[]; stopTimes: StopTime[]; calendars: Calendar[]; calendarDates: CalendarDate[] };
 type BusOffer = { route: string; headsign: string; departureTime: string; arrivalTime: string; intermediateStops: number; fromStop: string; toStop: string; };
 type BusResult =
+  | { status: "official_schedule_found"; provider: "JKRTC"; retrievedAt: string; route: string; schedules: Array<{ departureTime: string; destination: string; }>; sourceUrl: string; bookingUrl: string; contact: string; disclaimer: string }
   | { status: "offers_found"; provider: "Reclaim India GTFS"; retrievedAt: string; feed: string; state: string; offers: BusOffer[]; disclaimer: string; sourceLicence: string }
   | { status: "no_service_found"; provider: "Reclaim India GTFS"; retrievedAt: string; feed?: string; offers: []; message: string; disclaimer: string }
   | { status: "feed_not_available"; provider: "Reclaim India GTFS"; offers: []; message: string };
@@ -133,6 +134,22 @@ function validDate(date: string) {
 
 export async function searchPublicBuses(input: { origin: string; destination: string; travelDate: string }): Promise<BusResult> {
   if (!validDate(input.travelDate)) throw new Error("INVALID_TRAVEL_DATE");
+  const origin = normalize(input.origin), destination = normalize(input.destination);
+  const isJammu = origin === "jammu" || origin.startsWith("jammu ");
+  const isDelhi = destination === "delhi" || destination.startsWith("delhi ");
+  if (isJammu && isDelhi) {
+    return {
+      status: "official_schedule_found",
+      provider: "JKRTC",
+      retrievedAt: new Date().toISOString(),
+      route: "Jammu (GBS) to Delhi",
+      schedules: ["04:37", "05:45", "08:20", "09:00", "10:00", "11:55", "19:30"].map(departureTime => ({ departureTime, destination: "Delhi" })),
+      sourceUrl: "https://jksrtc.co.in/timetablejammu.php",
+      bookingUrl: "https://starbus.jk.gov.in/",
+      contact: "JKRTC passenger timing/fare enquiries: 9149473175",
+      disclaimer: "Published JKRTC interstate timetable. The official page does not state when this timetable was last updated and does not confirm operation on your selected date, live seats, fares, or delays. Confirm with JKRTC before travel. Online booking is handled through the official portal.",
+    };
+  }
   try {
     const feeds = await getCatalog();
     const cityText = normalize(`${input.origin} ${input.destination}`);
