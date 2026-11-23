@@ -78,7 +78,7 @@ export function normalizeGateways(
 async function queryPoint(point: { lat: number; lng: number }, radiusKm: number) {
   const radiusMeters = Math.round(radiusKm * 1000);
   const around = `(around:${radiusMeters},${point.lat},${point.lng})`;
-  const query = `[out:json][timeout:18];(
+  const query = `[out:json][timeout:10];(
     nwr${around}["aeroway"="aerodrome"];
     nwr${around}["railway"~"station|halt"];
     nwr${around}["amenity"~"bus_station|ferry_terminal"];
@@ -89,7 +89,7 @@ async function queryPoint(point: { lat: number; lng: number }, radiusKm: number)
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (transport gateway discovery)" },
       body: new URLSearchParams({ data: query }),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(11000),
     });
     if (!response.ok) throw new Error(`OVERPASS_HTTP_${response.status}`);
     const body = await response.json() as { elements?: OverpassElement[] };
