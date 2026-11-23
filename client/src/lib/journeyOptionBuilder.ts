@@ -3,7 +3,7 @@ import { buildJourneyOptions, type JourneyCandidateLeg, type JourneyPriority } f
 type Research = {
   origin: string;
   destination: string;
-  road?: { status: string; durationMinutes?: number; provider: string };
+  road?: { status: string; durationMinutes?: number; provider: string } | null;
   trainAvailability?: { status: string; provider: string; trains?: Array<{ trainNumber: string; trainName: string; durationMinutes?: number }> };
 };
 type SearchData = {
