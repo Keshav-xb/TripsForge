@@ -301,17 +301,24 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
       // Route research must not inherit the full latency of an optional rail provider.
       // The dedicated trains.search endpoint remains available for a deeper lookup.
-      const railPromise = Promise.race([
-        searchIndianTrains({ origin, destination, travelDate }),
-        new Promise<Awaited<ReturnType<typeof searchIndianTrains>>>(resolve => {
-          setTimeout(() => resolve({
-            status: "lookup_unavailable",
-            provider: "RailCore",
-            trains: [],
-            message: "Train lookup exceeded the route-research time budget. Use the dedicated train search for a full lookup.",
-          }), 4000);
-        }),
-      ]);
+      const railPromise = (async () => {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          return await Promise.race([
+            searchIndianTrains({ origin, destination, travelDate }),
+            new Promise<Awaited<ReturnType<typeof searchIndianTrains>>>(resolve => {
+              timeout = setTimeout(() => resolve({
+                status: "lookup_unavailable",
+                provider: "RailCore",
+                trains: [],
+                message: "Train lookup exceeded the route-research time budget. Use the dedicated train search for a full lookup.",
+              }), 4000);
+            }),
+          ]);
+        } finally {
+          if (timeout) clearTimeout(timeout);
+        }
+      })();
 
       const infrastructureQueries: Array<{ kind: TransportResearchMode; filter: string }> = [
         { kind: "flight", filter: '["aeroway"="aerodrome"]' },
