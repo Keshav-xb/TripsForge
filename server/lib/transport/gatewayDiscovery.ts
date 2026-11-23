@@ -65,7 +65,7 @@ export function normalizeGateways(
     const gateway: TransportGateway = {
       id, name: name.trim(), mode, lat: point.lat, lng: point.lon,
       distanceKm: Math.round(distance * 10) / 10,
-      ...(tags["addr:country"] ? { countryCode: tags["addr:country"] } : {}),
+      ...(tags["ISO3166-1:alpha2"] ? { countryCode: tags["ISO3166-1:alpha2"] } : {}),
       ...(tags.iata ? { iataCode: tags.iata.toUpperCase() } : {}),
       ...(tags.uic_ref ?? tags.ref ? { stationCode: tags.uic_ref ?? tags.ref } : {}),
       source: "OpenStreetMap",
