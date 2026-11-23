@@ -87,6 +87,7 @@ export default function JourneyStudio() {
     busAvailability: { status: string; provider: string; message: string };
   } | null>(null);
   const [researching, setResearching] = useState(false);
+  const [modeComparison, setModeComparison] = useState<Array<{ mode: string; status: string; headline: string; detail: string }>>([]);
   const [researchError, setResearchError] = useState("");
   const [intelligenceReport, setIntelligenceReport] = useState<{
     engine: string; summary: string; confidence: string;
@@ -131,6 +132,35 @@ export default function JourneyStudio() {
         throw new Error((payload.error?.json?.message || `Route research failed (HTTP ${response.status}).`) + suffix);
       }
       setRouteResearch(result);
+      // Query independent mode providers together. A failure in one mode must not hide the others.
+      const safeModeSearch = async (mode: string, path: string, payload: Record<string, unknown>) => {
+        try {
+          const response = await fetch(`/api/trpc/${path}?input=${encodeURIComponent(JSON.stringify({ json: payload }))}`);
+          const raw = await response.text();
+          const parsed = JSON.parse(raw) as { result?: { data?: { json?: Record<string, unknown> } }; error?: { json?: { message?: string } } };
+          if (!response.ok || !parsed.result?.data?.json) return { mode, status: "unavailable", headline: "Search unavailable", detail: parsed.error?.json?.message || `Provider returned HTTP ${response.status}.` };
+          const data = parsed.result.data.json;
+          if (mode === "Flights") {
+            const offers = Array.isArray(data.offers) ? data.offers : [];
+            return { mode, status: String(data.status ?? "unknown"), headline: offers.length ? `${offers.length} flight options` : "No verified flight options", detail: String(data.message ?? (offers.length ? "Supplier-returned flight options. Check current price and availability with the provider." : "No complete flight option was verified for this route and date.")) };
+          }
+          const offers = Array.isArray(data.offers) ? data.offers : [];
+          return { mode, status: String(data.status ?? "unknown"), headline: offers.length ? `${offers.length} public bus trips` : "No matching public timetable", detail: String(data.message ?? data.disclaimer ?? (offers.length ? "Published public timetable results, not private bus inventory." : "No matching published public timetable. Private intercity operators may still serve this route.")) };
+        } catch {
+          return { mode, status: "unavailable", headline: "Search unavailable", detail: "This provider could not be reached. Other transport results remain available." };
+        }
+      };
+      const [flightMode, busMode] = await Promise.all([
+        safeModeSearch("Flights", "flights.search", { origin: draft.startLocation, destination: draft.destination, departureDate: input.travelDate, adults: draft.adults, currency: draft.currency }),
+        safeModeSearch("Buses", "buses.search", { origin: draft.startLocation, destination: draft.destination, travelDate: input.travelDate }),
+      ]);
+      const roadMode = result.road?.status === "route_found"
+        ? { mode: "Car", status: "estimated", headline: `${result.road.distanceKm} km · ${Math.floor((result.road.durationMinutes ?? 0) / 60)}h ${(result.road.durationMinutes ?? 0) % 60}m`, detail: "Road-network estimate. Actual time depends on traffic, weather, road conditions and stops." }
+        : { mode: "Car", status: "unavailable", headline: "Road estimate unavailable", detail: "No reliable road route was returned for these selected points." };
+      const trainMode = result.trainAvailability.status === "offers_found"
+        ? { mode: "Trains", status: "scheduled", headline: `${result.trainAvailability.trains.length} train services`, detail: result.trainAvailability.disclaimer ?? "Published train timetable results. Verify running status and availability before travel." }
+        : { mode: "Trains", status: result.trainAvailability.status, headline: "No verified train options", detail: result.trainAvailability.message ?? result.trainAvailability.disclaimer ?? "No train schedule was returned for this route and date." };
+      setModeComparison([roadMode, busMode, flightMode, trainMode]);
       const intelligenceResponse = await fetch(`/api/trpc/route.intelligence?input=${encodeURIComponent(JSON.stringify({ json: { research: result } }))}`);
       const intelligenceText = await intelligenceResponse.text();
       if (!intelligenceResponse.ok) throw new Error("The evidence summary could not be generated.");
@@ -319,6 +349,13 @@ export default function JourneyStudio() {
                 {researchError&&<p role="alert" className="mt-3 rounded-lg bg-[#fff0e5] p-3 text-xs leading-5 text-[#a84b19]">{researchError}</p>}
                 {routeResearch&&<div className="mt-5 space-y-5">
                   <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold">{routeResearch.origin} <span className="px-1 text-[#e6651b]">→</span> {routeResearch.destination}</p><span className="text-[10px] text-[#87958f]">Checked {new Date(routeResearch.retrievedAt).toLocaleString()}</span></div>
+                  <section className="rounded-2xl border border-[#123a35]/10 bg-white p-4 sm:p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">All ways to get there</p><h3 className="mt-1 font-display text-xl">Compare transport modes</h3></div><span className="rounded-full bg-[#eef3ed] px-3 py-1.5 text-[10px] font-bold text-[#45645b]">4 modes checked</span></div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {modeComparison.map(item=><article key={item.mode} className="rounded-xl border border-[#123a35]/10 bg-[#fbfcf9] p-4"><div className="flex items-center justify-between gap-2"><h4 className="text-sm font-extrabold">{item.mode}</h4><span className="rounded-full bg-[#e9eee7] px-2 py-1 text-[9px] font-bold uppercase text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div><p className="mt-2 text-base font-black">{item.headline}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{item.detail}</p></article>)}
+                    </div>
+                    <p className="mt-3 text-[10px] leading-5 text-[#87958f]">Comparisons use the evidence each provider actually returned. Missing fares, live seats and schedules are not estimated or invented.</p>
+                  </section>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl bg-[#f3f6f1] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Road network</p><p className="mt-1 text-lg font-black">{routeResearch.road?.status==="route_found"?routeResearch.road.distanceKm+" km":routeResearch.road?.status==="no_route_returned"?"No route returned":"Lookup unavailable"}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{routeResearch.road?.status==="route_found"?"Estimated drive: "+Math.floor((routeResearch.road.durationMinutes??0)/60)+"h "+(routeResearch.road.durationMinutes??0)%60+"m":routeResearch.road?.reason??"Road routing could not confirm a route."}</p><p className="mt-2 text-[10px] text-[#87958f]">{routeResearch.road?.provider??"OSRM / OpenStreetMap"}</p></div>
                     <div className="rounded-xl bg-[#f3f6f1] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Train timetable</p><p className="mt-1 text-lg font-black">{routeResearch.trainAvailability.status==="offers_found"?routeResearch.trainAvailability.trains.length+" services":routeResearch.trainAvailability.status.replaceAll("_"," ")}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{routeResearch.trainAvailability.message??routeResearch.trainAvailability.disclaimer??"No train timetable details returned."}</p></div>
