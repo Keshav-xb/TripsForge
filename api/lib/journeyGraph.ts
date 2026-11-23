@@ -83,13 +83,16 @@ function makeOption(legs: JourneyCandidateLeg[], priority: JourneyPriority): Jou
       ? legs.reduce((sum, leg) => sum + (leg.durationMinutes ?? 0), 0)
       : undefined;
   const transfers = Math.max(0, legs.length - 1);
-  const durationScore = durationMinutes === undefined ? 0 : Math.max(0, 100 - durationMinutes / 60);
-  const priceScore = price === undefined ? 0 : Math.max(0, 100 - Math.log10(price + 1) * 20);
+  const durationScore = durationMinutes === undefined ? undefined : Math.max(0, 100 - durationMinutes / 60);
+  const priceScore = price === undefined ? undefined : Math.max(0, 100 - Math.log10(price + 1) * 20);
   const transferScore = Math.max(0, 100 - transfers * 25);
-  const priorityScore = priority === "cheapest" ? priceScore
-    : priority === "fastest" ? durationScore
+  // Never treat missing price or duration as a zero score. Balanced ranking
+  // averages only dimensions that are actually supported by the provider data.
+  const availableScores = [priceScore, durationScore, transferScore].filter((score): score is number => score !== undefined);
+  const priorityScore = priority === "cheapest" ? (priceScore ?? 0)
+    : priority === "fastest" ? (durationScore ?? 0)
       : priority === "fewest_transfers" ? transferScore
-        : (priceScore + durationScore + transferScore) / 3;
+        : availableScores.reduce((sum, score) => sum + score, 0) / Math.max(1, availableScores.length);
   return {
     id: legs.map(leg => leg.id).join("::"),
     legs,
@@ -126,7 +129,25 @@ export function buildJourneyOptions(input: {
   const valid = input.legs.filter(validLeg);
   const discarded = { invalid: input.legs.length - valid.length, impossibleConnection: 0, unsupportedConnection: 0 };
   const options: JourneyOption[] = [];
+  // Bound graph exploration so a large provider response cannot exhaust a
+  // serverless invocation. A capped search is explicitly reported below.
+  const maxSearchStates = 5000;
+  let searchStates = 0;
+  let searchTruncated = false;
+  const seenLegIds = new Set<string>();
+  const deduplicated = valid.filter(leg => {
+    if (seenLegIds.has(leg.id)) return false;
+    seenLegIds.add(leg.id);
+    return true;
+  });
+  discarded.invalid += valid.length - deduplicated.length;
   const visit = (path: JourneyCandidateLeg[], used: Set<string>) => {
+    if (searchStates >= maxSearchStates) {
+      searchTruncated = true;
+      return;
+    }
+    searchStates++;
+
     const last = path[path.length - 1];
     if (last.toNode === input.destinationNode) {
       options.push(makeOption(path, priority));
@@ -134,7 +155,7 @@ export function buildJourneyOptions(input: {
     }
     if (path.length >= maxLegs) return;
     const arrival = timestamp(last.arrivalAt);
-    const nextLegs = valid.filter(next => next.fromNode === last.toNode && !used.has(next.id));
+    const nextLegs = deduplicated.filter(next => next.fromNode === last.toNode && !used.has(next.id));
     for (const next of nextLegs) {
       if (arrival === undefined || !next.departureAt) {
         discarded.unsupportedConnection++;
@@ -157,7 +178,7 @@ export function buildJourneyOptions(input: {
     }
   };
 
-  for (const leg of valid.filter(item => item.fromNode === input.originNode)) {
+  for (const leg of deduplicated.filter(item => item.fromNode === input.originNode)) {
     visit([leg], new Set([leg.id]));
   }
 
@@ -174,6 +195,7 @@ export function buildJourneyOptions(input: {
       "Minimum transfer buffers are conservative defaults, not operator guarantees; verify terminal changes and accessibility.",
       "Prices are totalled only when every leg has a price in the same currency.",
       "Missing timestamps, locations or fares remain unknown rather than being estimated.",
+      ...(searchTruncated ? ["Search reached its safety limit; returned options may not include every possible combination."] : []),
     ],
   };
 }
