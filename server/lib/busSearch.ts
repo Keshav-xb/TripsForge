@@ -40,5 +40,5 @@ export async function runBusSearchProvider<TResult>(
 
 /** Exposed for diagnostics and future provider selection. */
 export function listBusSearchProviders(): string[] {
-  return [...providers.keys()];
+  return Array.from(providers.keys());
 }
