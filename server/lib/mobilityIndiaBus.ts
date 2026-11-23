@@ -91,32 +91,35 @@ function rank(feed: BusFeedCandidate, input: BusSearchInput): number {
 async function search(input: BusSearchInput) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.travelDate) || Number.isNaN(Date.parse(input.travelDate))) throw new Error("INVALID_TRAVEL_DATE");
   const feeds = await discoverMobilityDatabaseBusCandidates({ countryCode: "IN" });
-  const ordered = [...feeds].sort((a, b) => rank(b, input) - rank(a, input)).slice(0, 20);
-  let lastError = "";
-  for (const feed of ordered) {
-    try {
-      const t = await load(feed);
-      const from = matchStop(t.stops, input.origin), to = matchStop(t.stops, input.destination);
-      if (!from || !to || from.stop_id === to.stop_id) continue;
-      const busRoutes = new Map(t.routes.filter(r => r.route_type === "3").map(r => [r.route_id, r]));
-      const trips = new Map(t.trips.filter(trip => busRoutes.has(trip.route_id)).map(trip => [trip.trip_id, trip]));
-      const byTrip = new Map<string, Row[]>();
-      for (const st of t.stopTimes) { const list = byTrip.get(st.trip_id) ?? []; list.push(st); byTrip.set(st.trip_id, list); }
-      const offers: Offer[] = [];
-      byTrip.forEach((times: Row[], tripId: string) => {
-        const trip = trips.get(tripId);
-        if (!trip || !runs(trip.service_id, input.travelDate, t)) return;
-        times.sort((left: Row, right: Row) => Number(left.stop_sequence) - Number(right.stop_sequence));
-        const fromIndex = times.findIndex((stopTime: Row) => stopTime.stop_id === from.stop_id);
-        const toIndex = times.findIndex((stopTime: Row) => stopTime.stop_id === to.stop_id);
-        if (fromIndex < 0 || toIndex <= fromIndex) return;
-        const first = times[fromIndex], last = times[toIndex], route = busRoutes.get(trip.route_id)!;
-        offers.push({ route: route.route_short_name || route.route_long_name || "Public bus", headsign: trip.trip_headsign || route.route_long_name || "Scheduled public bus", departureTime: first.departure_time || first.arrival_time, arrivalTime: last.arrival_time || last.departure_time, intermediateStops: Math.max(0, toIndex - fromIndex - 1), fromStop: from.stop_name, toStop: to.stop_name });
-      });
-      const unique = Array.from(new Map(offers.map((offer: Offer) => [offer.route + "|" + offer.departureTime + "|" + offer.arrivalTime, offer])).values()).sort((left: Offer, right: Offer) => left.departureTime.localeCompare(right.departureTime)).slice(0, 30);
-      if (unique.length) return { status: "offers_found" as const, provider: feed.provider || feed.name || "Mobility Database GTFS", retrievedAt: new Date().toISOString(), feed: feed.name, state: feed.subdivisionName, offers: unique, disclaimer: DISCLAIMER, sourceLicence: feed.licenseUrl || "Licence not supplied by catalog; verify before commercial use." };
-    } catch (error) { lastError = error instanceof Error ? error.message : "GTFS_FEED_ERROR"; }
-  }
-  return { status: "no_service_found" as const, provider: "Mobility Database India GTFS", retrievedAt: new Date().toISOString(), offers: [] as Offer[], message: ordered.length ? "No verified bus timetable matched these stops for the selected date in the available Indian GTFS feeds." : "No active public GTFS schedule feeds are currently listed for India.", disclaimer: DISCLAIMER, ...(lastError ? { diagnostic: lastError } : {}) };
+  // Keep provider work bounded: sequential 12-second downloads across 20 feeds can
+  // exceed serverless execution limits and turn a normal "no data" result into HTTP 500.
+  const ordered = [...feeds].sort((a, b) => rank(b, input) - rank(a, input)).slice(0, 4);
+  const inspectFeed = async (feed: BusFeedCandidate) => {
+    const t = await load(feed);
+    const from = matchStop(t.stops, input.origin), to = matchStop(t.stops, input.destination);
+    if (!from || !to || from.stop_id === to.stop_id) return null;
+    const busRoutes = new Map(t.routes.filter(r => r.route_type === "3").map(r => [r.route_id, r]));
+    const trips = new Map(t.trips.filter(trip => busRoutes.has(trip.route_id)).map(trip => [trip.trip_id, trip]));
+    const byTrip = new Map<string, Row[]>();
+    for (const st of t.stopTimes) { const list = byTrip.get(st.trip_id) ?? []; list.push(st); byTrip.set(st.trip_id, list); }
+    const offers: Offer[] = [];
+    byTrip.forEach((times: Row[], tripId: string) => {
+      const trip = trips.get(tripId);
+      if (!trip || !runs(trip.service_id, input.travelDate, t)) return;
+      times.sort((left: Row, right: Row) => Number(left.stop_sequence) - Number(right.stop_sequence));
+      const fromIndex = times.findIndex((stopTime: Row) => stopTime.stop_id === from.stop_id);
+      const toIndex = times.findIndex((stopTime: Row) => stopTime.stop_id === to.stop_id);
+      if (fromIndex < 0 || toIndex <= fromIndex) return;
+      const first = times[fromIndex], last = times[toIndex], route = busRoutes.get(trip.route_id)!;
+      offers.push({ route: route.route_short_name || route.route_long_name || "Public bus", headsign: trip.trip_headsign || route.route_long_name || "Scheduled public bus", departureTime: first.departure_time || first.arrival_time, arrivalTime: last.arrival_time || last.departure_time, intermediateStops: Math.max(0, toIndex - fromIndex - 1), fromStop: from.stop_name, toStop: to.stop_name });
+    });
+    const unique = Array.from(new Map(offers.map((offer: Offer) => [offer.route + "|" + offer.departureTime + "|" + offer.arrivalTime, offer])).values()).sort((left: Offer, right: Offer) => left.departureTime.localeCompare(right.departureTime)).slice(0, 30);
+    return unique.length ? { status: "offers_found" as const, provider: feed.provider || feed.name || "Mobility Database GTFS", retrievedAt: new Date().toISOString(), feed: feed.name, state: feed.subdivisionName, offers: unique, disclaimer: DISCLAIMER, sourceLicence: feed.licenseUrl || "Licence not supplied by catalog; verify before commercial use." } : null;
+  };
+  const settled = await Promise.allSettled(ordered.map(inspectFeed));
+  const match = settled.find((item): item is PromiseFulfilledResult<NonNullable<Awaited<ReturnType<typeof inspectFeed>>>> => item.status === "fulfilled" && item.value !== null);
+  if (match) return match.value;
+  const lastError = settled.find((item): item is PromiseRejectedResult => item.status === "rejected");
+  return { status: "no_service_found" as const, provider: "Mobility Database India GTFS", retrievedAt: new Date().toISOString(), offers: [] as Offer[], message: ordered.length ? "No verified bus timetable matched these stops for the selected date in the available Indian GTFS feeds." : "No active public GTFS schedule feeds are currently listed for India.", disclaimer: DISCLAIMER, ...(lastError ? { diagnostic: lastError.reason instanceof Error ? lastError.reason.message : "GTFS_FEED_ERROR" } : {}) };
 }
 registerBusSearchProvider({ id: "mobility-database-india-gtfs", priority: 10, search });
