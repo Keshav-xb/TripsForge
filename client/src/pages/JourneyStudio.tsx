@@ -151,8 +151,8 @@ export default function JourneyStudio() {
         }
       };
       const [flightMode, busMode] = await Promise.all([
-        safeModeSearch("Flights", "flights.search", { origin, destination, departureDate: input.travelDate, adults: draft.adults, currency: draft.currency }),
-        safeModeSearch("Buses", "buses.search", { origin, destination, travelDate: input.travelDate }),
+        safeModeSearch("Flights", "flights.search", { origin: draft.startLocation, destination: draft.destination, departureDate: input.travelDate, adults: draft.adults, currency: draft.currency }),
+        safeModeSearch("Buses", "buses.search", { origin: draft.startLocation, destination: draft.destination, travelDate: input.travelDate }),
       ]);
       const roadMode = result.road?.status === "route_found"
         ? { mode: "Car", status: "estimated", headline: `${result.road.distanceKm} km · ${Math.floor((result.road.durationMinutes ?? 0) / 60)}h ${(result.road.durationMinutes ?? 0) % 60}m`, detail: "Road-network estimate. Actual time depends on traffic, weather, road conditions and stops." }
