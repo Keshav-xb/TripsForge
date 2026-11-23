@@ -1,4 +1,5 @@
 import { inflateRawSync } from "node:zlib";
+import "./mobilityIndiaBus.js";
 import { registerBusSearchProvider, runBusSearchProvider, type BusSearchInput } from "./busSearch";
 
 type Feed = { id: string; name: string; state: string; modes?: string[]; service_start?: string; service_end?: string; source?: { name?: string; licence?: string }; };
@@ -11,7 +12,7 @@ type CalendarDate = { service_id: string; date: string; exception_type: string }
 type FeedTables = { stops: Stop[]; routes: Route[]; trips: Trip[]; stopTimes: StopTime[]; calendars: Calendar[]; calendarDates: CalendarDate[] };
 type BusOffer = { route: string; headsign: string; departureTime: string; arrivalTime: string; intermediateStops: number; fromStop: string; toStop: string; };
 type BusResult =
-  | { status: "offers_found"; provider: "Reclaim India GTFS"; retrievedAt: string; feed: string; state: string; offers: BusOffer[]; disclaimer: string; sourceLicence: string }
+  | { status: "offers_found"; provider: string; retrievedAt: string; feed: string; state: string; offers: BusOffer[]; disclaimer: string; sourceLicence: string }
   | { status: "no_service_found"; provider: "Reclaim India GTFS"; retrievedAt: string; feed?: string; offers: []; message: string; disclaimer: string }
   | { status: "feed_not_available"; provider: "Reclaim India GTFS"; offers: []; message: string };
 
@@ -195,6 +196,9 @@ registerBusSearchProvider<BusResult>({
   search: searchReclaimIndiaGtfs,
 });
 
-export function searchPublicBuses(input: BusSearchInput): Promise<BusResult> {
-  return runBusSearchProvider<BusResult>("reclaim-india-gtfs", input);
+export async function searchPublicBuses(input: BusSearchInput): Promise<BusResult> {
+  const reclaimResult = await runBusSearchProvider<BusResult>("reclaim-india-gtfs", input);
+  if (reclaimResult.status !== "no_service_found") return reclaimResult;
+  const indiaResult = await runBusSearchProvider<BusResult>("mobility-database-india-gtfs", input);
+  return indiaResult.status === "offers_found" ? indiaResult : reclaimResult;
 }
