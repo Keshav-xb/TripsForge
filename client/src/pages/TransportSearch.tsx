@@ -4,7 +4,7 @@ import { ArrowLeft, Bus, CarFront, Clock3, TrainFront, CalendarDays, ArrowRight,
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 
-type BusResult = { status: string; provider?: string; retrievedAt?: string; feed?: string; state?: string; offers?: Array<{ route: string; headsign: string; departureTime: string; arrivalTime: string; intermediateStops: number; fromStop: string; toStop: string }>; message?: string; disclaimer?: string; sourceLicence?: string; };
+type BusResult = { status: string; route?: string; schedules?: Array<{ departureTime: string; destination: string }>; sourceUrl?: string; bookingUrl?: string; contact?: string; provider?: string; retrievedAt?: string; feed?: string; state?: string; offers?: Array<{ route: string; headsign: string; departureTime: string; arrivalTime: string; intermediateStops: number; fromStop: string; toStop: string }>; message?: string; disclaimer?: string; sourceLicence?: string; };
 
 type TrainResult = {
   status: string;
@@ -73,7 +73,7 @@ export default function TransportSearch() {
       <div className="mb-8">
         <span className="inline-flex items-center gap-2 rounded-full bg-[#e9eee7] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#45645b]"><Icon className="h-4 w-4" /> TripsForge {title}</span>
         <h1 className="mt-5 font-display text-4xl tracking-tight sm:text-5xl">{title}</h1>
-        <p className="mt-3 text-sm leading-6 text-[#637e76]">{mode === "train" ? "Search timetable options for your selected route and date." : mode === "bus" ? "Search published local public-transport timetables. Private intercity bus services are not included yet." : "Check the mapped road route and estimated driving time."}</p>
+        <p className="mt-3 text-sm leading-6 text-[#637e76]">{mode === "train" ? "Search timetable options for your selected route and date." : mode === "bus" ? "Search published public-transport timetables and selected official interstate operator schedules. Live private-bus inventory is not included." : "Check the mapped road route and estimated driving time."}</p>
       </div>
       <form onSubmit={search} className="grid gap-4 rounded-3xl border border-[#123a35]/10 bg-[#fffdf8] p-5 shadow-sm sm:grid-cols-2 sm:p-7">
         <label className="grid gap-2 text-sm font-bold">From<input required value={origin} onChange={e => setOrigin(e.target.value)} className="rounded-xl border border-[#123a35]/15 bg-white px-4 py-3 font-medium" /></label>
@@ -82,7 +82,17 @@ export default function TransportSearch() {
         {mode !== "bus" && <button disabled={loading} className="rounded-xl bg-[#123a35] px-5 py-4 font-bold text-white disabled:opacity-60 sm:col-span-2">{loading ? "Checking…" : mode === "car" ? "Check road route" : "Search trains"}</button>}
         {mode === "bus" && <button disabled={loading} className="rounded-xl bg-[#123a35] px-5 py-4 font-bold text-white disabled:opacity-60 sm:col-span-2">{loading ? "Checking public timetables…" : "Search public buses"}</button>}
       </form>
-      {mode === "bus" && <div className="mt-4 flex items-start gap-2 rounded-xl border border-[#dce5dc] bg-white p-4 text-xs leading-5 text-[#637e76]"><Info className="mt-0.5 h-4 w-4 shrink-0" />Free public transport timetable data. This does not include private bus inventory, fares, live seats, or ticket booking.</div>}
+      {mode === "bus" && <div className="mt-4 flex items-start gap-2 rounded-xl border border-[#dce5dc] bg-white p-4 text-xs leading-5 text-[#637e76]"><Info className="mt-0.5 h-4 w-4 shrink-0" />Free public timetable and selected official operator schedules. Private-bus inventory, live seats and fares may not be available.</div>}
+      {busResult?.status === "official_schedule_found" && <section className="mt-7 space-y-4">
+        <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#e6651b]">Official operator timetable</p><h2 className="mt-1 font-display text-2xl">{busResult.route}</h2><p className="mt-1 text-xs text-[#71857e]">Published JKRTC departures · Your selected date: {travelDate}</p></div>
+        <div className="rounded-2xl border border-[#123a35]/10 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between"><p className="font-bold">Listed departure times</p><span className="rounded-full bg-[#e8eee7] px-2.5 py-1 text-[10px] font-bold text-[#31584e]">Official source</span></div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{(busResult.schedules ?? []).map(item=><div key={item.departureTime} className="rounded-xl border border-[#dce5dc] bg-[#fbfcf9] p-3"><p className="text-xl font-black tabular-nums">{item.departureTime}</p><p className="mt-1 text-[10px] text-[#71857e]">Jammu to {item.destination}</p></div>)}</div>
+          <p className="mt-4 text-xs leading-5 text-[#637e76]">{busResult.disclaimer}</p>
+          <p className="mt-3 text-xs font-semibold text-[#31584e]">{busResult.contact}</p>
+          <div className="mt-4 flex flex-wrap gap-3 text-sm font-bold"><a className="underline underline-offset-4" href={busResult.sourceUrl} target="_blank" rel="noreferrer">View JKRTC timetable</a><a className="underline underline-offset-4" href={busResult.bookingUrl} target="_blank" rel="noreferrer">Official booking portal</a></div>
+        </div>
+      </section>}
       {busResult?.status === "offers_found" && <section className="mt-7 space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#e6651b]">Free public timetable</p><h2 className="mt-1 font-display text-2xl">Scheduled public buses</h2><p className="mt-1 text-xs text-[#71857e]">{origin} to {destination} · {travelDate} · {busResult.feed}</p></div><span className="rounded-full bg-[#e8eee7] px-3 py-2 text-xs font-bold text-[#31584e]">{busResult.offers?.length ?? 0} trips</span></div>
         {(busResult.offers ?? []).map((bus,index)=><article key={bus.route+"-"+bus.departureTime+"-"+index} className="rounded-2xl border border-[#123a35]/10 bg-white p-5 shadow-sm">
