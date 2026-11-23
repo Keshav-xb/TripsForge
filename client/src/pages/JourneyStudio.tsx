@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowRight, CalendarDays, Compass, MapPin, Minus, Plus, Sparkles, Users, Wallet, Plane, TrainFront, BusFront, CarFront, ArrowUpRight } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
@@ -89,6 +89,7 @@ export default function JourneyStudio() {
     busAvailability: { status: string; provider: string; message: string };
   } | null>(null);
   const [researching, setResearching] = useState(false);
+  const researchRunId = useRef(0);
   const [modeComparison, setModeComparison] = useState<Array<{ mode: string; status: string; headline: string; detail: string }>>([]);
   const [journeyPriority, setJourneyPriority] = useState<JourneyPriority>("balanced");
   const [journeyOptions, setJourneyOptions] = useState<ReturnType<typeof createJourneyOptions> | null>(null);
@@ -105,9 +106,15 @@ export default function JourneyStudio() {
       setResearchError("Select both departure and destination from the location suggestions first.");
       return;
     }
+    const activeRunId = ++researchRunId.current;
     setResearching(true);
     setResearchError("");
     setRouteResearch(null);
+    setModeComparison([]);
+    setJourneyOptions(null);
+    setJourneySources(null);
+    setGatewayDiscovery(null);
+    setIntelligenceReport(null);
     try {
       const input = {
         origin: draft.startLocation,
@@ -132,6 +139,7 @@ export default function JourneyStudio() {
         throw new Error(`Route API returned a non-JSON response (${statusHint}).${requestHint}`);
       }
       const result = payload.result?.data?.json;
+      if (activeRunId !== researchRunId.current) return;
       if (!response.ok || !result) {
         const reference = payload.error?.json?.data?.requestId || requestId;
         const suffix = reference && reference !== "not supplied" ? ` · Reference: ${reference}` : "";
@@ -185,6 +193,7 @@ export default function JourneyStudio() {
         safeModeSearch("Flights", "flights.search", { origin: draft.startLocation, destination: draft.destination, departureDate: input.travelDate, adults: draft.adults, currency: draft.currency }),
         safeModeSearch("Buses", "buses.search", { origin: draft.startLocation, destination: draft.destination, travelDate: input.travelDate }),
       ]);
+      if (activeRunId !== researchRunId.current) return;
       setJourneySources({ flights: flightMode.data, buses: busMode.data });
       setJourneyOptions(createJourneyOptions({ research: result, flights: flightMode.data, buses: busMode.data, priority: journeyPriority }));
       const roadMode = result.road?.status === "route_found"
@@ -202,9 +211,9 @@ export default function JourneyStudio() {
       const report = intelligencePayload.result?.data?.json;
       if (report) setIntelligenceReport(report);
     } catch (error) {
-      setResearchError(error instanceof Error ? error.message : "Route research failed. Please try again.");
+      if (activeRunId === researchRunId.current) setResearchError(error instanceof Error ? error.message : "Route research failed. Please try again.");
     } finally {
-      setResearching(false);
+      if (activeRunId === researchRunId.current) setResearching(false);
     }
   };
   const updateTransportLeg = (id: string, updates: Partial<TransportLeg>) => setTransportLegs(legs => legs.map(leg => leg.id === id ? { ...leg, ...updates } : leg));
@@ -397,8 +406,11 @@ export default function JourneyStudio() {
                   <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold">{routeResearch.origin} <span className="px-1 text-[#e6651b]">→</span> {routeResearch.destination}</p><span className="text-[10px] text-[#87958f]">Checked {new Date(routeResearch.retrievedAt).toLocaleString()}</span></div>
                   <section className="rounded-2xl border border-[#123a35]/10 bg-white p-4 sm:p-5">
                     <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">All ways to get there</p><h3 className="mt-1 font-display text-xl">Transport options for this journey</h3></div><span className="rounded-full bg-[#eef3ed] px-3 py-1.5 text-[10px] font-bold text-[#45645b]">Provider evidence · selected date</span></div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {modeComparison.map(item=><article key={item.mode} className="rounded-xl border border-[#123a35]/10 bg-[#fbfcf9] p-4"><div className="flex items-center justify-between gap-2"><h4 className="text-sm font-extrabold">{item.mode}</h4><span className="rounded-full bg-[#e9eee7] px-2 py-1 text-[9px] font-bold uppercase text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div><p className="mt-3 text-lg font-black leading-snug">{item.headline}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{item.detail}</p>{item.status==="available"||item.status==="estimated"?<button type="button" onClick={()=>addResearchModeToJourney(item.mode)} className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg bg-[#123a35] px-3 py-2 text-xs font-bold text-white hover:bg-[#1d514a]">Add to journey <ArrowRight className="ml-2 h-3.5 w-3.5"/></button>:<p className="mt-3 text-[10px] text-[#87958f]">No selectable service confirmed from this search.</p>}</article>)}
+                    <div className="mt-5 space-y-5">
+                      {([{key:"Flights",title:"Air connections",description:"Airports and flight services for this route.",icon:Plane},{key:"Trains",title:"Rail connections",description:"Train services and reachable railway gateways.",icon:TrainFront},{key:"Buses",title:"Bus connections",description:"Published public timetable evidence.",icon:BusFront},{key:"Car",title:"Road connections",description:"Direct driving and verified ground transfers.",icon:CarFront}] as const).map(group=>{const item=modeComparison.find(result=>result.mode===group.key);if(!item)return null;const Icon=group.icon;return <section key={group.key} className="overflow-hidden rounded-2xl border border-[#123a35]/10 bg-white shadow-[0_8px_28px_rgba(18,58,53,0.045)]">
+                        <div className="flex items-center gap-3 border-b border-[#123a35]/8 bg-[#f7f9f5] px-4 py-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-white text-[#45645b]"><Icon className="h-5 w-5"/></span><div className="min-w-0 flex-1"><h4 className="text-sm font-extrabold text-[#123a35]">{group.title}</h4><p className="text-[10px] text-[#87958f]">{group.description}</p></div><span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div>
+                        <div className="p-4"><p className="text-lg font-black leading-snug text-[#123a35]">{item.headline}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{item.detail}</p>{item.status==="available"||item.status==="estimated"?<button type="button" onClick={()=>addResearchModeToJourney(item.mode)} className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl bg-[#123a35] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#1d514a]">Add {group.key.toLowerCase()} to journey <ArrowRight className="ml-2 h-3.5 w-3.5"/></button>:<p className="mt-3 text-[10px] text-[#87958f]">No selectable service confirmed from this search.</p>}</div>
+                      </section>})}
                     </div>
                     {gatewayDiscovery && <section className="mt-6 rounded-2xl border border-[#123a35]/10 bg-[#f7f9f5] p-4 sm:p-5">
                       <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Network-wide discovery</p><h3 className="mt-1 text-lg font-black">Nearby transport gateways</h3><p className="mt-1 text-xs text-[#71857e]">Searching up to {gatewayDiscovery.radiusKm} km around both trip endpoints, including gateways across regional boundaries.</p></div><span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-[#45645b]">{gatewayDiscovery.origin.length + gatewayDiscovery.destination.length} mapped candidates</span></div>
