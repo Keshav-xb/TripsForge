@@ -67,8 +67,8 @@ export function createJourneyOptions(input: {
       const duration = Number(offer.totalDurationMinutes);
       legs.push({
         id: String(offer.id ?? `flight-${index}`),
-        fromNode: String(flights.originCode ?? originNode),
-        toNode: String(flights.destinationCode ?? destinationNode),
+        fromNode: originNode,
+        toNode: destinationNode,
         mode: "flight", fromLabel: research.origin, toLabel: research.destination,
         ...(Number.isFinite(duration) && duration > 0 ? { durationMinutes: duration } : {}),
         ...(Number.isFinite(amount) && amount >= 0 ? { price: amount, currency: String(offer.currency ?? "") } : {}),
