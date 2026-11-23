@@ -13,6 +13,8 @@ import { createEmptyTransportLeg, getTransportLegTotal, validateTransportLegs, t
 import { useTrip } from "@/contexts/TripContext";
 import { defaultPlan, type Interest, type PlanInputs } from "@/lib/tripData";
 import { assessTripReadiness } from "@/lib/tripReadiness";
+import { createJourneyOptions } from "@/lib/journeyOptionBuilder";
+import type { JourneyPriority } from "../../../server/lib/transport/journeyGraph";
 
 const interests: Interest[] = ["Nature", "Food", "History", "Adventure", "Shopping", "Nightlife", "Photography", "Culture", "Beaches", "Architecture", "Family"];
 const budgetDefaults: Array<{ category: BudgetCategory; label: string; rule: BudgetQuantityRule }> = [
@@ -88,6 +90,8 @@ export default function JourneyStudio() {
   } | null>(null);
   const [researching, setResearching] = useState(false);
   const [modeComparison, setModeComparison] = useState<Array<{ mode: string; status: string; headline: string; detail: string }>>([]);
+  const [journeyPriority, setJourneyPriority] = useState<JourneyPriority>("balanced");
+  const [journeyOptions, setJourneyOptions] = useState<ReturnType<typeof createJourneyOptions> | null>(null);
   const [researchError, setResearchError] = useState("");
   const [intelligenceReport, setIntelligenceReport] = useState<{
     engine: string; summary: string; confidence: string;
@@ -149,7 +153,8 @@ export default function JourneyStudio() {
               mode,
               status: found ? "available" : data.status === "provider_not_configured" ? "not_configured" : "no_verified_options",
               headline: found ? `${offers.length} flight options available` : data.status === "provider_not_configured" ? "Flight search not configured" : "No verified flights found",
-              detail: found ? `${airportRoute}${direct ? " · Direct option found" : " · Connecting options"} · Supplier-returned results; confirm price and availability before booking.` : String(data.message ?? "No complete flight itinerary was verified for this date.")
+              detail: found ? `${airportRoute}${direct ? " · Direct option found" : " · Connecting options"} · Supplier-returned results; confirm price and availability before booking.` : String(data.message ?? "No complete flight itinerary was verified for this date."),
+              data
             };
           }
           const found = data.status === "offers_found" && offers.length > 0;
@@ -159,7 +164,8 @@ export default function JourneyStudio() {
             mode,
             status: found ? "available" : "no_published_timetable",
             headline: found ? `${offers.length} public bus trips available` : "No matching public timetable",
-            detail: found ? `Published public timetable results, not private coach inventory.${sample}` : String(data.message ?? "No matching published public timetable. This does not mean buses do not operate on this route.")
+            detail: found ? `Published public timetable results, not private coach inventory.${sample}` : String(data.message ?? "No matching published public timetable. This does not mean buses do not operate on this route."),
+            data
           };
         } catch {
           return { mode, status: "unavailable", headline: "Search unavailable", detail: "This provider could not be reached. Other transport results remain available." };
@@ -169,6 +175,7 @@ export default function JourneyStudio() {
         safeModeSearch("Flights", "flights.search", { origin: draft.startLocation, destination: draft.destination, departureDate: input.travelDate, adults: draft.adults, currency: draft.currency }),
         safeModeSearch("Buses", "buses.search", { origin: draft.startLocation, destination: draft.destination, travelDate: input.travelDate }),
       ]);
+      setJourneyOptions(createJourneyOptions({ research: result, flights: (flightMode as any).data, buses: (busMode as any).data, priority: journeyPriority }));
       const roadMode = result.road?.status === "route_found"
         ? { mode: "Car", status: "estimated", headline: `${result.road.distanceKm} km · ${Math.floor((result.road.durationMinutes ?? 0) / 60)}h ${(result.road.durationMinutes ?? 0) % 60}m`, detail: "Driving route estimate from OSRM. Time can change with traffic, weather, road conditions and stops." }
         : { mode: "Car", status: "unavailable", headline: "Road estimate unavailable", detail: "No reliable driving route was returned for these selected points." };
@@ -382,6 +389,20 @@ export default function JourneyStudio() {
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       {modeComparison.map(item=><article key={item.mode} className="rounded-xl border border-[#123a35]/10 bg-[#fbfcf9] p-4"><div className="flex items-center justify-between gap-2"><h4 className="text-sm font-extrabold">{item.mode}</h4><span className="rounded-full bg-[#e9eee7] px-2 py-1 text-[9px] font-bold uppercase text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div><p className="mt-3 text-lg font-black leading-snug">{item.headline}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{item.detail}</p>{item.status==="available"||item.status==="estimated"?<button type="button" onClick={()=>addResearchModeToJourney(item.mode)} className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg bg-[#123a35] px-3 py-2 text-xs font-bold text-white hover:bg-[#1d514a]">Add to journey <ArrowRight className="ml-2 h-3.5 w-3.5"/></button>:<p className="mt-3 text-[10px] text-[#87958f]">No selectable service confirmed from this search.</p>}</article>)}
                     </div>
+                    {journeyOptions && <section className="mt-6 rounded-2xl border border-[#e6651b]/20 bg-[#fffaf5] p-4 sm:p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">TripsForge journey intelligence</p><h3 className="mt-1 text-lg font-black">Ranked journey options</h3><p className="mt-1 text-xs text-[#71857e]">Compared from provider results and road estimates for your selected route.</p></div>
+                        <span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-[#45645b]">{journeyOptions.options.length} options</span>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">{([{value:"balanced",label:"Best balance"},{value:"cheapest",label:"Cheapest"},{value:"fastest",label:"Fastest"},{value:"fewest_transfers",label:"Fewest changes"}] as const).map(item=><button key={item.value} type="button" onClick={()=>{setJourneyPriority(item.value);setJourneyOptions(createJourneyOptions({research:routeResearch!,priority:item.value}));}} className={`rounded-full border px-3 py-2 text-[11px] font-bold ${journeyPriority===item.value?"border-[#123a35] bg-[#123a35] text-white":"border-[#123a35]/15 bg-white text-[#45645b]"}`}>{item.label}</button>)}</div>
+                      {journeyOptions.options.length ? <div className="mt-4 space-y-3">{journeyOptions.options.map((option,index)=><article key={option.id} className="rounded-xl border border-[#123a35]/10 bg-white p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-extrabold">Option {index+1} · {option.legs.map(leg=>leg.mode==="car"?"Car":leg.mode.charAt(0).toUpperCase()+leg.mode.slice(1)).join(" + ")}</p><span className="rounded-full bg-[#eef3ed] px-2.5 py-1 text-[9px] font-bold uppercase text-[#45645b]">{option.connectionStatus==="direct"?"Direct provider option":"Connection time checked"}</span></div>
+                        <p className="mt-2 text-sm font-bold">{option.legs.map(leg=>leg.fromLabel).at(0)} <span className="text-[#e6651b]">→</span> {option.legs.at(-1)?.toLabel}</p>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#71857e]"><span>{option.durationMinutes!==undefined?`${Math.floor(option.durationMinutes/60)}h ${option.durationMinutes%60}m`:"Duration not supplied"}</span><span>{option.price!==undefined&&option.currency?new Intl.NumberFormat(undefined,{style:"currency",currency:option.currency,maximumFractionDigits:0}).format(option.price):"Fare not supplied"}</span><span>{option.evidence.join(", ")}</span></div>
+                        <p className="mt-2 text-[10px] leading-5 text-[#87958f]">Evidence-backed result. This is a comparison, not a booking or availability guarantee.</p>
+                      </article>)}</div> : <p className="mt-4 rounded-lg bg-white p-3 text-xs text-[#71857e]">No complete options could be built from the returned provider evidence. This is not proof that no transport service exists.</p>}
+                      <p className="mt-3 text-[10px] leading-5 text-[#87958f]">Transfers between different services are not suggested unless exact shared station or terminal identifiers and reliable time-zone-aware schedules are available. Missing data is never guessed.</p>
+                    </section>}
                     <p className="mt-3 text-[10px] leading-5 text-[#87958f]">Car distance is a driving estimate. Public bus timetable feeds do not provide a comparable intercity road distance, so TripsForge will not copy the car distance onto a bus result. Missing fares, seats and schedules are never invented.</p>
                   </section>
                   <div className="grid gap-3 sm:grid-cols-2">
