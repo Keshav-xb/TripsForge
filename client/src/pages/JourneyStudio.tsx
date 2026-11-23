@@ -92,6 +92,7 @@ export default function JourneyStudio() {
   const [modeComparison, setModeComparison] = useState<Array<{ mode: string; status: string; headline: string; detail: string }>>([]);
   const [journeyPriority, setJourneyPriority] = useState<JourneyPriority>("balanced");
   const [journeyOptions, setJourneyOptions] = useState<ReturnType<typeof createJourneyOptions> | null>(null);
+  const [journeySources, setJourneySources] = useState<{ flights?: any; buses?: any } | null>(null);
   const [researchError, setResearchError] = useState("");
   const [intelligenceReport, setIntelligenceReport] = useState<{
     engine: string; summary: string; confidence: string;
@@ -137,7 +138,7 @@ export default function JourneyStudio() {
       }
       setRouteResearch(result);
       // Query independent mode providers together. A failure in one mode must not hide the others.
-      const safeModeSearch = async (mode: string, path: string, payload: Record<string, unknown>) => {
+      const safeModeSearch = async (mode: string, path: string, payload: Record<string, unknown>): Promise<any> => {
         try {
           const response = await fetch(`/api/trpc/${path}?input=${encodeURIComponent(JSON.stringify({ json: payload }))}`);
           const raw = await response.text();
@@ -175,7 +176,8 @@ export default function JourneyStudio() {
         safeModeSearch("Flights", "flights.search", { origin: draft.startLocation, destination: draft.destination, departureDate: input.travelDate, adults: draft.adults, currency: draft.currency }),
         safeModeSearch("Buses", "buses.search", { origin: draft.startLocation, destination: draft.destination, travelDate: input.travelDate }),
       ]);
-      setJourneyOptions(createJourneyOptions({ research: result, flights: (flightMode as any).data, buses: (busMode as any).data, priority: journeyPriority }));
+      setJourneySources({ flights: flightMode.data, buses: busMode.data });
+      setJourneyOptions(createJourneyOptions({ research: result, flights: flightMode.data, buses: busMode.data, priority: journeyPriority }));
       const roadMode = result.road?.status === "route_found"
         ? { mode: "Car", status: "estimated", headline: `${result.road.distanceKm} km · ${Math.floor((result.road.durationMinutes ?? 0) / 60)}h ${(result.road.durationMinutes ?? 0) % 60}m`, detail: "Driving route estimate from OSRM. Time can change with traffic, weather, road conditions and stops." }
         : { mode: "Car", status: "unavailable", headline: "Road estimate unavailable", detail: "No reliable driving route was returned for these selected points." };
@@ -394,7 +396,7 @@ export default function JourneyStudio() {
                         <div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">TripsForge journey intelligence</p><h3 className="mt-1 text-lg font-black">Ranked journey options</h3><p className="mt-1 text-xs text-[#71857e]">Compared from provider results and road estimates for your selected route.</p></div>
                         <span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-[#45645b]">{journeyOptions.options.length} options</span>
                       </div>
-                      <div className="mt-4 flex flex-wrap gap-2">{([{value:"balanced",label:"Best balance"},{value:"cheapest",label:"Cheapest"},{value:"fastest",label:"Fastest"},{value:"fewest_transfers",label:"Fewest changes"}] as const).map(item=><button key={item.value} type="button" onClick={()=>{setJourneyPriority(item.value);setJourneyOptions(createJourneyOptions({research:routeResearch!,priority:item.value}));}} className={`rounded-full border px-3 py-2 text-[11px] font-bold ${journeyPriority===item.value?"border-[#123a35] bg-[#123a35] text-white":"border-[#123a35]/15 bg-white text-[#45645b]"}`}>{item.label}</button>)}</div>
+                      <div className="mt-4 flex flex-wrap gap-2">{([{value:"balanced",label:"Best balance"},{value:"cheapest",label:"Cheapest"},{value:"fastest",label:"Fastest"},{value:"fewest_transfers",label:"Fewest changes"}] as const).map(item=><button key={item.value} type="button" onClick={()=>{setJourneyPriority(item.value);setJourneyOptions(createJourneyOptions({research:routeResearch!,flights:journeySources?.flights,buses:journeySources?.buses,priority:item.value}));}} className={`rounded-full border px-3 py-2 text-[11px] font-bold ${journeyPriority===item.value?"border-[#123a35] bg-[#123a35] text-white":"border-[#123a35]/15 bg-white text-[#45645b]"}`}>{item.label}</button>)}</div>
                       {journeyOptions.options.length ? <div className="mt-4 space-y-3">{journeyOptions.options.map((option,index)=><article key={option.id} className="rounded-xl border border-[#123a35]/10 bg-white p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-extrabold">Option {index+1} · {option.legs.map(leg=>leg.mode==="car"?"Car":leg.mode.charAt(0).toUpperCase()+leg.mode.slice(1)).join(" + ")}</p><span className="rounded-full bg-[#eef3ed] px-2.5 py-1 text-[9px] font-bold uppercase text-[#45645b]">{option.connectionStatus==="direct"?"Direct provider option":"Connection time checked"}</span></div>
                         <p className="mt-2 text-sm font-bold">{option.legs.map(leg=>leg.fromLabel).at(0)} <span className="text-[#e6651b]">→</span> {option.legs.at(-1)?.toLabel}</p>
