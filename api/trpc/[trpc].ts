@@ -5,6 +5,7 @@ import { searchSerpApiFlights } from "../../server/lib/transport/serpApiFlights.
 import { convertFlightPrice } from "../../server/lib/transport/currencyConversion.js";
 import { searchIndianTrains } from "../../server/lib/transport/railAvailability.js";
 import { searchPublicBuses } from "../../server/lib/publicBus.js";
+import { discoverGateways } from "../../server/lib/transport/gatewayDiscovery.js";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
@@ -259,6 +260,19 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       }
       const report = buildTravelIntelligence(research);
       return send(req, res, 200, trpcData(report));
+    }
+    if (path === "route.gateways") {
+      const origin = input.origin as Point | undefined;
+      const destination = input.destination as Point | undefined;
+      const validPoint = (point: Point | undefined) => !!point &&
+        Number.isFinite(point.lat) && Number.isFinite(point.lng) &&
+        Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
+      if (!validPoint(origin) || !validPoint(destination)) throw new Error("INVALID_GATEWAY_COORDINATES");
+      const radiusKm = Number(input.radiusKm ?? 150);
+      if (!Number.isFinite(radiusKm) || radiusKm < 25 || radiusKm > 300) throw new Error("INVALID_GATEWAY_RADIUS");
+      const result = await discoverGateways({ origin: origin!, destination: destination!, radiusKm });
+      res.setHeader("cache-control", "public, max-age=300, s-maxage=600");
+      return send(req, res, 200, trpcData(result));
     }
     if (path === "route.research") {
       const origin = String(input.origin ?? "").trim();
