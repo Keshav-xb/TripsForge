@@ -63,7 +63,7 @@ describe("buildJourneyOptions", () => {
   it("does not treat unknown fares as zero-cost when ranking", () => {
     const result = buildJourneyOptions({
       legs: [
-        { ...legs[0], id: "unknown-price", price: undefined, currency: undefined },
+        { ...legs[2], id: "unknown-price", price: undefined, currency: undefined },
         { ...legs[2], id: "known-price" },
       ],
       originNode: "A", destinationNode: "C", priority: "cheapest",
