@@ -209,7 +209,7 @@ export default function JourneyStudio() {
       if (!intelligenceResponse.ok) throw new Error("The evidence summary could not be generated.");
       const intelligencePayload = JSON.parse(intelligenceText) as { result?: { data?: { json?: typeof intelligenceReport } } };
       const report = intelligencePayload.result?.data?.json;
-      if (report) setIntelligenceReport(report);
+      if (activeRunId === researchRunId.current && report) setIntelligenceReport(report);
     } catch (error) {
       if (activeRunId === researchRunId.current) setResearchError(error instanceof Error ? error.message : "Route research failed. Please try again.");
     } finally {
