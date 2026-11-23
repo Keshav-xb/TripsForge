@@ -393,15 +393,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           return infrastructureQueries.map(({ kind }) => ({ kind, count: 0, examples: [], checked: false, reason: reasons }));
         }
       };
-      const [originInfrastructure, destinationInfrastructure] = await Promise.all([
-        searchInfrastructure(resolvedOriginPoint),
-        searchInfrastructure(resolvedDestinationPoint),
-      ]);
-      const infrastructure: InfrastructureEvidence[] = infrastructureQueries.map(({ kind }) => {
-        const from = originInfrastructure.find(item => item.kind === kind)!;
-        const to = destinationInfrastructure.find(item => item.kind === kind)!;
-        return { kind, originCount: from.count, destinationCount: to.count, originExamples: from.examples, destinationExamples: to.examples, checked: from.checked && to.checked, ...(!from.checked || !to.checked ? { reason: [!from.checked ? `origin: ${from.reason ?? "lookup failed"}` : "", !to.checked ? `destination: ${to.reason ?? "lookup failed"}` : ""].filter(Boolean).join("; ") } : {}) };
-      });
+      // Keep the core route response fast. Broad gateway discovery runs through
+      // route.gateways independently and must not hold up road/rail results.
+      const infrastructure: InfrastructureEvidence[] = infrastructureQueries.map(({ kind }) => ({
+        kind, originCount: 0, destinationCount: 0, originExamples: [], destinationExamples: [],
+        checked: false, reason: "Gateway discovery is running as a separate network-wide lookup.",
+      }));
 
       const road = await roadPromise;
       const [trainAvailability] = await Promise.all([railPromise]);
