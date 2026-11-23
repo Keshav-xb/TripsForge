@@ -4,14 +4,12 @@ export type BusSearchInput = {
   travelDate: string;
 };
 
-/**
- * Provider contract for timetable-backed bus search.
- *
- * Providers must return source-grounded results in the application contract.
- * Missing fares, timings, or availability must remain absent rather than guessed.
- */
 export interface BusSearchProvider<TResult> {
   readonly id: string;
+  /** Higher-priority providers are considered first during discovery. */
+  readonly priority?: number;
+  /** Return false when this provider cannot serve the requested search. */
+  supports?(input: BusSearchInput): boolean;
   search(input: BusSearchInput): Promise<TResult>;
 }
 
@@ -28,6 +26,19 @@ export function registerBusSearchProvider<TResult>(
   providers.set(provider.id, provider as BusSearchProvider<unknown>);
 }
 
+/**
+ * Discover configured providers that can handle this request.
+ * Providers without a supports predicate remain eligible for backwards compatibility.
+ * Stable registration order is retained when priorities are equal.
+ */
+export function discoverBusSearchProviders(input: BusSearchInput): string[] {
+  return Array.from(providers.values())
+    .map((provider, index) => ({ provider, index }))
+    .filter(({ provider }) => provider.supports?.(input) !== false)
+    .sort((a, b) => (b.provider.priority ?? 0) - (a.provider.priority ?? 0) || a.index - b.index)
+    .map(({ provider }) => provider.id);
+}
+
 /** Run one configured provider. The public API can retain its existing response shape. */
 export async function runBusSearchProvider<TResult>(
   providerId: string,
@@ -35,6 +46,9 @@ export async function runBusSearchProvider<TResult>(
 ): Promise<TResult> {
   const provider = providers.get(providerId);
   if (!provider) throw new Error(`BUS_PROVIDER_NOT_REGISTERED:${providerId}`);
+  if (provider.supports?.(input) === false) {
+    throw new Error(`BUS_PROVIDER_UNSUPPORTED_SEARCH:${providerId}`);
+  }
   return (provider as BusSearchProvider<TResult>).search(input);
 }
 
