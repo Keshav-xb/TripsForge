@@ -93,6 +93,7 @@ export default function JourneyStudio() {
   const [journeyPriority, setJourneyPriority] = useState<JourneyPriority>("balanced");
   const [journeyOptions, setJourneyOptions] = useState<ReturnType<typeof createJourneyOptions> | null>(null);
   const [journeySources, setJourneySources] = useState<{ flights?: any; buses?: any } | null>(null);
+  const [gatewayDiscovery, setGatewayDiscovery] = useState<{ radiusKm: number; origin: Array<{ id: string; name: string; mode: string; distanceKm: number; iataCode?: string; stationCode?: string }>; destination: Array<{ id: string; name: string; mode: string; distanceKm: number; iataCode?: string; stationCode?: string }>; limitations: string[] } | null>(null);
   const [researchError, setResearchError] = useState("");
   const [intelligenceReport, setIntelligenceReport] = useState<{
     engine: string; summary: string; confidence: string;
@@ -137,6 +138,14 @@ export default function JourneyStudio() {
         throw new Error((payload.error?.json?.message || `Route research failed (HTTP ${response.status}).`) + suffix);
       }
       setRouteResearch(result);
+      setGatewayDiscovery(null);
+      try {
+        const gatewayResponse = await fetch(`/api/trpc/route.gateways?input=${encodeURIComponent(JSON.stringify({ json: { origin: draft.startLocationPoint, destination: draft.destinationLocation, radiusKm: 150 } }))}`);
+        const gatewayPayload = await gatewayResponse.json() as { result?: { data?: { json?: typeof gatewayDiscovery } } };
+        if (gatewayResponse.ok && gatewayPayload.result?.data?.json) setGatewayDiscovery(gatewayPayload.result.data.json);
+      } catch {
+        // Gateway discovery is additional research; other mode results remain visible.
+      }
       // Query independent mode providers together. A failure in one mode must not hide the others.
       const safeModeSearch = async (mode: string, path: string, payload: Record<string, unknown>): Promise<any> => {
         try {
@@ -391,6 +400,13 @@ export default function JourneyStudio() {
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       {modeComparison.map(item=><article key={item.mode} className="rounded-xl border border-[#123a35]/10 bg-[#fbfcf9] p-4"><div className="flex items-center justify-between gap-2"><h4 className="text-sm font-extrabold">{item.mode}</h4><span className="rounded-full bg-[#e9eee7] px-2 py-1 text-[9px] font-bold uppercase text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div><p className="mt-3 text-lg font-black leading-snug">{item.headline}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{item.detail}</p>{item.status==="available"||item.status==="estimated"?<button type="button" onClick={()=>addResearchModeToJourney(item.mode)} className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg bg-[#123a35] px-3 py-2 text-xs font-bold text-white hover:bg-[#1d514a]">Add to journey <ArrowRight className="ml-2 h-3.5 w-3.5"/></button>:<p className="mt-3 text-[10px] text-[#87958f]">No selectable service confirmed from this search.</p>}</article>)}
                     </div>
+                    {gatewayDiscovery && <section className="mt-6 rounded-2xl border border-[#123a35]/10 bg-[#f7f9f5] p-4 sm:p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Network-wide discovery</p><h3 className="mt-1 text-lg font-black">Nearby transport gateways</h3><p className="mt-1 text-xs text-[#71857e]">Searching up to {gatewayDiscovery.radiusKm} km around both trip endpoints, including gateways across regional boundaries.</p></div><span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-[#45645b]">{gatewayDiscovery.origin.length + gatewayDiscovery.destination.length} mapped candidates</span></div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        {([{key:"origin",title:"Around departure"},{key:"destination",title:"Around destination"}] as const).map(group=><div key={group.key} className="rounded-xl border border-[#123a35]/10 bg-white p-3"><h4 className="text-xs font-extrabold">{group.title}</h4>{gatewayDiscovery[group.key].length ? <div className="mt-2 space-y-2">{gatewayDiscovery[group.key].slice(0,12).map(item=><div key={item.id} className="flex items-start justify-between gap-2 border-t border-[#123a35]/5 pt-2"><div className="min-w-0"><p className="truncate text-xs font-semibold">{item.name}</p><p className="text-[10px] capitalize text-[#87958f]">{item.mode}{item.iataCode ? " · " + item.iataCode : ""}{item.stationCode ? " · " + item.stationCode : ""}</p></div><span className="shrink-0 text-[10px] text-[#71857e]">{item.distanceKm} km</span></div>)}</div> : <p className="mt-2 text-xs text-[#87958f]">No mapped gateway candidates returned in this search radius.</p>}</div>)}
+                      </div>
+                      <p className="mt-3 text-[10px] leading-5 text-[#87958f]">These are geographic candidates, not confirmed services. TripsForge must verify schedules and road transfers before including them in a complete journey.</p>
+                    </section>}
                     {journeyOptions && <section className="mt-6 rounded-2xl border border-[#e6651b]/20 bg-[#fffaf5] p-4 sm:p-5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">TripsForge journey intelligence</p><h3 className="mt-1 text-lg font-black">Ranked journey options</h3><p className="mt-1 text-xs text-[#71857e]">Compared from provider results and road estimates for your selected route.</p></div>
