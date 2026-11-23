@@ -72,7 +72,7 @@ export function normalizeGateways(
     };
     unique.set(id, gateway);
   }
-  return [...unique.values()].sort((a, b) => a.distanceKm - b.distanceKm);
+  return Array.from(unique.values()).sort((a, b) => a.distanceKm - b.distanceKm);
 }
 
 async function queryPoint(point: { lat: number; lng: number }, radiusKm: number) {
