@@ -50,7 +50,7 @@ export function createJourneyOptions(input: {
   }
 
   if (buses?.status === "offers_found") {
-    for (const [index, offer] of (buses.offers ?? []).entries()) {
+    (buses.offers ?? []).forEach((offer, index) => {
       legs.push({
         id: `bus-${String(offer.route ?? "route")}-${String(offer.departureTime ?? index)}`,
         fromNode: originNode, toNode: destinationNode, mode: "bus",
@@ -58,11 +58,11 @@ export function createJourneyOptions(input: {
         toLabel: String(offer.toStop ?? research.destination),
         provider: String(buses.provider ?? "Public GTFS"), evidence: "provider_schedule",
       });
-    }
+    });
   }
 
   if (flights?.status === "offers_found") {
-    for (const [index, offer] of (flights.offers ?? []).entries()) {
+    (flights.offers ?? []).forEach((offer, index) => {
       const amount = Number(offer.amount);
       const duration = Number(offer.totalDurationMinutes);
       legs.push({
@@ -74,7 +74,7 @@ export function createJourneyOptions(input: {
         ...(Number.isFinite(amount) && amount >= 0 ? { price: amount, currency: String(offer.currency ?? "") } : {}),
         provider: String(flights.provider ?? "Flight provider"), evidence: "provider_offer",
       });
-    }
+    });
   }
 
   // Only the requested endpoints are shared across these providers. Transfer
