@@ -54,7 +54,7 @@ async function load(feed: BusFeedCandidate): Promise<Tables> {
   const old = cache.get(feed.id);
   if (old && old.expiresAt > Date.now()) return old.tables;
   if (feed.authenticationType !== "0" && feed.authenticationType !== "") throw new Error("GTFS_FEED_AUTH_REQUIRED");
-  const response = await fetch(feed.latestUrl, { signal: AbortSignal.timeout(12000), headers: { "User-Agent": "TripsForge/1.0 (India GTFS discovery)" } });
+  const response = await fetch(feed.latestUrl, { signal: AbortSignal.timeout(5000), headers: { "User-Agent": "TripsForge/1.0 (India GTFS discovery)" } });
   if (!response.ok) throw new Error(`GTFS_FEED_HTTP_${response.status}`);
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.length > 35 * 1024 * 1024) throw new Error("GTFS_FEED_TOO_LARGE");
