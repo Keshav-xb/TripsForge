@@ -95,7 +95,9 @@ export default function JourneyStudio() {
   const [journeyOptions, setJourneyOptions] = useState<ReturnType<typeof createJourneyOptions> | null>(null);
   const [journeySources, setJourneySources] = useState<{ flights?: any; buses?: any } | null>(null);
   const [gatewayDiscovery, setGatewayDiscovery] = useState<{ radiusKm: number; origin: Array<{ id: string; name: string; mode: string; distanceKm: number; iataCode?: string; stationCode?: string }>; destination: Array<{ id: string; name: string; mode: string; distanceKm: number; iataCode?: string; stationCode?: string }>; limitations: string[] } | null>(null);
-  const [gatewayJourneyResearch, setGatewayJourneyResearch] = useState<any>(null);\n  const [gatewayResearchState, setGatewayResearchState] = useState<"idle" | "searching" | "complete" | "unavailable">("idle");\n  const [gatewayResearchError, setGatewayResearchError] = useState("");
+  const [gatewayJourneyResearch, setGatewayJourneyResearch] = useState<any>(null);
+  const [gatewayResearchState, setGatewayResearchState] = useState<"idle" | "searching" | "complete" | "unavailable">("idle");
+  const [gatewayResearchError, setGatewayResearchError] = useState("");
   const [researchError, setResearchError] = useState("");
   const researchRouteKey = [draft.startLocation, draft.destination, draft.startDate, draft.startLocationPoint?.lat, draft.startLocationPoint?.lng, draft.destinationLocation?.lat, draft.destinationLocation?.lng].join("|");
   const lastResearchRouteKey = useRef(researchRouteKey);
