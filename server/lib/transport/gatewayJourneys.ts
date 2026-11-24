@@ -20,7 +20,21 @@ type GatewaySearchResult = {
   caveat: string;
 };
 
-async function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {\n  let timer: ReturnType<typeof setTimeout> | undefined;\n  try {\n    return await Promise.race([promise, new Promise<T>((_, reject) => { timer = setTimeout(() => reject(new Error("PROVIDER_TIMEOUT")), milliseconds); })]);\n  } finally {\n    if (timer) clearTimeout(timer);\n  }\n}\n\nasync function roadAccess(from: Point, to: Point) {
+async function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("PROVIDER_TIMEOUT")), milliseconds);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function roadAccess(from: Point, to: Point) {
   try {
     const url = new URL(`https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}`);
     url.searchParams.set("overview", "false");
@@ -69,7 +83,7 @@ export async function searchGatewayJourneys(input: {
             const result = await withTimeout(searchSerpApiFlights({
               origin: from.iataCode, destination: to.iataCode, departureDate: input.travelDate,
               adults: input.adults ?? 1, currency: input.currency ?? "INR", allowConnections: false,
-            });
+            }), 8000);
             status = result.status === "offers_found" ? "offers_found"
               : result.status === "no_offers" ? "no_service_found" : "provider_unavailable";
             if (result.status === "offers_found") services = result.offers.slice(0, 5).map(offer => ({
