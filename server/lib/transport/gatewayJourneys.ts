@@ -1,7 +1,7 @@
 import { searchSerpApiFlights } from "./serpApiFlights.js";
 import { searchIndianTrains } from "./railAvailability.js";
 import { searchPublicBuses } from "../publicBus.js";
-import { distanceKm, type TransportGateway } from "./gatewayDiscovery.js";
+import type { TransportGateway } from "./gatewayDiscovery.js";
 
 type Point = { lat: number; lng: number };
 type GatewaySearchResult = {
