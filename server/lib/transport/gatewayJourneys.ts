@@ -52,7 +52,7 @@ async function roadAccess(from: Point, to: Point) {
   }
 }
 
-function selectGateways(items: TransportGateway[], mode: TransportGateway["mode"]) {
+export function selectGateways(items: TransportGateway[], mode: TransportGateway["mode"]) {
   return items.filter(item => item.mode === mode)
     .sort((a, b) => a.distanceKm - b.distanceKm)
     .slice(0, 2);
