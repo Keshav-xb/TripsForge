@@ -25,6 +25,8 @@ type OverpassElement = {
 const PROVIDERS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.nchc.org.tw/api/interpreter",
 ];
 
 export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
@@ -115,7 +117,7 @@ async function getAirportRegistry(): Promise<AirportRegistryEntry[]> {
     const iataCode = row[iataIndex]?.trim().toUpperCase();
     const lat = Number(row[latIndex]), lng = Number(row[lngIndex]);
     if (!/^[A-Z]{3}$/.test(iataCode) || row[scheduledIndex] !== "yes"
-      || !["large_airport", "medium_airport"].includes(row[typeIndex])
+      || !["large_airport", "medium_airport", "small_airport"].includes(row[typeIndex])
       || !Number.isFinite(lat) || !Number.isFinite(lng)) return [];
     return [{ lat, lng, iataCode, name: row[nameIndex] ?? "Airport" }];
   });
@@ -163,7 +165,13 @@ async function queryPoint(point: { lat: number; lng: number }, radiusKm: number)
     if (!Array.isArray(body.elements)) throw new Error("OVERPASS_INVALID_RESPONSE");
     return body.elements;
   });
-  return Promise.any(responses);
+  try {
+    return await Promise.any(responses);
+  } catch {
+    // Gateway discovery is supplemental. A public map-provider outage must not
+    // fail the entire route research request or hide registry-backed airports.
+    return [];
+  }
 }
 
 export async function discoverGateways(input: {
@@ -176,10 +184,29 @@ export async function discoverGateways(input: {
     queryPoint(input.origin, radiusKm),
     queryPoint(input.destination, radiusKm),
   ]);
-  const [originGateways, destinationGateways] = await Promise.all([
+  const [originMapped, destinationMapped] = await Promise.all([
     enrichAirportGatewayCodes(normalizeGateways(originElements, input.origin, radiusKm)),
     enrichAirportGatewayCodes(normalizeGateways(destinationElements, input.destination, radiusKm)),
   ]);
+  // Airports come from a separate scheduled-airport registry as well as OSM.
+  // This keeps flight gateway discovery working when Overpass is degraded and
+  // includes scheduled regional airports (for example, small airports).
+  const registry = await getAirportRegistry().catch(() => []);
+  const registryGateways = (center: { lat: number; lng: number }): TransportGateway[] => registry
+    .map(airport => ({ airport, distance: distanceKm(center, airport) }))
+    .filter(item => item.distance <= radiusKm)
+    .map(({ airport, distance }) => ({
+      id: `airport-${airport.iataCode}`, name: airport.name, mode: "flight" as const,
+      lat: airport.lat, lng: airport.lng, distanceKm: Math.round(distance * 10) / 10,
+      iataCode: airport.iataCode, source: "OpenStreetMap" as const,
+    }));
+  const merge = (mapped: TransportGateway[], registryItems: TransportGateway[]) => {
+    const byId = new Map<string, TransportGateway>();
+    for (const item of [...mapped, ...registryItems]) byId.set(item.iataCode ? `flight-${item.iataCode}` : item.id, item);
+    return Array.from(byId.values()).sort((a, b) => a.distanceKm - b.distanceKm);
+  };
+  const originGateways = merge(originMapped, registryGateways(input.origin));
+  const destinationGateways = merge(destinationMapped, registryGateways(input.destination));
   return {
     provider: "OpenStreetMap / Overpass + OurAirports",
     retrievedAt: new Date().toISOString(),
@@ -189,6 +216,7 @@ export async function discoverGateways(input: {
     limitations: [
       "Mapped infrastructure is a gateway candidate, not proof of a scheduled service.",
       "OpenStreetMap coverage and tags vary by region; missing gateways do not prove that none exist.",
+      "Scheduled airports are also discovered from the OurAirports registry; railway and bus gateways still depend on mapped OpenStreetMap data.",
       "A provider timetable or offer and a separately verified transfer are required before a complete journey can be recommended.",
     ],
   };
