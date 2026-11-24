@@ -52,12 +52,15 @@ const MIN_TRANSFER_MINUTES: Record<JourneyCandidateLeg["mode"], number> = {
 
 function timestamp(value?: string): number | undefined {
   if (!value) return undefined;
+  // Reject timezone-less provider timestamps: server-local parsing is unsafe.
+  if (!/T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,3})?)?(?:Z|[+-]\\d{2}:\\d{2})$/i.test(value)) return undefined;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function validLeg(leg: JourneyCandidateLeg): boolean {
-  if (!leg.id || !leg.fromNode || !leg.toNode || leg.fromNode === leg.toNode || !leg.provider) return false;
+  if (!leg.id?.trim() || !leg.fromNode?.trim() || !leg.toNode?.trim() || leg.fromNode === leg.toNode || !leg.fromLabel?.trim() || !leg.toLabel?.trim() || !leg.provider?.trim()) return false;
+  if (!["provider_schedule", "provider_offer", "route_estimate"].includes(leg.evidence)) return false;
   if (leg.price !== undefined && (!Number.isFinite(leg.price) || leg.price < 0)) return false;
   if (leg.durationMinutes !== undefined && (!Number.isFinite(leg.durationMinutes) || leg.durationMinutes < 0)) return false;
   const departure = timestamp(leg.departureAt);
@@ -89,8 +92,8 @@ function makeOption(legs: JourneyCandidateLeg[], priority: JourneyPriority): Jou
   // Never treat missing price or duration as a zero score. Balanced ranking
   // averages only dimensions that are actually supported by the provider data.
   const availableScores = [priceScore, durationScore, transferScore].filter((score): score is number => score !== undefined);
-  const priorityScore = priority === "cheapest" ? (priceScore ?? 0)
-    : priority === "fastest" ? (durationScore ?? 0)
+  const priorityScore = priority === "cheapest" ? (priceScore ?? -1)
+    : priority === "fastest" ? (durationScore ?? -1)
       : priority === "fewest_transfers" ? transferScore
         : availableScores.reduce((sum, score) => sum + score, 0) / Math.max(1, availableScores.length);
   return {
@@ -183,9 +186,13 @@ export function buildJourneyOptions(input: {
   }
 
   const unique = Array.from(new Map(options.map(option => [option.id, option])).values());
-  unique.sort((a, b) => b.priorityScore - a.priorityScore
-    || a.transferCount - b.transferCount
-    || (a.durationMinutes ?? Number.MAX_SAFE_INTEGER) - (b.durationMinutes ?? Number.MAX_SAFE_INTEGER));
+  unique.sort((a, b) => {
+    if (priority === "cheapest" && a.priceComparable !== b.priceComparable) return a.priceComparable ? -1 : 1;
+    if (priority === "fastest" && (a.durationMinutes !== undefined) !== (b.durationMinutes !== undefined)) return a.durationMinutes !== undefined ? -1 : 1;
+    return b.priorityScore - a.priorityScore
+      || a.transferCount - b.transferCount
+      || (a.durationMinutes ?? Number.MAX_SAFE_INTEGER) - (b.durationMinutes ?? Number.MAX_SAFE_INTEGER);
+  });
   return {
     options: unique.slice(0, maxOptions),
     discarded,
