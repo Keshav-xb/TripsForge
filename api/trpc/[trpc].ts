@@ -6,6 +6,7 @@ import { convertFlightPrice } from "../../server/lib/transport/currencyConversio
 import { searchIndianTrains } from "../../server/lib/transport/railAvailability.js";
 import { searchPublicBuses } from "../../server/lib/publicBus.js";
 import { discoverGateways } from "../../server/lib/transport/gatewayDiscovery.js";
+import { searchGatewayJourneys } from "../../server/lib/transport/gatewayJourneys.js";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
@@ -260,6 +261,30 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       }
       const report = buildTravelIntelligence(research);
       return send(req, res, 200, trpcData(report));
+    }
+    if (path === "route.gatewayJourneys") {
+      const origin = input.origin as Point | undefined;
+      const destination = input.destination as Point | undefined;
+      const validPoint = (point: Point | undefined) => !!point &&
+        Number.isFinite(point.lat) && Number.isFinite(point.lng) &&
+        Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
+      if (!validPoint(origin) || !validPoint(destination)) throw new Error("INVALID_GATEWAY_COORDINATES");
+      const originLabel = String(input.originLabel ?? "").trim();
+      const destinationLabel = String(input.destinationLabel ?? "").trim();
+      const travelDate = String(input.travelDate ?? "");
+      const date = new Date(travelDate + "T00:00:00Z");
+      if (originLabel.length < 2 || destinationLabel.length < 2) throw new Error("INVALID_ROUTE_LABELS");
+      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(travelDate) || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== travelDate) throw new Error("INVALID_TRAVEL_DATE");
+      const radiusKm = Math.min(300, Math.max(25, Number(input.radiusKm ?? 150)));
+      const gateways = await discoverGateways({ origin: origin!, destination: destination!, radiusKm });
+      const result = await searchGatewayJourneys({
+        origin: origin!, destination: destination!, originLabel, destinationLabel, travelDate,
+        adults: Math.min(9, Math.max(1, Number(input.adults ?? 1))),
+        currency: String(input.currency ?? "INR").toUpperCase(),
+        gateways: { origin: gateways.origin, destination: gateways.destination },
+      });
+      res.setHeader("cache-control", "no-store");
+      return send(req, res, 200, trpcData({ ...result, gatewayRadiusKm: gateways.radiusKm }));
     }
     if (path === "route.gateways") {
       const origin = input.origin as Point | undefined;
