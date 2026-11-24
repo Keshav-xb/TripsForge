@@ -274,7 +274,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const travelDate = String(input.travelDate ?? "");
       const date = new Date(travelDate + "T00:00:00Z");
       if (originLabel.length < 2 || destinationLabel.length < 2) throw new Error("INVALID_ROUTE_LABELS");
-      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(travelDate) || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== travelDate) throw new Error("INVALID_TRAVEL_DATE");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(travelDate) || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== travelDate) throw new Error("INVALID_TRAVEL_DATE");
       const radiusKm = Math.min(300, Math.max(25, Number(input.radiusKm ?? 150)));
       const gateways = await discoverGateways({ origin: origin!, destination: destination!, radiusKm });
       const result = await searchGatewayJourneys({
