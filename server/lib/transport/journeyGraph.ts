@@ -53,7 +53,7 @@ const MIN_TRANSFER_MINUTES: Record<JourneyCandidateLeg["mode"], number> = {
 function timestamp(value?: string): number | undefined {
   if (!value) return undefined;
   // Reject timezone-less provider timestamps: server-local parsing is unsafe.
-  if (!/T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d{1,3})?)?(?:Z|[+-]\\d{2}:\\d{2})$/i.test(value)) return undefined;
+  if (!/T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return undefined;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
