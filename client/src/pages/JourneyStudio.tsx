@@ -131,6 +131,9 @@ export default function JourneyStudio() {
     setJourneyOptions(null);
     setJourneySources(null);
     setGatewayDiscovery(null);
+    setGatewayJourneyResearch(null);
+    setGatewayResearchState("searching");
+    setGatewayResearchError("");
     setIntelligenceReport(null);
     try {
       const input = {
