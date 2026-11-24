@@ -20,7 +20,7 @@ type GatewaySearchResult = {
   caveat: string;
 };
 
-async function roadAccess(from: Point, to: Point) {
+async function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {\n  let timer: ReturnType<typeof setTimeout> | undefined;\n  try {\n    return await Promise.race([promise, new Promise<T>((_, reject) => { timer = setTimeout(() => reject(new Error("PROVIDER_TIMEOUT")), milliseconds); })]);\n  } finally {\n    if (timer) clearTimeout(timer);\n  }\n}\n\nasync function roadAccess(from: Point, to: Point) {
   try {
     const url = new URL(`https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}`);
     url.searchParams.set("overview", "false");
@@ -66,7 +66,7 @@ export async function searchGatewayJourneys(input: {
           if (!from.iataCode || !to.iataCode || from.iataCode === to.iataCode) {
             status = "no_service_found";
           } else {
-            const result = await searchSerpApiFlights({
+            const result = await withTimeout(searchSerpApiFlights({
               origin: from.iataCode, destination: to.iataCode, departureDate: input.travelDate,
               adults: input.adults ?? 1, currency: input.currency ?? "INR", allowConnections: false,
             });
@@ -78,7 +78,7 @@ export async function searchGatewayJourneys(input: {
             }));
           }
         } else if (mode === "train") {
-          const result = await searchIndianTrains({ origin: from.name, destination: to.name, travelDate: input.travelDate });
+          const result = await withTimeout(searchIndianTrains({ origin: from.name, destination: to.name, travelDate: input.travelDate }), 8000);
           status = result.status === "offers_found" ? "offers_found"
             : result.status === "no_service_found" ? "no_service_found" : "provider_unavailable";
           if (result.status === "offers_found") services = result.trains.slice(0, 5).map(train => ({
@@ -87,7 +87,7 @@ export async function searchGatewayJourneys(input: {
             durationMinutes: train.durationMinutes, classes: train.classes,
           }));
         } else {
-          const result = await searchPublicBuses({ origin: from.name, destination: to.name, travelDate: input.travelDate });
+          const result = await withTimeout(searchPublicBuses({ origin: from.name, destination: to.name, travelDate: input.travelDate }), 8000);
           provider = result.provider;
           status = result.status === "offers_found" ? "offers_found"
             : result.status === "no_service_found" ? "no_service_found" : "provider_unavailable";
@@ -131,9 +131,12 @@ export async function searchGatewayJourneys(input: {
   for (const mode of ["flight", "train", "bus"] as const) {
     const origins = selectGateways(input.gateways.origin, mode);
     const destinations = selectGateways(input.gateways.destination, mode);
-    for (const from of origins) for (const to of destinations) {
-      if (from.id !== to.id) addPair(mode, from, to);
-    }
+    const pairs = origins.flatMap(from => destinations
+      .filter(to => from.id !== to.id)
+      .map(to => ({ from, to, distance: from.distanceKm + to.distanceKm })))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 2);
+    for (const pair of pairs) addPair(mode, pair.from, pair.to);
   }
   await Promise.all(tasks);
   results.sort((a, b) => {
