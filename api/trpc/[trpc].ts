@@ -1,10 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../lib/routeResearch.js";
-import { buildTravelIntelligence } from "../lib/travelIntelligence.js";
-import { searchSerpApiFlights } from "../lib/serpApiFlights.js";
-import { convertFlightPrice } from "../lib/currencyConversion.js";
-import { searchIndianTrains } from "../lib/railAvailability.js";
+import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../../server/lib/transport/routeResearch.js";
+import { buildTravelIntelligence } from "../../server/lib/transport/travelIntelligence.js";
+import { searchSerpApiFlights } from "../../server/lib/transport/serpApiFlights.js";
+import { convertFlightPrice } from "../../server/lib/transport/currencyConversion.js";
+import { searchIndianTrains } from "../../server/lib/transport/railAvailability.js";
 import { searchPublicBuses } from "../../server/lib/publicBus.js";
+import { discoverGateways } from "../../server/lib/transport/gatewayDiscovery.js";
+import { searchGatewayJourneys } from "../../server/lib/transport/gatewayJourneys.js";
 
 type Point = { lat: number; lng: number };
 type PhotonFeature = {
@@ -260,6 +262,43 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const report = buildTravelIntelligence(research);
       return send(req, res, 200, trpcData(report));
     }
+    if (path === "route.gatewayJourneys") {
+      const origin = input.origin as Point | undefined;
+      const destination = input.destination as Point | undefined;
+      const validPoint = (point: Point | undefined) => !!point &&
+        Number.isFinite(point.lat) && Number.isFinite(point.lng) &&
+        Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
+      if (!validPoint(origin) || !validPoint(destination)) throw new Error("INVALID_GATEWAY_COORDINATES");
+      const originLabel = String(input.originLabel ?? "").trim();
+      const destinationLabel = String(input.destinationLabel ?? "").trim();
+      const travelDate = String(input.travelDate ?? "");
+      const date = new Date(travelDate + "T00:00:00Z");
+      if (originLabel.length < 2 || destinationLabel.length < 2) throw new Error("INVALID_ROUTE_LABELS");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(travelDate) || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== travelDate) throw new Error("INVALID_TRAVEL_DATE");
+      const radiusKm = Math.min(300, Math.max(25, Number(input.radiusKm ?? 150)));
+      const gateways = await discoverGateways({ origin: origin!, destination: destination!, radiusKm });
+      const result = await searchGatewayJourneys({
+        origin: origin!, destination: destination!, originLabel, destinationLabel, travelDate,
+        adults: Math.min(9, Math.max(1, Number(input.adults ?? 1))),
+        currency: String(input.currency ?? "INR").toUpperCase(),
+        gateways: { origin: gateways.origin, destination: gateways.destination },
+      });
+      res.setHeader("cache-control", "no-store");
+      return send(req, res, 200, trpcData({ ...result, gatewayRadiusKm: gateways.radiusKm }));
+    }
+    if (path === "route.gateways") {
+      const origin = input.origin as Point | undefined;
+      const destination = input.destination as Point | undefined;
+      const validPoint = (point: Point | undefined) => !!point &&
+        Number.isFinite(point.lat) && Number.isFinite(point.lng) &&
+        Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
+      if (!validPoint(origin) || !validPoint(destination)) throw new Error("INVALID_GATEWAY_COORDINATES");
+      const radiusKm = Number(input.radiusKm ?? 150);
+      if (!Number.isFinite(radiusKm) || radiusKm < 25 || radiusKm > 300) throw new Error("INVALID_GATEWAY_RADIUS");
+      const result = await discoverGateways({ origin: origin!, destination: destination!, radiusKm });
+      res.setHeader("cache-control", "public, max-age=300, s-maxage=600");
+      return send(req, res, 200, trpcData(result));
+    }
     if (path === "route.research") {
       const origin = String(input.origin ?? "").trim();
       const destination = String(input.destination ?? "").trim();
@@ -326,68 +365,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         { kind: "bus", filter: '["amenity"="bus_station"]' },
         { kind: "ferry", filter: '["amenity"="ferry_terminal"]' },
       ];
-      const searchInfrastructure = async (point: Point): Promise<Array<{ kind: TransportResearchMode; count: number; examples: string[]; checked: boolean; reason?: string; provider?: string }>> => {
-        // A tighter 5 km radius avoids expensive city-wide bus-stop scans.
-        const around = `(around:5000,${point.lat},${point.lng})`;
-        const query = `[out:json][timeout:5];(
-          nwr${around}["aeroway"="aerodrome"];
-          nwr${around}["railway"~"station|halt"];
-          nwr${around}["amenity"~"bus_station|ferry_terminal"];
-          nwr${around}["highway"="bus_stop"];
-        );out center tags;`;
-        const providers = [
-          { name: "Overpass main", url: "https://overpass-api.de/api/interpreter" },
-          { name: "Overpass Kumi fallback", url: "https://overpass.kumi.systems/api/interpreter" },
-        ];
-        const classify = (tags: Record<string, string> = {}): TransportResearchMode | null => {
-          if (tags.aeroway === "aerodrome") return "flight";
-          if (tags.railway === "station" || tags.railway === "halt") return "train";
-          if (tags.amenity === "bus_station" || tags.highway === "bus_stop") return "bus";
-          if (tags.amenity === "ferry_terminal") return "ferry";
-          return null;
-        };
-        const requestProvider = async (provider: typeof providers[number]) => {
-          const response = await fetch(provider.url, {
-            method: "POST",
-            headers: { "content-type": "application/x-www-form-urlencoded", "User-Agent": "TripsForge/1.0 (route research)" },
-            body: new URLSearchParams({ data: query }),
-            signal: AbortSignal.timeout(5000),
-          });
-          if (!response.ok) throw new Error(`${provider.name}: OVERPASS_HTTP_${response.status}`);
-          const body = await response.text();
-          let data: { elements?: Array<{ tags?: Record<string, string> }> };
-          try {
-            data = JSON.parse(body);
-          } catch {
-            throw new Error(`${provider.name}: OVERPASS_INVALID_RESPONSE`);
-          }
-          return { provider: provider.name, elements: data.elements ?? [] };
-        };
-        try {
-          // Race providers instead of waiting for one timeout before trying the fallback.
-          const result = await Promise.any(providers.map(requestProvider));
-          return infrastructureQueries.map(({ kind }) => {
-            const matching = result.elements.filter(element => classify(element.tags) === kind);
-            const names = matching.map(element => element.tags?.name ?? element.tags?.["name:en"]).filter((name): name is string => !!name);
-            return { kind, count: matching.length, examples: Array.from(new Set(names)).slice(0, 4), checked: true, provider: result.provider };
-          });
-        } catch (error) {
-          const reasons = error instanceof AggregateError
-            ? error.errors.map(item => item instanceof Error ? item.message : String(item)).join("; ")
-            : error instanceof Error ? error.message : "OVERPASS_UNAVAILABLE";
-          console.error("[TripsForge route research] infrastructure lookup failed", { reason: reasons });
-          return infrastructureQueries.map(({ kind }) => ({ kind, count: 0, examples: [], checked: false, reason: reasons }));
-        }
-      };
-      const [originInfrastructure, destinationInfrastructure] = await Promise.all([
-        searchInfrastructure(resolvedOriginPoint),
-        searchInfrastructure(resolvedDestinationPoint),
-      ]);
-      const infrastructure: InfrastructureEvidence[] = infrastructureQueries.map(({ kind }) => {
-        const from = originInfrastructure.find(item => item.kind === kind)!;
-        const to = destinationInfrastructure.find(item => item.kind === kind)!;
-        return { kind, originCount: from.count, destinationCount: to.count, originExamples: from.examples, destinationExamples: to.examples, checked: from.checked && to.checked, ...(!from.checked || !to.checked ? { reason: [!from.checked ? `origin: ${from.reason ?? "lookup failed"}` : "", !to.checked ? `destination: ${to.reason ?? "lookup failed"}` : ""].filter(Boolean).join("; ") } : {}) };
-      });
+      // Keep the core route response fast. Broad gateway discovery runs through
+      // route.gateways independently and must not hold up road/rail results.
+      const infrastructure: InfrastructureEvidence[] = infrastructureQueries.map(({ kind }) => ({
+        kind, originCount: 0, destinationCount: 0, originExamples: [], destinationExamples: [],
+        checked: false, reason: "Gateway discovery is running as a separate network-wide lookup.",
+      }));
 
       const road = await roadPromise;
       const [trainAvailability] = await Promise.all([railPromise]);

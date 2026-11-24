@@ -55,8 +55,6 @@ const AIRPORT_CODES: Array<{ aliases: string[]; code: string }> = [
   { aliases: ["patna"], code: "PAT" }, { aliases: ["indore"], code: "IDR" },
   { aliases: ["bhopal"], code: "BHO" }, { aliases: ["nagpur"], code: "NAG" },
   { aliases: ["chandigarh"], code: "IXC" }, { aliases: ["dehradun"], code: "DED" },
-  // Manali has no commercial airport; Bhuntar Airport (KUU) is the nearest regional airport.
-  { aliases: ["manali", "kullu", "bhuntar", "bhuntar airport"], code: "KUU" },
   { aliases: ["dhaka"], code: "DAC" }, { aliases: ["kathmandu"], code: "KTM" },
   { aliases: ["dubai"], code: "DXB" }, { aliases: ["abu dhabi"], code: "AUH" },
   { aliases: ["singapore"], code: "SIN" }, { aliases: ["london"], code: "LHR" },
@@ -115,7 +113,7 @@ async function serpApiRequest(params: URLSearchParams, apiKey: string) {
 }
 
 export async function searchSerpApiFlights(input: {
-  origin: string; destination: string; departureDate: string; adults?: number; currency?: string;
+  origin: string; destination: string; departureDate: string; adults?: number; currency?: string; allowConnections?: boolean;
 }): Promise<SerpApiFlightSearchResult> {
   const apiKey = process.env.SERPAPI_API_KEY?.trim();
   if (!apiKey) return {
@@ -175,6 +173,8 @@ export async function searchSerpApiFlights(input: {
   if (offers.length) {
     return { status: "offers_found", provider: "SerpApi", environment: "live", checkedAt: new Date().toISOString(), originCode, destinationCode, totalOffersReturned: offers.length, hasMoreOffers: false, offers: offers.slice(0, 30) };
   }
+
+  if (input.allowConnections === false) return { status: "no_offers", provider: "SerpApi", environment: "live", checkedAt: new Date().toISOString(), originCode, destinationCode, offers: [] };
 
   // Route builder: use a globally distributed transfer-airport network for every origin/destination.
   // This network is not tied to a particular city pair. Search each candidate independently and

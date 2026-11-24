@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowRight, CalendarDays, Compass, MapPin, Minus, Plus, Sparkles, Users, Wallet, Plane, TrainFront, BusFront, CarFront, ArrowUpRight } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
@@ -13,6 +13,8 @@ import { createEmptyTransportLeg, getTransportLegTotal, validateTransportLegs, t
 import { useTrip } from "@/contexts/TripContext";
 import { defaultPlan, type Interest, type PlanInputs } from "@/lib/tripData";
 import { assessTripReadiness } from "@/lib/tripReadiness";
+import { createJourneyOptions } from "@/lib/journeyOptionBuilder";
+import type { JourneyPriority } from "../../../server/lib/transport/journeyGraph";
 
 const interests: Interest[] = ["Nature", "Food", "History", "Adventure", "Shopping", "Nightlife", "Photography", "Culture", "Beaches", "Architecture", "Family"];
 const budgetDefaults: Array<{ category: BudgetCategory; label: string; rule: BudgetQuantityRule }> = [
@@ -87,8 +89,32 @@ export default function JourneyStudio() {
     busAvailability: { status: string; provider: string; message: string };
   } | null>(null);
   const [researching, setResearching] = useState(false);
+  const researchRunId = useRef(0);
   const [modeComparison, setModeComparison] = useState<Array<{ mode: string; status: string; headline: string; detail: string }>>([]);
+  const [journeyPriority, setJourneyPriority] = useState<JourneyPriority>("balanced");
+  const [journeyOptions, setJourneyOptions] = useState<ReturnType<typeof createJourneyOptions> | null>(null);
+  const [journeySources, setJourneySources] = useState<{ flights?: any; buses?: any } | null>(null);
+  const [gatewayDiscovery, setGatewayDiscovery] = useState<{ radiusKm: number; origin: Array<{ id: string; name: string; mode: string; distanceKm: number; iataCode?: string; stationCode?: string }>; destination: Array<{ id: string; name: string; mode: string; distanceKm: number; iataCode?: string; stationCode?: string }>; limitations: string[] } | null>(null);
+  const [gatewayJourneyResearch, setGatewayJourneyResearch] = useState<any>(null);
+  const [gatewayResearchState, setGatewayResearchState] = useState<"idle" | "searching" | "complete" | "unavailable">("idle");
+  const [gatewayResearchError, setGatewayResearchError] = useState("");
   const [researchError, setResearchError] = useState("");
+  const researchRouteKey = [draft.startLocation, draft.destination, draft.startDate, draft.startLocationPoint?.lat, draft.startLocationPoint?.lng, draft.destinationLocation?.lat, draft.destinationLocation?.lng].join("|");
+  const lastResearchRouteKey = useRef(researchRouteKey);
+  useEffect(() => {
+    if (lastResearchRouteKey.current === researchRouteKey) return;
+    lastResearchRouteKey.current = researchRouteKey;
+    researchRunId.current += 1;
+    setResearching(false);
+    setRouteResearch(null);
+    setModeComparison([]);
+    setJourneyOptions(null);
+    setJourneySources(null);
+    setGatewayDiscovery(null);
+    setGatewayJourneyResearch(null);
+    setIntelligenceReport(null);
+    setResearchError("");
+  }, [researchRouteKey]);
   const [intelligenceReport, setIntelligenceReport] = useState<{
     engine: string; summary: string; confidence: string;
     findings: Array<{ mode: string; level: string; headline: string; details: string[] }>;
@@ -99,9 +125,18 @@ export default function JourneyStudio() {
       setResearchError("Select both departure and destination from the location suggestions first.");
       return;
     }
+    const activeRunId = ++researchRunId.current;
     setResearching(true);
     setResearchError("");
     setRouteResearch(null);
+    setModeComparison([]);
+    setJourneyOptions(null);
+    setJourneySources(null);
+    setGatewayDiscovery(null);
+    setGatewayJourneyResearch(null);
+    setGatewayResearchState("searching");
+    setGatewayResearchError("");
+    setIntelligenceReport(null);
     try {
       const input = {
         origin: draft.startLocation,
@@ -126,14 +161,44 @@ export default function JourneyStudio() {
         throw new Error(`Route API returned a non-JSON response (${statusHint}).${requestHint}`);
       }
       const result = payload.result?.data?.json;
+      if (activeRunId !== researchRunId.current) return;
       if (!response.ok || !result) {
         const reference = payload.error?.json?.data?.requestId || requestId;
         const suffix = reference && reference !== "not supplied" ? ` · Reference: ${reference}` : "";
         throw new Error((payload.error?.json?.message || `Route research failed (HTTP ${response.status}).`) + suffix);
       }
       setRouteResearch(result);
+      setGatewayDiscovery(null);
+      // Gateway research is visible and reports failures instead of silently disappearing.
+      setGatewayResearchState("searching");
+      setGatewayResearchError("");
+      void fetch(`/api/trpc/route.gatewayJourneys?input=${encodeURIComponent(JSON.stringify({ json: {
+        origin: draft.startLocationPoint, destination: draft.destinationLocation,
+        originLabel: draft.startLocation, destinationLabel: draft.destination,
+        travelDate: input.travelDate, adults: 1, currency: "INR", radiusKm: 150
+      } }))}`)
+        .then(async response => {
+          const raw = await response.text();
+          let payload: any = null;
+          try { payload = JSON.parse(raw); } catch { /* non-JSON response handled below */ }
+          if (!response.ok || !payload?.result?.data?.json) {
+            throw new Error(payload?.error?.json?.message || `Gateway research returned HTTP ${response.status}.`);
+          }
+          return payload.result.data.json;
+        })
+        .then(data => {
+          if (activeRunId !== researchRunId.current) return;
+          setGatewayJourneyResearch(data);
+          setGatewayDiscovery({ radiusKm: data.gatewayRadiusKm, ...data.gateways });
+          setGatewayResearchState("complete");
+        })
+        .catch(error => {
+          if (activeRunId !== researchRunId.current) return;
+          setGatewayResearchError(error instanceof Error ? error.message : "Gateway research could not be completed.");
+          setGatewayResearchState("unavailable");
+        });
       // Query independent mode providers together. A failure in one mode must not hide the others.
-      const safeModeSearch = async (mode: string, path: string, payload: Record<string, unknown>) => {
+      const safeModeSearch = async (mode: string, path: string, payload: Record<string, unknown>): Promise<any> => {
         try {
           const response = await fetch(`/api/trpc/${path}?input=${encodeURIComponent(JSON.stringify({ json: payload }))}`);
           const raw = await response.text();
@@ -147,9 +212,10 @@ export default function JourneyStudio() {
             const direct = found && offers.some((offer: any) => Array.isArray(offer.segments) && offer.segments.length === 1);
             return {
               mode,
-              status: found ? "available" : data.status === "provider_not_configured" ? "not_configured" : "no_verified_options",
-              headline: found ? `${offers.length} flight options available` : data.status === "provider_not_configured" ? "Flight search not configured" : "No verified flights found",
-              detail: found ? `${airportRoute}${direct ? " · Direct option found" : " · Connecting options"} · Supplier-returned results; confirm price and availability before booking.` : String(data.message ?? "No complete flight itinerary was verified for this date.")
+              status: found ? "available" : data.status === "provider_not_configured" ? "not_configured" : "unavailable",
+              headline: found ? `${offers.length} flight options available` : data.status === "provider_not_configured" ? "Flight search not configured" : "Flight search could not verify this route",
+              detail: found ? `${airportRoute}${direct ? " · Direct option found" : " · Connecting options"} · Supplier-returned results; confirm price and availability before booking.` : String(data.message ?? "The flight provider did not return a verifiable result. This is not proof that flights do not operate."),
+              data
             };
           }
           const found = data.status === "offers_found" && offers.length > 0;
@@ -159,7 +225,8 @@ export default function JourneyStudio() {
             mode,
             status: found ? "available" : "no_published_timetable",
             headline: found ? `${offers.length} public bus trips available` : "No matching public timetable",
-            detail: found ? `Published public timetable results, not private coach inventory.${sample}` : String(data.message ?? "No matching published public timetable. This does not mean buses do not operate on this route.")
+            detail: found ? `Published public timetable results, not private coach inventory.${sample}` : String(data.message ?? "No matching published public timetable. This does not mean buses do not operate on this route."),
+            data
           };
         } catch {
           return { mode, status: "unavailable", headline: "Search unavailable", detail: "This provider could not be reached. Other transport results remain available." };
@@ -169,24 +236,31 @@ export default function JourneyStudio() {
         safeModeSearch("Flights", "flights.search", { origin: draft.startLocation, destination: draft.destination, departureDate: input.travelDate, adults: draft.adults, currency: draft.currency }),
         safeModeSearch("Buses", "buses.search", { origin: draft.startLocation, destination: draft.destination, travelDate: input.travelDate }),
       ]);
+      if (activeRunId !== researchRunId.current) return;
+      setJourneySources({ flights: flightMode.data, buses: busMode.data });
+      setJourneyOptions(createJourneyOptions({ research: result, flights: flightMode.data, buses: busMode.data, priority: journeyPriority }));
       const roadMode = result.road?.status === "route_found"
         ? { mode: "Car", status: "estimated", headline: `${result.road.distanceKm} km · ${Math.floor((result.road.durationMinutes ?? 0) / 60)}h ${(result.road.durationMinutes ?? 0) % 60}m`, detail: "Driving route estimate from OSRM. Time can change with traffic, weather, road conditions and stops." }
         : { mode: "Car", status: "unavailable", headline: "Road estimate unavailable", detail: "No reliable driving route was returned for these selected points." };
       const trainFound = result.trainAvailability.status === "offers_found" && result.trainAvailability.trains.length > 0;
       const trainMode = trainFound
         ? { mode: "Trains", status: "available", headline: `${result.trainAvailability.trains.length} train services available`, detail: result.trainAvailability.disclaimer ?? "Published train timetable results. Verify running status and seat availability before travel." }
-        : { mode: "Trains", status: "no_verified_options", headline: "No verified train options found", detail: result.trainAvailability.message ?? result.trainAvailability.disclaimer ?? "No matching train timetable was returned for this route and date." };
+        : result.trainAvailability.status === "provider_not_configured"
+          ? { mode: "Trains", status: "not_configured", headline: "Train search not configured", detail: result.trainAvailability.message ?? "The timetable provider credentials are not configured. No availability conclusion can be made." }
+          : result.trainAvailability.status === "lookup_unavailable"
+            ? { mode: "Trains", status: "unavailable", headline: "Train provider unavailable", detail: result.trainAvailability.message ?? "The timetable provider could not verify this route. This does not mean trains are unavailable." }
+            : { mode: "Trains", status: "no_verified_options", headline: "No matching timetable returned", detail: result.trainAvailability.message ?? "No matching train timetable was returned for this route and date. This does not prove that no train service exists." };
       setModeComparison([roadMode, busMode, flightMode, trainMode]);
       const intelligenceResponse = await fetch(`/api/trpc/route.intelligence?input=${encodeURIComponent(JSON.stringify({ json: { research: result } }))}`);
       const intelligenceText = await intelligenceResponse.text();
       if (!intelligenceResponse.ok) throw new Error("The evidence summary could not be generated.");
       const intelligencePayload = JSON.parse(intelligenceText) as { result?: { data?: { json?: typeof intelligenceReport } } };
       const report = intelligencePayload.result?.data?.json;
-      if (report) setIntelligenceReport(report);
+      if (activeRunId === researchRunId.current && report) setIntelligenceReport(report);
     } catch (error) {
-      setResearchError(error instanceof Error ? error.message : "Route research failed. Please try again.");
+      if (activeRunId === researchRunId.current) setResearchError(error instanceof Error ? error.message : "Route research failed. Please try again.");
     } finally {
-      setResearching(false);
+      if (activeRunId === researchRunId.current) setResearching(false);
     }
   };
   const updateTransportLeg = (id: string, updates: Partial<TransportLeg>) => setTransportLegs(legs => legs.map(leg => leg.id === id ? { ...leg, ...updates } : leg));
@@ -372,23 +446,52 @@ export default function JourneyStudio() {
               </div>
               <div className="mt-4 flex items-center justify-between text-sm"><span className="font-semibold text-[#71857e]">Estimated transport total</span><strong className="text-[#123a35]">{money(transportTotal,draft.currency)}</strong></div>
               <div className="mt-7 border-t border-[#123a35]/10 pt-6">
-                <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Route intelligence</p><h3 className="mt-1 font-display text-xl">Research this route</h3><p className="mt-1 text-xs leading-5 text-[#71857e]">Research available road estimates, published train and bus services, and flight options for your selected route and date. Add a suitable result to your journey segments.</p></div><button type="button" disabled={researching||!draft.startLocationPoint||!draft.destinationLocation} onClick={runRouteResearch} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#123a35] px-4 py-2.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">{researching?"Researching route…":"Research route"} <ArrowRight className="h-4 w-4"/></button></div>
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Route intelligence</p><h3 className="mt-1 font-display text-xl">Research this route</h3><p className="mt-1 text-xs leading-5 text-[#71857e]">Research available road estimates, published train and bus services, and flight options for your selected route and date. Add a suitable result to your journey segments.</p></div><button type="button" disabled={researching||!draft.startLocationPoint||!draft.destinationLocation} onClick={runRouteResearch} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#123a35] px-4 py-2.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">{researching?"Researching sources…":"Research route"} <ArrowRight className="h-4 w-4"/></button></div>
                 {(!draft.startLocationPoint||!draft.destinationLocation)&&<p className="mt-3 text-xs text-[#9a6a35]">Select both endpoints from the location suggestions to enable route research.</p>}
-                {researchError&&<p role="alert" className="mt-3 rounded-lg bg-[#fff0e5] p-3 text-xs leading-5 text-[#a84b19]">{researchError}</p>}
+                {researching&&<div role="status" aria-live="polite" className="mt-5 overflow-hidden rounded-2xl border border-[#123a35]/10 bg-white p-4 shadow-[0_12px_36px_rgba(18,58,53,0.06)]"><div className="flex items-center gap-3"><span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#eef3ed]"><span className="absolute h-6 w-6 animate-ping rounded-full bg-[#e6651b]/15"/><Compass className="relative h-5 w-5 text-[#123a35]"/></span><div className="min-w-0 flex-1"><p className="text-sm font-extrabold text-[#123a35]">Building your route picture</p><p className="mt-0.5 text-xs leading-5 text-[#71857e]">Checking road, rail, flight and public transport sources independently. Results appear as each check completes.</p></div><span className="h-2 w-2 animate-pulse rounded-full bg-[#e6651b]"/></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#eef3ed]"><div className="h-full w-2/5 animate-pulse rounded-full bg-[#e6651b]"/></div></div>}{researchError&&<p role="alert" className="mt-3 rounded-lg bg-[#fff0e5] p-3 text-xs leading-5 text-[#a84b19]">{researchError}</p>}
                 {routeResearch&&<div className="mt-5 space-y-5">
                   <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold">{routeResearch.origin} <span className="px-1 text-[#e6651b]">→</span> {routeResearch.destination}</p><span className="text-[10px] text-[#87958f]">Checked {new Date(routeResearch.retrievedAt).toLocaleString()}</span></div>
                   <section className="rounded-2xl border border-[#123a35]/10 bg-white p-4 sm:p-5">
                     <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">All ways to get there</p><h3 className="mt-1 font-display text-xl">Transport options for this journey</h3></div><span className="rounded-full bg-[#eef3ed] px-3 py-1.5 text-[10px] font-bold text-[#45645b]">Provider evidence · selected date</span></div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {modeComparison.map(item=><article key={item.mode} className="rounded-xl border border-[#123a35]/10 bg-[#fbfcf9] p-4"><div className="flex items-center justify-between gap-2"><h4 className="text-sm font-extrabold">{item.mode}</h4><span className="rounded-full bg-[#e9eee7] px-2 py-1 text-[9px] font-bold uppercase text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div><p className="mt-3 text-lg font-black leading-snug">{item.headline}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{item.detail}</p>{item.status==="available"||item.status==="estimated"?<button type="button" onClick={()=>addResearchModeToJourney(item.mode)} className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg bg-[#123a35] px-3 py-2 text-xs font-bold text-white hover:bg-[#1d514a]">Add to journey <ArrowRight className="ml-2 h-3.5 w-3.5"/></button>:<p className="mt-3 text-[10px] text-[#87958f]">No selectable service confirmed from this search.</p>}</article>)}
+                    <div className="mt-5 space-y-5">
+                      {([{key:"Flights",title:"Air connections",description:"Airports and flight services for this route.",icon:Plane},{key:"Trains",title:"Rail connections",description:"Train services and reachable railway gateways.",icon:TrainFront},{key:"Buses",title:"Bus connections",description:"Published public timetable evidence.",icon:BusFront},{key:"Car",title:"Road connections",description:"Direct driving and verified ground transfers.",icon:CarFront}] as const).map(group=>{const item=modeComparison.find(result=>result.mode===group.key);const Icon=group.icon;if(!item){return researching?<section key={group.key} className="animate-pulse rounded-2xl border border-[#123a35]/10 bg-white p-4"><div className="h-3 w-28 rounded bg-[#eef3ed]"/><div className="mt-4 h-5 w-2/3 rounded bg-[#eef3ed]"/><div className="mt-2 h-3 w-full rounded bg-[#f3f5ef]"/><div className="mt-2 h-3 w-4/5 rounded bg-[#f3f5ef]"/></section>:null;}return <section key={group.key} className="overflow-hidden rounded-2xl border border-[#123a35]/10 bg-white shadow-[0_8px_28px_rgba(18,58,53,0.045)]">
+                        <div className="flex items-center gap-3 border-b border-[#123a35]/8 bg-[#f7f9f5] px-4 py-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-white text-[#45645b]"><Icon className="h-5 w-5"/></span><div className="min-w-0 flex-1"><h4 className="text-sm font-extrabold text-[#123a35]">{group.title}</h4><p className="text-[10px] text-[#87958f]">{group.description}</p></div><span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div>
+                        <div className="p-4"><p className="text-lg font-black leading-snug text-[#123a35]">{item.headline}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{item.detail}</p>{item.status==="available"||item.status==="estimated"?<button type="button" onClick={()=>addResearchModeToJourney(item.mode)} className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl bg-[#123a35] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#1d514a]">Add {group.key.toLowerCase()} to journey <ArrowRight className="ml-2 h-3.5 w-3.5"/></button>:<p className="mt-3 text-[10px] text-[#87958f]">This provider did not return a selectable service. Check the indirect gateway results below before ruling out this mode.</p>}</div>
+                      </section>})}
                     </div>
+                    {gatewayDiscovery && <section className="mt-6 rounded-2xl border border-[#123a35]/10 bg-[#f7f9f5] p-4 sm:p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Network-wide discovery</p><h3 className="mt-1 text-lg font-black">Nearby transport gateways</h3><p className="mt-1 text-xs text-[#71857e]">Searching up to {gatewayDiscovery.radiusKm} km around both trip endpoints, including gateways across regional boundaries.</p></div><span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-[#45645b]">{gatewayDiscovery.origin.length + gatewayDiscovery.destination.length} mapped candidates</span></div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        {([{key:"origin",title:"Around departure"},{key:"destination",title:"Around destination"}] as const).map(group=><div key={group.key} className="rounded-xl border border-[#123a35]/10 bg-white p-3"><h4 className="text-xs font-extrabold">{group.title}</h4>{gatewayDiscovery[group.key].length ? <div className="mt-2 space-y-2">{gatewayDiscovery[group.key].slice(0,12).map(item=><div key={item.id} className="flex items-start justify-between gap-2 border-t border-[#123a35]/5 pt-2"><div className="min-w-0"><p className="truncate text-xs font-semibold">{item.name}</p><p className="text-[10px] capitalize text-[#87958f]">{item.mode}{item.iataCode ? " · " + item.iataCode : ""}{item.stationCode ? " · " + item.stationCode : ""}</p></div><span className="shrink-0 text-[10px] text-[#71857e]">{item.distanceKm} km</span></div>)}</div> : <p className="mt-2 text-xs text-[#87958f]">No mapped gateway candidates returned in this search radius.</p>}</div>)}
+                      </div>
+                      <p className="mt-3 text-[10px] leading-5 text-[#87958f]">These are geographic candidates, not confirmed services. TripsForge must verify schedules and road transfers before including them in a complete journey.</p>
+                    </section>}
+                    {routeResearch && <section className="mt-6 rounded-2xl border border-[#e6651b]/20 bg-[#fffaf5] p-4 sm:p-5">\n                      <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Indirect journey search</p><h3 className="mt-1 text-lg font-black text-[#123a35]">Nearby gateway connections</h3></div><span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-bold uppercase text-[#45645b]">{gatewayResearchState==="searching"?"Searching":gatewayResearchState==="complete"?"Research complete":gatewayResearchState==="unavailable"?"Search unavailable":"Waiting"}</span></div>\n                      {gatewayResearchState==="searching" && <p className="mt-3 text-xs leading-5 text-[#71857e]">Checking nearby airports, railway stations and bus terminals, then searching provider services and road access. This can take a few seconds.</p>}\n                      {gatewayResearchState==="unavailable" && <div className="mt-3 rounded-xl bg-white p-3 text-xs leading-5 text-[#9a5a2b]">{gatewayResearchError || "Gateway research could not be completed."} No indirect journey conclusion can be made from this search.</div>}\n                    </section>}\n                    {gatewayJourneyResearch && <section className="mt-6 rounded-2xl border border-[#e6651b]/20 bg-[#fffaf5] p-4 sm:p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Beyond direct routes</p><h3 className="mt-1 text-lg font-black text-[#123a35]">Gateway connection research</h3><p className="mt-1 text-xs leading-5 text-[#71857e]">Searching real flight, rail and public-bus services between nearby mapped gateways, with road access checked on both ends.</p></div><span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-[#45645b]">{gatewayJourneyResearch.searchedGatewayPairs} gateway pairs searched</span></div>
+                      {gatewayJourneyResearch.candidates?.length ? <div className="mt-4 space-y-3">{gatewayJourneyResearch.candidates.map((candidate:any)=><article key={candidate.mode+candidate.originGateway.id+candidate.destinationGateway.id} className="rounded-xl border border-[#123a35]/10 bg-white p-3.5"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-extrabold capitalize text-[#123a35]">{candidate.mode} · {candidate.originGateway.name} to {candidate.destinationGateway.name}</p><span className={candidate.connectionAssessment==="access_routes_found_timing_unverified"?"rounded-full bg-[#eef3ed] px-2.5 py-1 text-[9px] font-bold uppercase text-[#45645b]":"rounded-full bg-[#fff3e8] px-2.5 py-1 text-[9px] font-bold uppercase text-[#9a5a2b]"}>{candidate.connectionAssessment==="access_routes_found_timing_unverified"?"Service + road access found":"Not fully verified"}</span></div><p className="mt-2 text-xs text-[#71857e]">{candidate.serviceProvider} · {candidate.serviceCount} provider result{candidate.serviceCount===1?"":"s"}</p><div className="mt-2 grid grid-cols-2 gap-2 text-[11px]"><p className="rounded-lg bg-[#f7f9f5] p-2">To gateway: {candidate.access.origin.status==="route_found"?candidate.access.origin.distanceKm+" km · "+candidate.access.origin.durationMinutes+" min":"Road access unavailable"}</p><p className="rounded-lg bg-[#f7f9f5] p-2">From gateway: {candidate.access.destination.status==="route_found"?candidate.access.destination.distanceKm+" km · "+candidate.access.destination.durationMinutes+" min":"Road access unavailable"}</p></div>{candidate.services?.length>0&&<div className="mt-3 space-y-2">{candidate.services.map((service:any,serviceIndex:number)=><div key={String(service.id??service.trainNumber??service.route??serviceIndex)} className="rounded-lg border border-[#123a35]/8 bg-[#fbfcf9] p-2.5"><p className="text-xs font-bold text-[#123a35]">{String(service.carrier??service.trainName??service.route??"Published service")}{service.trainNumber?" · "+service.trainNumber:""}</p><p className="mt-1 text-[11px] text-[#71857e]">{service.departureTime??service.segments?.[0]?.departure??"Departure time not supplied"}{service.arrivalTime||service.segments?.[service.segments.length-1]?.arrival?" → "+String(service.arrivalTime??service.segments?.[service.segments.length-1]?.arrival):""}{service.amount?" · "+service.currency+" "+service.amount:""}</p></div>)}</div>}<p className="mt-3 text-[10px] leading-5 text-[#87958f]">{candidate.caveat}</p></article>)}</div>:<div className="mt-4 rounded-xl bg-white p-3 text-xs leading-5 text-[#71857e]">No verified gateway services were returned for the mapped candidates. This is not proof that no indirect route exists. Check provider coverage and try a wider search radius.</div>}
+                      <p className="mt-3 text-[10px] leading-5 text-[#87958f]">Beta scope: up to two nearest gateways per mode at each end. Road access is estimated; exact transfer-time compatibility is not yet verified. These are candidate combinations, not guaranteed end-to-end itineraries.</p>
+                    </section>}
+                    {journeyOptions && <section className="mt-6 rounded-2xl border border-[#e6651b]/20 bg-[#fffaf5] p-4 sm:p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">TripsForge journey intelligence</p><h3 className="mt-1 text-lg font-black">Ranked journey options</h3><p className="mt-1 text-xs text-[#71857e]">Compared from provider results and road estimates for your selected route.</p></div>
+                        <span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-[#45645b]">{journeyOptions.options.length} options</span>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">{([{value:"balanced",label:"Best balance"},{value:"cheapest",label:"Cheapest"},{value:"fastest",label:"Fastest"},{value:"fewest_transfers",label:"Fewest changes"}] as const).map(item=><button key={item.value} type="button" onClick={()=>{setJourneyPriority(item.value);setJourneyOptions(createJourneyOptions({research:routeResearch!,flights:journeySources?.flights,buses:journeySources?.buses,priority:item.value}));}} className={`rounded-full border px-3 py-2 text-[11px] font-bold ${journeyPriority===item.value?"border-[#123a35] bg-[#123a35] text-white":"border-[#123a35]/15 bg-white text-[#45645b]"}`}>{item.label}</button>)}</div>
+                      {journeyOptions.options.length ? <div className="mt-4 space-y-3">{journeyOptions.options.map((option,index)=><article key={option.id} className="rounded-xl border border-[#123a35]/10 bg-white p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-extrabold">Option {index+1} · {option.legs.map(leg=>leg.mode==="car"?"Car":leg.mode.charAt(0).toUpperCase()+leg.mode.slice(1)).join(" + ")}</p><span className="rounded-full bg-[#eef3ed] px-2.5 py-1 text-[9px] font-bold uppercase text-[#45645b]">{option.connectionStatus==="direct"?"Direct provider option":"Connection time checked"}</span></div>
+                        <p className="mt-2 text-sm font-bold">{option.legs.map(leg=>leg.fromLabel).at(0)} <span className="text-[#e6651b]">→</span> {option.legs.at(-1)?.toLabel}</p>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#71857e]"><span>{option.durationMinutes!==undefined?`${Math.floor(option.durationMinutes/60)}h ${option.durationMinutes%60}m`:"Duration not supplied"}</span><span>{option.price!==undefined&&option.currency?new Intl.NumberFormat(undefined,{style:"currency",currency:option.currency,maximumFractionDigits:0}).format(option.price):"Fare not supplied"}</span><span>{option.evidence.join(", ")}</span></div>
+                        <p className="mt-2 text-[10px] leading-5 text-[#87958f]">Evidence-backed result. This is a comparison, not a booking or availability guarantee.</p>
+                      </article>)}</div> : <p className="mt-4 rounded-lg bg-white p-3 text-xs text-[#71857e]">No complete options could be built from the returned provider evidence. This is not proof that no transport service exists.</p>}
+                      <p className="mt-3 text-[10px] leading-5 text-[#87958f]">Transfers between different services are not suggested unless exact shared station or terminal identifiers and reliable time-zone-aware schedules are available. Missing data is never guessed.</p>
+                    </section>}
                     <p className="mt-3 text-[10px] leading-5 text-[#87958f]">Car distance is a driving estimate. Public bus timetable feeds do not provide a comparable intercity road distance, so TripsForge will not copy the car distance onto a bus result. Missing fares, seats and schedules are never invented.</p>
                   </section>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl bg-[#f3f6f1] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Road network</p><p className="mt-1 text-lg font-black">{routeResearch.road?.status==="route_found"?routeResearch.road.distanceKm+" km":routeResearch.road?.status==="no_route_returned"?"No route returned":"Lookup unavailable"}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{routeResearch.road?.status==="route_found"?"Estimated drive: "+Math.floor((routeResearch.road.durationMinutes??0)/60)+"h "+(routeResearch.road.durationMinutes??0)%60+"m":routeResearch.road?.reason??"Road routing could not confirm a route."}</p><p className="mt-2 text-[10px] text-[#87958f]">{routeResearch.road?.provider??"OSRM / OpenStreetMap"}</p></div>
                     <div className="rounded-xl bg-[#f3f6f1] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Train timetable</p><p className="mt-1 text-lg font-black">{routeResearch.trainAvailability.status==="offers_found"?routeResearch.trainAvailability.trains.length+" services":routeResearch.trainAvailability.status.replaceAll("_"," ")}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{routeResearch.trainAvailability.message??routeResearch.trainAvailability.disclaimer??"No train timetable details returned."}</p></div>
                   </div>
-                  <div><h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-[#87958f]">Transport evidence by mode</h4><div className="divide-y divide-[#123a35]/10 border-y border-[#123a35]/10">{routeResearch.modes.map(item=><div key={item.mode} className="flex items-start justify-between gap-3 py-3"><div className="min-w-0"><p className="text-sm font-bold capitalize">{item.mode}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{item.evidence}</p></div><span className="shrink-0 rounded-md bg-[#eef3ed] px-2 py-1 text-[9px] font-bold uppercase text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div>)}</div></div>
+                  <details className="group rounded-xl border border-[#123a35]/10 bg-[#f8faf6] p-3"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-bold text-[#45645b]"><span>Research diagnostics · technical evidence</span><span className="text-[#87958f] transition group-open:rotate-180">⌄</span></summary><div className="mt-3 divide-y divide-[#123a35]/10 border-t border-[#123a35]/10">{routeResearch.modes.map(item=><div key={item.mode} className="flex items-start justify-between gap-3 py-3"><div className="min-w-0"><p className="text-xs font-bold capitalize">{item.mode}</p><p className="mt-1 text-[11px] leading-5 text-[#71857e]">{item.status==="not_checked"?"Gateway discovery is handled separately. A mapped terminal does not confirm a scheduled service.":item.evidence}</p></div><span className="shrink-0 rounded-md bg-[#eef3ed] px-2 py-1 text-[9px] font-bold uppercase text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div>)}</div></details>
                   {intelligenceReport&&<div className="rounded-xl border border-[#dce5dc] bg-white p-4"><p className="text-[10px] font-black uppercase tracking-wider text-[#e6651b]">TripsForge assessment · {intelligenceReport.confidence} confidence</p><p className="mt-2 text-sm font-semibold leading-6 text-[#123a35]">{intelligenceReport.summary}</p>{intelligenceReport.recommendedNextSteps.length>0&&<div className="mt-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Recommended next steps</p><ul className="mt-2 space-y-2">{intelligenceReport.recommendedNextSteps.map((step,index)=><li key={index} className="flex gap-2 text-xs leading-5 text-[#637e76]"><span className="font-bold text-[#e6651b]">{index+1}.</span>{step}</li>)}</ul></div>}</div>}
                   {routeResearch.limitations.length>0&&<div><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">What this research cannot confirm</p><ul className="mt-2 space-y-1.5">{routeResearch.limitations.map((item,index)=><li key={index} className="text-[11px] leading-5 text-[#87958f]">• {item}</li>)}</ul></div>}
                 </div>}
