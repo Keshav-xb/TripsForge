@@ -4,7 +4,8 @@ import { registerBusSearchProvider, runBusSearchProvider, type BusSearchInput } 
 
 type Feed = { id: string; name: string; state: string; modes?: string[]; service_start?: string; service_end?: string; source?: { name?: string; licence?: string }; };
 type Stop = { stop_id: string; stop_name: string; stop_lat?: string; stop_lon?: string; stop_timezone?: string };
-type Route = { route_id: string; route_short_name?: string; route_long_name?: string; agency_id?: string };\ntype Agency = { agency_id?: string; agency_timezone: string };
+type Route = { route_id: string; route_short_name?: string; route_long_name?: string; agency_id?: string };
+type Agency = { agency_id?: string; agency_timezone: string };
 type Trip = { route_id: string; service_id: string; trip_id: string; trip_headsign?: string; direction_id?: string };
 type StopTime = { trip_id: string; arrival_time: string; departure_time: string; stop_id: string; stop_sequence: string };
 type Calendar = { service_id: string; monday: string; tuesday: string; wednesday: string; thursday: string; friday: string; saturday: string; sunday: string; start_date: string; end_date: string };
@@ -33,7 +34,8 @@ function csvRows(text: string): Array<Record<string, string>> {
       else field += c;
     } else if (c === '"') quoted = true;
     else if (c === ",") { row.push(field); field = ""; }
-    else if (c === "\n") { row.push(field.replace(/\r$/, "")); if (row.some(v => v !== "")) rows.push(row); row = []; field = ""; }
+    else if (c === "
+") { row.push(field.replace(/\r$/, "")); if (row.some(v => v !== "")) rows.push(row); row = []; field = ""; }
     else field += c;
   }
   if (field || row.length) { row.push(field.replace(/\r$/, "")); rows.push(row); }
@@ -99,7 +101,8 @@ async function loadFeed(feed: Feed): Promise<FeedTables> {
     trips: rows("trips.txt") as Trip[],
     stopTimes: rows("stop_times.txt") as StopTime[],
     calendars: rows("calendar.txt") as Calendar[],
-    calendarDates: rows("calendar_dates.txt") as CalendarDate[],\n    agencies: rows("agency.txt") as Agency[],
+    calendarDates: rows("calendar_dates.txt") as CalendarDate[],
+    agencies: rows("agency.txt") as Agency[],
   };
   if (!tables.stops.length || !tables.stopTimes.length) throw new Error("GTFS_FEED_MISSING_REQUIRED_TABLES");
   feedCache.set(feed.id, { tables, expiresAt: Date.now() + 30 * 60_000 });
@@ -168,7 +171,10 @@ async function searchReclaimIndiaGtfs(input: BusSearchInput): Promise<BusResult>
         if (fromIndex < 0 || toIndex <= fromIndex) return;
         const first = times[fromIndex], last = times[toIndex];
         const route = routeIndex.get(trip.route_id);
-        const agency = tables.agencies.find(item => item.agency_id && item.agency_id === route?.agency_id)\n          ?? (tables.agencies.length === 1 ? tables.agencies[0] : undefined);\n        const agencyTimezone = agency?.agency_timezone;\n        offers.push({
+        const agency = tables.agencies.find(item => item.agency_id && item.agency_id === route?.agency_id)
+          ?? (tables.agencies.length === 1 ? tables.agencies[0] : undefined);
+        const agencyTimezone = agency?.agency_timezone;
+        offers.push({
           route: route?.route_short_name || route?.route_long_name || "Public bus",
           headsign: trip.trip_headsign || route?.route_long_name || "Scheduled public bus",
           departureTime: first.departure_time || first.arrival_time,
@@ -178,7 +184,10 @@ async function searchReclaimIndiaGtfs(input: BusSearchInput): Promise<BusResult>
           toStop: stopIndex.get(last.stop_id)?.stop_name ?? to.stop_name,
           feedId: feed.id,
           fromStopId: first.stop_id,
-          toStopId: last.stop_id,\n          serviceDate: input.travelDate,\n          ...(stopIndex.get(first.stop_id)?.stop_timezone ? { fromTimezone: stopIndex.get(first.stop_id)!.stop_timezone } : {}),\n          ...(stopIndex.get(last.stop_id)?.stop_timezone ? { toTimezone: stopIndex.get(last.stop_id)!.stop_timezone } : {}),
+          toStopId: last.stop_id,
+          serviceDate: input.travelDate,
+          ...((stopIndex.get(first.stop_id)?.stop_timezone || agencyTimezone) ? { fromTimezone: stopIndex.get(first.stop_id)?.stop_timezone || agencyTimezone } : {}),
+          ...((stopIndex.get(last.stop_id)?.stop_timezone || agencyTimezone) ? { toTimezone: stopIndex.get(last.stop_id)?.stop_timezone || agencyTimezone } : {}),
         });
       });
       const unique = Array.from(new Map(offers.map(offer => [`${offer.route}|${offer.departureTime}|${offer.arrivalTime}`, offer])).values()).sort((a, b) => a.departureTime.localeCompare(b.departureTime)).slice(0, 30);
