@@ -2,8 +2,34 @@ import { searchSerpApiFlights } from "./serpApiFlights.js";
 import { searchIndianTrains } from "./railAvailability.js";
 import { searchPublicBuses } from "../publicBus.js";
 import type { TransportGateway } from "./gatewayDiscovery.js";
+import { normalizePublicBusResult, normalizeRailSearchResult, normalizeSerpApiFlightResult } from "./providerAdapters.js";
+import type { ProviderResult, NormalizedServiceLeg } from "./providerContract.js";
+import { buildNormalizedJourneyGraph } from "./normalizedJourneyGraph.js";
+import type { JourneyOption } from "./journeyGraph.js";
 
 type Point = { lat: number; lng: number };
+
+function countryFromRouteLabel(label: string): string | undefined {
+  const parts = label.split(",").map(part => part.trim()).filter(Boolean);
+  return parts.length >= 2 ? parts[parts.length - 1].toLowerCase() : undefined;
+}
+
+export function isCrossCountryRoute(originLabel: string, destinationLabel: string): boolean {
+  const originCountry = countryFromRouteLabel(originLabel);
+  const destinationCountry = countryFromRouteLabel(destinationLabel);
+  return Boolean(originCountry && destinationCountry && originCountry !== destinationCountry);
+}
+
+export function filterGatewaysToCountry(items: TransportGateway[], countryCode?: string): TransportGateway[] {
+  // When the selected endpoint country is known, unknown-country and cross-border
+  // gateways are unsafe candidates. Do not silently substitute them.
+  return countryCode ? items.filter(item => item.countryCode === countryCode) : items;
+}
+
+/** True only when a provider's first flight segment departs on the selected local date. */
+export function isFlightDepartureOnDate(departure: string | undefined, travelDate: string): boolean {
+  return Boolean(departure && (departure.startsWith(`${travelDate} `) || departure.startsWith(`${travelDate}T`)));
+}
 type GatewaySearchResult = {
   mode: "flight" | "train" | "bus";
   originGateway: TransportGateway;
@@ -12,6 +38,9 @@ type GatewaySearchResult = {
   status: "offers_found" | "no_service_found" | "provider_unavailable";
   serviceCount: number;
   services: Array<Record<string, unknown>>;
+  serviceOptions: JourneyOption[];
+  serviceGraphDiagnostics?: { invalid: number; impossibleConnection: number; unsupportedConnection: number };
+  normalizedProviderResult?: ProviderResult<NormalizedServiceLeg>;
   access: {
     origin: { status: "route_found" | "unavailable"; distanceKm?: number; durationMinutes?: number };
     destination: { status: "route_found" | "unavailable"; distanceKm?: number; durationMinutes?: number };
@@ -19,6 +48,17 @@ type GatewaySearchResult = {
   connectionAssessment: "access_routes_found_timing_unverified" | "access_route_incomplete" | "service_not_found";
   caveat: string;
 };
+
+function buildGatewayServiceGraph(result?: ProviderResult<NormalizedServiceLeg>) {
+  if (!result || result.status !== "results" || result.items.length === 0) return { serviceOptions: [] as JourneyOption[] };
+  const first = result.items[0];
+  const firstOffer = result.items.filter(item => item.sourceReference === first.sourceReference);
+  const originNode = firstOffer[0]?.fromNodeId;
+  const destinationNode = firstOffer[firstOffer.length - 1]?.toNodeId;
+  if (!originNode || !destinationNode || originNode === destinationNode) return { serviceOptions: [] as JourneyOption[] };
+  const built = buildNormalizedJourneyGraph({ providerResults: [result], originNode, destinationNode, maxLegs: 4, maxOptions: 20 });
+  return { serviceOptions: built.graph.options, serviceGraphDiagnostics: built.graph.discarded };
+}
 
 async function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -55,7 +95,7 @@ async function roadAccess(from: Point, to: Point) {
 export function selectGateways(items: TransportGateway[], mode: TransportGateway["mode"]) {
   return items.filter(item => item.mode === mode)
     .sort((a, b) => a.distanceKm - b.distanceKm)
-    .slice(0, 2);
+    .slice(0, 4);
 }
 
 export async function searchGatewayJourneys(input: {
@@ -75,24 +115,40 @@ export async function searchGatewayJourneys(input: {
       let provider = mode === "flight" ? "SerpApi" : mode === "train" ? "RailCore" : "Public GTFS";
       let status: GatewaySearchResult["status"] = "provider_unavailable";
       let services: Array<Record<string, unknown>> = [];
+      let normalizedProviderResult: ProviderResult<NormalizedServiceLeg> | undefined;
       try {
         if (mode === "flight") {
           if (!from.iataCode || !to.iataCode || from.iataCode === to.iataCode) {
-            status = "no_service_found";
+            status = "provider_unavailable";
+            normalizedProviderResult = {
+              provider: "SerpApi", retrievedAt: new Date().toISOString(), evidence: "live_offer",
+              status: "unsupported", reason: "Both gateway endpoints must have verified IATA codes before a flight provider query can be made.",
+            };
           } else {
             const result = await withTimeout(searchSerpApiFlights({
               origin: from.iataCode, destination: to.iataCode, departureDate: input.travelDate,
-              adults: input.adults ?? 1, currency: input.currency ?? "INR", allowConnections: false,
+              adults: input.adults ?? 1, currency: input.currency ?? "INR", allowConnections: true,
             }), 8000);
-            status = result.status === "offers_found" ? "offers_found"
+            // Providers can return stale/cached offers for a different departure day.
+            // Enforce the selected local departure date before exposing or graphing them.
+            const dateScopedOffers = result.status === "offers_found"
+              ? result.offers.filter(offer => isFlightDepartureOnDate(offer.segments[0]?.departure, input.travelDate))
+              : [];
+            const dateScopedResult = result.status === "offers_found"
+              ? { ...result, offers: dateScopedOffers }
+              : result;
+            normalizedProviderResult = await normalizeSerpApiFlightResult(dateScopedResult);
+            status = result.status === "offers_found"
+              ? dateScopedOffers.length ? "offers_found" : "no_service_found"
               : result.status === "no_offers" ? "no_service_found" : "provider_unavailable";
-            if (result.status === "offers_found") services = result.offers.slice(0, 5).map(offer => ({
+            if (dateScopedOffers.length) services = dateScopedOffers.slice(0, 5).map(offer => ({
               id: offer.id, amount: offer.amount, currency: offer.currency, carrier: offer.owner,
               totalDurationMinutes: offer.totalDurationMinutes, segments: offer.segments,
             }));
           }
         } else if (mode === "train") {
           const result = await withTimeout(searchIndianTrains({ origin: from.name, destination: to.name, travelDate: input.travelDate }), 8000);
+          normalizedProviderResult = normalizeRailSearchResult(result, { origin: from.name, destination: to.name });
           status = result.status === "offers_found" ? "offers_found"
             : result.status === "no_service_found" ? "no_service_found" : "provider_unavailable";
           if (result.status === "offers_found") services = result.trains.slice(0, 5).map(train => ({
@@ -103,6 +159,7 @@ export async function searchGatewayJourneys(input: {
         } else {
           const result = await withTimeout(searchPublicBuses({ origin: from.name, destination: to.name, travelDate: input.travelDate }), 8000);
           provider = result.provider;
+          normalizedProviderResult = normalizePublicBusResult(result);
           status = result.status === "offers_found" ? "offers_found"
             : result.status === "no_service_found" ? "no_service_found" : "provider_unavailable";
           if (result.status === "offers_found") services = result.offers.slice(0, 5).map(offer => ({
@@ -110,13 +167,19 @@ export async function searchGatewayJourneys(input: {
             arrivalTime: offer.arrivalTime, fromStop: offer.fromStop, toStop: offer.toStop,
           }));
         }
-      } catch {
+      } catch (error) {
         status = "provider_unavailable";
+        const evidence = mode === "flight" ? "live_offer" as const : "published_schedule" as const;
+        const retrievedAt = new Date().toISOString();
+        const errorCode = error instanceof Error ? error.message : "UNKNOWN_PROVIDER_ERROR";
+        normalizedProviderResult = errorCode === "PROVIDER_TIMEOUT"
+          ? { provider, retrievedAt, evidence, status: "timeout", retryable: true }
+          : { provider, retrievedAt, evidence, status: "provider_error", retryable: true, errorCode };
       }
       if (status !== "offers_found") {
         results.push({
           mode, originGateway: from, destinationGateway: to, serviceProvider: provider,
-          status, serviceCount: 0, services: [],
+          status, serviceCount: 0, services: [], serviceOptions: [], normalizedProviderResult,
           access: { origin: { status: "unavailable" }, destination: { status: "unavailable" } },
           connectionAssessment: "service_not_found",
           caveat: status === "no_service_found"
@@ -130,9 +193,10 @@ export async function searchGatewayJourneys(input: {
         roadAccess({ lat: to.lat, lng: to.lng }, input.destination),
       ]);
       const accessComplete = originAccess.status === "route_found" && destinationAccess.status === "route_found";
+      const serviceGraph = buildGatewayServiceGraph(normalizedProviderResult);
       results.push({
         mode, originGateway: from, destinationGateway: to, serviceProvider: provider,
-        status, serviceCount: services.length, services,
+        status, serviceCount: services.length, services, ...serviceGraph, normalizedProviderResult,
         access: { origin: originAccess, destination: destinationAccess },
         connectionAssessment: accessComplete ? "access_routes_found_timing_unverified" : "access_route_incomplete",
         caveat: accessComplete
@@ -142,14 +206,26 @@ export async function searchGatewayJourneys(input: {
     })());
   };
 
+  // Keep gateway suggestions inside the traveler-selected country when known.
+  // A border-adjacent airport must not be selected solely because it is nearby.
+  const originCountry = /\bIndia\b/i.test(input.originLabel) ? "IN" : undefined;
+  const destinationCountry = /\bIndia\b/i.test(input.destinationLabel) ? "IN" : undefined;
+  const originGateways = filterGatewaysToCountry(input.gateways.origin, originCountry);
+  const destinationGateways = filterGatewaysToCountry(input.gateways.destination, destinationCountry);
+
+  const crossCountryRoute = isCrossCountryRoute(input.originLabel, input.destinationLabel);
+
   for (const mode of ["flight", "train", "bus"] as const) {
-    const origins = selectGateways(input.gateways.origin, mode);
-    const destinations = selectGateways(input.gateways.destination, mode);
+    // Local rail and public-bus feeds cannot form international service legs.
+    // Never query or expose them as candidates for cross-country journeys.
+    if (crossCountryRoute && (mode === "train" || mode === "bus")) continue;
+    const origins = selectGateways(originGateways, mode);
+    const destinations = selectGateways(destinationGateways, mode);
     const pairs = origins.flatMap(from => destinations
       .filter(to => from.id !== to.id)
       .map(to => ({ from, to, distance: from.distanceKm + to.distanceKm })))
       .sort((a, b) => a.distance - b.distance)
-      .slice(0, 2);
+      .slice(0, 3);
     for (const pair of pairs) addPair(mode, pair.from, pair.to);
   }
   await Promise.all(tasks);

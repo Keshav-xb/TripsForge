@@ -10,7 +10,7 @@ export type TransportGateway = {
   countryCode?: string;
   iataCode?: string;
   stationCode?: string;
-  source: "OpenStreetMap";
+  source: "OpenStreetMap" | "OurAirports" | "BuiltInAirportFallback";
 };
 
 type OverpassElement = {
@@ -77,7 +77,20 @@ export function normalizeGateways(
   return Array.from(unique.values()).sort((a, b) => a.distanceKm - b.distanceKm);
 }
 
-type AirportRegistryEntry = { lat: number; lng: number; iataCode: string; name: string };
+type AirportRegistryEntry = { lat: number; lng: number; iataCode: string; name: string; countryCode?: string; source?: "OurAirports" | "BuiltInAirportFallback" };
+
+// Small infrastructure-only fallback for common Indian gateways. This is airport
+// metadata (coordinates and codes), never a timetable or assertion that flights operate.
+const BUILT_IN_AIRPORTS: AirportRegistryEntry[] = [
+  { iataCode: "IXJ", name: "Jammu Airport", lat: 32.6891, lng: 74.8374, source: "BuiltInAirportFallback" },
+  { iataCode: "SXR", name: "Sheikh ul Alam Airport, Srinagar", lat: 33.9871, lng: 74.7742, source: "BuiltInAirportFallback" },
+  { iataCode: "ATQ", name: "Sri Guru Ram Dass Jee International Airport, Amritsar", lat: 31.7096, lng: 74.7973, source: "BuiltInAirportFallback" },
+  { iataCode: "IXC", name: "Chandigarh Airport", lat: 30.6735, lng: 76.7885, source: "BuiltInAirportFallback" },
+  { iataCode: "KUU", name: "Kullu-Manali Airport, Bhuntar", lat: 31.8767, lng: 77.1544, source: "BuiltInAirportFallback" },
+  { iataCode: "DHM", name: "Kangra Airport, Gaggal", lat: 32.1651, lng: 76.2636, source: "BuiltInAirportFallback" },
+  { iataCode: "DED", name: "Dehradun Airport", lat: 30.1897, lng: 78.1803, source: "BuiltInAirportFallback" },
+  { iataCode: "DEL", name: "Indira Gandhi International Airport, Delhi", lat: 28.5562, lng: 77.1000, source: "BuiltInAirportFallback" },
+];
 let airportRegistryCache: { expiresAt: number; entries: AirportRegistryEntry[] } | undefined;
 
 function parseCsvLine(line: string): string[] {
@@ -107,7 +120,7 @@ async function getAirportRegistry(): Promise<AirportRegistryEntry[]> {
   const column = (name: string) => headers.indexOf(name);
   const latIndex = column("latitude_deg"), lngIndex = column("longitude_deg");
   const iataIndex = column("iata_code"), nameIndex = column("name");
-  const scheduledIndex = column("scheduled_service"), typeIndex = column("type");
+  const scheduledIndex = column("scheduled_service"), typeIndex = column("type"), countryIndex = column("iso_country");
   if ([latIndex, lngIndex, iataIndex, nameIndex, scheduledIndex, typeIndex].some(index => index < 0)) {
     throw new Error("AIRPORT_REGISTRY_SCHEMA_INVALID");
   }
@@ -119,7 +132,7 @@ async function getAirportRegistry(): Promise<AirportRegistryEntry[]> {
     if (!/^[A-Z]{3}$/.test(iataCode) || row[scheduledIndex] !== "yes"
       || !["large_airport", "medium_airport", "small_airport"].includes(row[typeIndex])
       || !Number.isFinite(lat) || !Number.isFinite(lng)) return [];
-    return [{ lat, lng, iataCode, name: row[nameIndex] ?? "Airport" }];
+    return [{ lat, lng, iataCode, name: row[nameIndex] ?? "Airport", ...(row[countryIndex]?.trim() ? { countryCode: row[countryIndex].trim().toUpperCase() } : {}), source: "OurAirports" as const }];
   });
   airportRegistryCache = { entries, expiresAt: Date.now() + 24 * 60 * 60_000 };
   return entries;
@@ -191,14 +204,20 @@ export async function discoverGateways(input: {
   // Airports come from a separate scheduled-airport registry as well as OSM.
   // This keeps flight gateway discovery working when Overpass is degraded and
   // includes scheduled regional airports (for example, small airports).
-  const registry = await getAirportRegistry().catch(() => []);
+  const liveRegistry = await getAirportRegistry().catch(() => []);
+  const registryByCode = new Map<string, AirportRegistryEntry>();
+  for (const airport of [...liveRegistry, ...BUILT_IN_AIRPORTS]) {
+    // Prefer live registry coordinates, while retaining fallback-only regional airports.
+    if (!registryByCode.has(airport.iataCode) || airport.source === "OurAirports") registryByCode.set(airport.iataCode, airport);
+  }
+  const registry = Array.from(registryByCode.values());
   const registryGateways = (center: { lat: number; lng: number }): TransportGateway[] => registry
     .map(airport => ({ airport, distance: distanceKm(center, airport) }))
     .filter(item => item.distance <= radiusKm)
     .map(({ airport, distance }) => ({
       id: `airport-${airport.iataCode}`, name: airport.name, mode: "flight" as const,
       lat: airport.lat, lng: airport.lng, distanceKm: Math.round(distance * 10) / 10,
-      iataCode: airport.iataCode, source: "OpenStreetMap" as const,
+      iataCode: airport.iataCode, countryCode: airport.countryCode ?? (airport.source === "BuiltInAirportFallback" ? "IN" : undefined), source: airport.source ?? "OurAirports",
     }));
   const merge = (mapped: TransportGateway[], registryItems: TransportGateway[]) => {
     const byId = new Map<string, TransportGateway>();
@@ -220,4 +239,17 @@ export async function discoverGateways(input: {
       "A provider timetable or offer and a separately verified transfer are required before a complete journey can be recommended.",
     ],
   };
+}
+
+
+/** Resolve coordinates only from the scheduled-airport registry, never from city-name guesses. */
+export async function resolveAirportCoordinates(iataCode: string): Promise<{ lat: number; lng: number } | undefined> {
+  const code = iataCode.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(code)) return undefined;
+  try {
+    const airport = (await getAirportRegistry()).find(item => item.iataCode === code);
+    return airport ? { lat: airport.lat, lng: airport.lng } : undefined;
+  } catch {
+    return undefined;
+  }
 }
