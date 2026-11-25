@@ -204,8 +204,8 @@ export async function searchGatewayJourneys(input: {
   // A border-adjacent airport must not be selected solely because it is nearby.
   const originCountry = /\bIndia\b/i.test(input.originLabel) ? "IN" : undefined;
   const destinationCountry = /\bIndia\b/i.test(input.destinationLabel) ? "IN" : undefined;
-  const originGateways = originCountry ? input.gateways.origin.filter(item => !item.countryCode || item.countryCode === originCountry) : input.gateways.origin;
-  const destinationGateways = destinationCountry ? input.gateways.destination.filter(item => !item.countryCode || item.countryCode === destinationCountry) : input.gateways.destination;
+  const originGateways = originCountry ? input.gateways.origin.filter(item => item.countryCode === originCountry) : input.gateways.origin;
+  const destinationGateways = destinationCountry ? input.gateways.destination.filter(item => item.countryCode === destinationCountry) : input.gateways.destination;
 
   const crossCountryRoute = isCrossCountryRoute(input.originLabel, input.destinationLabel);
 
