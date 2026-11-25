@@ -40,7 +40,10 @@ type GoogleFlightItinerary = {
 };
 
 const AIRPORT_CODES: Array<{ aliases: string[]; code: string }> = [
-  { aliases: ["jammu"], code: "IXJ" }, { aliases: ["srinagar"], code: "SXR" },
+  { aliases: ["jammu", "jammu airport"], code: "IXJ" }, { aliases: ["srinagar", "srinagar airport"], code: "SXR" },
+  { aliases: ["manali", "kullu", "bhuntar", "kullu manali", "kullu manali airport"], code: "KUU" },
+  { aliases: ["kangra", "gaggal", "dharamshala", "kangra airport"], code: "DHM" },
+  { aliases: ["kullu manali airport", "bhuntar airport"], code: "KUU" },
   // Meghalaya has no dependable scheduled commercial service at Shillong Airport; Guwahati (GAU) is the practical regional gateway.
   { aliases: ["meghalaya", "shillong", "meghalaya state"], code: "GAU" },
   { aliases: ["delhi", "new delhi"], code: "DEL" }, { aliases: ["mumbai", "bombay"], code: "BOM" },
