@@ -103,3 +103,15 @@ For each route, record expected reachable gateways and provider coverage before 
 - Public GTFS coverage is not comprehensive for private/intercity services.
 - Gateway pair results currently lack sufficient timezone-aware schedule normalization for end-to-end feasibility.
 - The existing client journey builder intentionally limits graph paths to one leg.
+
+
+## Provider adapter normalization implementation
+
+The first adapter pass now maps existing provider responses into the shared contract:
+
+- SerpApi flight offers use IATA airport node IDs and preserve provider fare/currency. SerpApi local wall-clock strings are not converted into UTC or assigned guessed offsets, so these flight legs remain ineligible for time-based transfer validation until the source supplies timezone-aware timestamps.
+- RailCore results use the provider's resolved station codes as canonical rail node IDs. Timetable departure/arrival clock strings are not promoted to absolute timestamps without a station timezone and service-date rollover handling.
+- Reclaim GTFS bus results use feed-scoped stop IDs (feed ID + stop ID) so identical stop IDs from different feeds cannot collide. GTFS clock strings and fares are not invented into absolute times or prices.
+- Provider errors, timeouts, unconfigured credentials, unsupported identity data and confirmed empty results remain distinct in the normalized outcome.
+
+This adapter pass is additive. The existing route cards remain unchanged, and the normalized outcomes are attached to gateway research results for inspection and subsequent graph integration. It does not yet authorize multi-hop connections. A leg with missing absolute timestamps can be displayed as provider evidence, but cannot pass schedule-based connection validation.
