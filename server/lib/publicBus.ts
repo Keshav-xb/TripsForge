@@ -168,7 +168,7 @@ async function searchReclaimIndiaGtfs(input: BusSearchInput): Promise<BusResult>
         if (fromIndex < 0 || toIndex <= fromIndex) return;
         const first = times[fromIndex], last = times[toIndex];
         const route = routeIndex.get(trip.route_id);
-        offers.push({
+        const agency = tables.agencies.find(item => item.agency_id && item.agency_id === route?.agency_id)\n          ?? (tables.agencies.length === 1 ? tables.agencies[0] : undefined);\n        const agencyTimezone = agency?.agency_timezone;\n        offers.push({
           route: route?.route_short_name || route?.route_long_name || "Public bus",
           headsign: trip.trip_headsign || route?.route_long_name || "Scheduled public bus",
           departureTime: first.departure_time || first.arrival_time,
