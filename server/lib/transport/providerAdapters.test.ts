@@ -4,7 +4,6 @@ import { validateNormalizedLeg } from "./providerContract";
 import type { SerpApiFlightSearchResult } from "./serpApiFlights";
 import type { RailSearchResult } from "./railAvailability";
 import type { BusResult } from "../publicBus";
-import { localServiceTimeToIso } from "./localServiceTime";
 
 describe("transport provider adapter normalization", () => {
   it("normalizes a flight offer to airport IATA node identities without inventing timezone offsets", () => {
@@ -85,7 +84,7 @@ describe("transport provider adapter normalization", () => {
     expect(validateNormalizedLeg(normalized.items[0])).toEqual({ valid: true });
   });
 
-  it("does not normalize bus timetable rows lacking stable feed and stop IDs", () => {
+  it("normalizes feed-scoped GTFS stop IDs and service-date timestamps", () => {
     const result: BusResult = {
       status: "offers_found",
       provider: "Reclaim India GTFS",
