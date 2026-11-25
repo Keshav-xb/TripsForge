@@ -127,7 +127,7 @@ export async function searchGatewayJourneys(input: {
           } else {
             const result = await withTimeout(searchSerpApiFlights({
               origin: from.iataCode, destination: to.iataCode, departureDate: input.travelDate,
-              adults: input.adults ?? 1, currency: input.currency ?? "INR", allowConnections: false,
+              adults: input.adults ?? 1, currency: input.currency ?? "INR", allowConnections: true,
             }), 8000);
             // Providers can return stale/cached offers for a different departure day.
             // Enforce the selected local departure date before exposing or graphing them.
