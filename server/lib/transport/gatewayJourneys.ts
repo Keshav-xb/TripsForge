@@ -8,6 +8,11 @@ import { buildNormalizedJourneyGraph } from "./normalizedJourneyGraph.js";
 import type { JourneyOption } from "./journeyGraph.js";
 
 type Point = { lat: number; lng: number };
+
+/** True only when a provider's first flight segment departs on the selected local date. */
+export function isFlightDepartureOnDate(departure: string | undefined, travelDate: string): boolean {
+  return Boolean(departure && (departure.startsWith(`${travelDate} `) || departure.startsWith(`${travelDate}T`)));
+}
 type GatewaySearchResult = {
   mode: "flight" | "train" | "bus";
   originGateway: TransportGateway;
@@ -107,10 +112,19 @@ export async function searchGatewayJourneys(input: {
               origin: from.iataCode, destination: to.iataCode, departureDate: input.travelDate,
               adults: input.adults ?? 1, currency: input.currency ?? "INR", allowConnections: false,
             }), 8000);
-            normalizedProviderResult = await normalizeSerpApiFlightResult(result);
-            status = result.status === "offers_found" ? "offers_found"
+            // Providers can return stale/cached offers for a different departure day.
+            // Enforce the selected local departure date before exposing or graphing them.
+            const dateScopedOffers = result.status === "offers_found"
+              ? result.offers.filter(offer => isFlightDepartureOnDate(offer.segments[0]?.departure, input.travelDate))
+              : [];
+            const dateScopedResult = result.status === "offers_found"
+              ? { ...result, offers: dateScopedOffers }
+              : result;
+            normalizedProviderResult = await normalizeSerpApiFlightResult(dateScopedResult);
+            status = result.status === "offers_found"
+              ? dateScopedOffers.length ? "offers_found" : "no_service_found"
               : result.status === "no_offers" ? "no_service_found" : "provider_unavailable";
-            if (result.status === "offers_found") services = result.offers.slice(0, 5).map(offer => ({
+            if (dateScopedOffers.length) services = dateScopedOffers.slice(0, 5).map(offer => ({
               id: offer.id, amount: offer.amount, currency: offer.currency, carrier: offer.owner,
               totalDurationMinutes: offer.totalDurationMinutes, segments: offer.segments,
             }));

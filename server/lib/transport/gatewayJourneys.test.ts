@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectGateways } from "./gatewayJourneys";
+import { isFlightDepartureOnDate, selectGateways } from "./gatewayJourneys";
 import type { TransportGateway } from "./gatewayDiscovery";
 
 const gateway = (id: string, mode: TransportGateway["mode"], distanceKm: number): TransportGateway => ({
@@ -23,5 +23,19 @@ describe("gateway journey candidate selection", () => {
 
   it("returns an empty list when no gateway of that mode exists", () => {
     expect(selectGateways([gateway("airport", "flight", 3)], "train")).toEqual([]);
+  });
+});
+
+
+describe("gateway flight departure date guard", () => {
+  it("accepts provider departures on the selected local date", () => {
+    expect(isFlightDepartureOnDate("2026-11-27 17:35", "2026-11-27")).toBe(true);
+    expect(isFlightDepartureOnDate("2026-11-27T17:35:00", "2026-11-27")).toBe(true);
+  });
+
+  it("rejects stale or next-day flight offers outside the selected date", () => {
+    expect(isFlightDepartureOnDate("2026-12-25 17:35", "2026-11-27")).toBe(false);
+    expect(isFlightDepartureOnDate("2026-11-28 00:15", "2026-11-27")).toBe(false);
+    expect(isFlightDepartureOnDate(undefined, "2026-11-27")).toBe(false);
   });
 });
