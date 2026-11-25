@@ -44,6 +44,7 @@ describe("normalized transfer validation", () => {
       fromNodeId: "airport:iata:BBB",
       toNodeId: "airport:iata:CCC",
       departureAt: "2026-12-20T08:45:00.000Z",
+      arrivalAt: "2026-12-20T10:00:00.000Z",
     });
     expect(assessNormalizedTransfer(incoming, outgoing)).toMatchObject({
       status: "impossible",
@@ -65,6 +66,7 @@ describe("normalized transfer validation", () => {
       fromNodeId: "airport:iata:BBB",
       toNodeId: "airport:iata:CCC",
       departureAt: "2026-12-21T00:30:00.000Z",
+      arrivalAt: "2026-12-21T03:00:00.000Z",
     });
     expect(assessNormalizedTransfer(incoming, outgoing)).toMatchObject({ status: "impossible", transferMinutes: 990 });
   });
