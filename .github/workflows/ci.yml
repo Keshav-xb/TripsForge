@@ -1,4 +1,5 @@
 name: CI
+# Run typecheck, tests and production build for transport adapter changes.
 
 on:
   pull_request:
