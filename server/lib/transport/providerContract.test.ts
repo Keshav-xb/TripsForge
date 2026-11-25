@@ -3,6 +3,7 @@ import {
   isLegFresh,
   parseOffsetTimestamp,
   validateNormalizedLeg,
+  validateProviderResult,
   type NormalizedServiceLeg,
 } from "./providerContract";
 
@@ -84,5 +85,54 @@ describe("normalized transport provider contract", () => {
     expect(isLegFresh({ retrievedAt: "2026-01-01T00:00:00Z", validUntil: "2026-01-02T00:00:00Z" }, Date.parse("2026-01-03T00:00:00Z"))).toBe(false);
     expect(isLegFresh({ retrievedAt: "2026-01-02T00:00:00Z" }, Date.parse("2026-01-01T00:00:00Z"))).toBe(false);
     expect(isLegFresh({ retrievedAt: "2026-01-01T00:00:00Z" }, Date.parse("2026-01-01T12:00:00Z"))).toBe(true);
+  });
+});
+
+
+describe("provider envelope validation", () => {
+  const isString = (value: unknown): value is string => typeof value === "string";
+
+  it("preserves an explicit empty response as empty, not provider failure", () => {
+    const result = validateProviderResult({
+      provider: "ExampleProvider",
+      retrievedAt: "2026-11-25T09:00:00+05:30",
+      evidence: "published_schedule",
+      status: "empty",
+      message: "No scheduled service returned.",
+    }, isString);
+    expect(result?.status).toBe("empty");
+  });
+
+  it("rejects malformed result items instead of silently dropping them", () => {
+    const result = validateProviderResult({
+      provider: "ExampleProvider",
+      retrievedAt: "2026-11-25T09:00:00+05:30",
+      evidence: "published_schedule",
+      status: "results",
+      items: ["valid", 42],
+    }, isString);
+    expect(result).toBeUndefined();
+  });
+
+  it("rejects a provider failure mislabeled as an empty result", () => {
+    const result = validateProviderResult({
+      provider: "ExampleProvider",
+      retrievedAt: "2026-11-25T09:00:00+05:30",
+      evidence: "published_schedule",
+      status: "empty",
+      message: { error: "timeout" },
+    }, isString);
+    expect(result).toBeUndefined();
+  });
+
+  it("requires timeout outcomes to be explicitly retryable", () => {
+    const result = validateProviderResult({
+      provider: "ExampleProvider",
+      retrievedAt: "2026-11-25T09:00:00+05:30",
+      evidence: "published_schedule",
+      status: "timeout",
+      retryable: false,
+    }, isString);
+    expect(result).toBeUndefined();
   });
 });
