@@ -102,11 +102,11 @@ export async function normalizeSerpApiFlightResult(
         // across individual flights, because that would create fabricated segment fares.
         const amount = offer.segments.length === 1 ? currencyAmount(offer.amount, offer.currency) : {};
         const leg: NormalizedServiceLeg = {
-          id: \`\${offer.id}:\${segment.flightNumber ?? index}\`,
+          id: `${offer.id}:${segment.flightNumber ?? index}`,
           provider: "SerpApi",
           mode: "flight",
-          fromNodeId: \`airport:iata:\${fromCode}\`,
-          toNodeId: \`airport:iata:\${toCode}\`,
+          fromNodeId: `airport:iata:${fromCode}`,
+          toNodeId: `airport:iata:${toCode}`,
           fromLabel: segment.from,
           toLabel: segment.to,
           ...(departureAt ? { departureAt } : {}),
