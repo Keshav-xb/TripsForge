@@ -10,8 +10,8 @@ type StopTime = { trip_id: string; arrival_time: string; departure_time: string;
 type Calendar = { service_id: string; monday: string; tuesday: string; wednesday: string; thursday: string; friday: string; saturday: string; sunday: string; start_date: string; end_date: string };
 type CalendarDate = { service_id: string; date: string; exception_type: string };
 type FeedTables = { stops: Stop[]; routes: Route[]; trips: Trip[]; stopTimes: StopTime[]; calendars: Calendar[]; calendarDates: CalendarDate[] };
-type BusOffer = { route: string; headsign: string; departureTime: string; arrivalTime: string; intermediateStops: number; fromStop: string; toStop: string; };
-type BusResult =
+type BusOffer = { route: string; headsign: string; departureTime: string; arrivalTime: string; intermediateStops: number; fromStop: string; toStop: string; feedId: string; fromStopId: string; toStopId: string; };
+export type BusResult =
   | { status: "offers_found"; provider: string; retrievedAt: string; feed: string; state: string; offers: BusOffer[]; disclaimer: string; sourceLicence: string }
   | { status: "no_service_found"; provider: "Reclaim India GTFS"; retrievedAt: string; feed?: string; offers: []; message: string; disclaimer: string }
   | { status: "feed_not_available"; provider: "Reclaim India GTFS"; offers: []; message: string };
@@ -176,6 +176,9 @@ async function searchReclaimIndiaGtfs(input: BusSearchInput): Promise<BusResult>
           intermediateStops: Math.max(0, toIndex - fromIndex - 1),
           fromStop: stopIndex.get(first.stop_id)?.stop_name ?? from.stop_name,
           toStop: stopIndex.get(last.stop_id)?.stop_name ?? to.stop_name,
+          feedId: feed.id,
+          fromStopId: first.stop_id,
+          toStopId: last.stop_id,
         });
       });
       const unique = Array.from(new Map(offers.map(offer => [`${offer.route}|${offer.departureTime}|${offer.arrivalTime}`, offer])).values()).sort((a, b) => a.departureTime.localeCompare(b.departureTime)).slice(0, 30);
