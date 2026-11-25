@@ -32,14 +32,15 @@ describe("transport provider adapter normalization", () => {
         }],
       }],
     };
-    const normalized = normalizeSerpApiFlightResult(result);
+    const normalized = await normalizeSerpApiFlightResult(result, async () => "Asia/Kolkata");
     expect(normalized.status).toBe("results");
     if (normalized.status !== "results") return;
     expect(normalized.items[0].fromNodeId).toBe("airport:iata:IXJ");
     expect(normalized.items[0].toNodeId).toBe("airport:iata:DEL");
     expect(normalized.items[0].price).toBe(2450);
     expect(normalized.items[0].currency).toBe("INR");
-    expect(normalized.items[0].departureAt).toBeUndefined();
+    expect(normalized.items[0].departureAt).toBe("2026-12-20T02:30:00.000Z");
+    expect(normalized.items[0].arrivalAt).toBe("2026-12-20T04:05:00.000Z");
     expect(validateNormalizedLeg(normalized.items[0])).toEqual({ valid: true });
   });
 
@@ -51,7 +52,7 @@ describe("transport provider adapter normalization", () => {
       message: "API key missing",
       offers: [],
     };
-    expect(normalizeSerpApiFlightResult(result).status).toBe("not_configured");
+    expect((await normalizeSerpApiFlightResult(result)).status).toBe("not_configured");
   });
 
   it("normalizes train journeys using stable RailCore station codes", () => {
