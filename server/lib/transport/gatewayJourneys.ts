@@ -20,6 +20,12 @@ export function isCrossCountryRoute(originLabel: string, destinationLabel: strin
   return Boolean(originCountry && destinationCountry && originCountry !== destinationCountry);
 }
 
+export function filterGatewaysToCountry(items: TransportGateway[], countryCode?: string): TransportGateway[] {
+  // When the selected endpoint country is known, unknown-country and cross-border
+  // gateways are unsafe candidates. Do not silently substitute them.
+  return countryCode ? items.filter(item => item.countryCode === countryCode) : items;
+}
+
 /** True only when a provider's first flight segment departs on the selected local date. */
 export function isFlightDepartureOnDate(departure: string | undefined, travelDate: string): boolean {
   return Boolean(departure && (departure.startsWith(`${travelDate} `) || departure.startsWith(`${travelDate}T`)));
@@ -204,8 +210,8 @@ export async function searchGatewayJourneys(input: {
   // A border-adjacent airport must not be selected solely because it is nearby.
   const originCountry = /\bIndia\b/i.test(input.originLabel) ? "IN" : undefined;
   const destinationCountry = /\bIndia\b/i.test(input.destinationLabel) ? "IN" : undefined;
-  const originGateways = originCountry ? input.gateways.origin.filter(item => !item.countryCode || item.countryCode === originCountry) : input.gateways.origin;
-  const destinationGateways = destinationCountry ? input.gateways.destination.filter(item => !item.countryCode || item.countryCode === destinationCountry) : input.gateways.destination;
+  const originGateways = filterGatewaysToCountry(input.gateways.origin, originCountry);
+  const destinationGateways = filterGatewaysToCountry(input.gateways.destination, destinationCountry);
 
   const crossCountryRoute = isCrossCountryRoute(input.originLabel, input.destinationLabel);
 

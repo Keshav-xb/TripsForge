@@ -84,7 +84,7 @@ export default function Flights() {
         <p className="inline-flex items-center gap-2 rounded-full bg-[#e9eee7] px-4 py-2 text-xs font-bold uppercase tracking-[.16em] text-[#45645b]"><Plane className="h-4 w-4" /> TripsForge Flights</p>
         <h1 className="mt-5 font-display text-4xl leading-tight tracking-tight sm:text-6xl">Compare flights for your journey.</h1>
         {origin.trim() && destination.trim() && <p className="mx-auto mt-3 text-sm font-semibold text-[#45645b]">From {origin} to {destination}</p>}
-        <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[#637e76]">Start with your route and date. We’ll show supplier-returned options and clearly label what is live, estimated, or unavailable. TripsForge does not book or ticket flights yet.</p>
+        <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[#637e76]">Start with your route and date. We’ll show available options and clearly label what can and cannot be verified. TripsForge does not book or ticket flights yet.</p>
       </div>
       <form onSubmit={search} className="mx-auto mt-9 max-w-4xl rounded-[2rem] border border-[#123a35]/10 bg-[#fffdf8] p-5 shadow-[0_18px_60px_rgba(18,58,53,.08)] sm:p-8">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -100,8 +100,8 @@ export default function Flights() {
         {error && <p role="alert" className="mt-4 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-800"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</p>}
       </form>
       {result && <section className="mx-auto mt-8 max-w-4xl space-y-5">
-        {result.environment === "live" && <div className="flex items-start gap-3 rounded-2xl border border-[#c9dfd1] bg-[#edf5ef] p-4 text-sm leading-6 text-[#45645b]"><span className="mt-0.5 rounded-full bg-white p-1.5"><Plane className="h-4 w-4" /></span><div><strong className="block text-[#123a35]">Results retrieved from Google Flights</strong><span>Prices and availability can change. TripsForge is for viewing and comparing flights. No booking has been made.</span></div></div>}
-        {result.status === "provider_not_configured" && <div className="rounded-xl bg-[#fff0df] p-4 text-sm text-[#8b542d]">Flight search is not configured for this Preview deployment yet. Add `SERPAPI_API_KEY` to the Vercel Preview environment for this branch, then redeploy.</div>}
+        {result.environment === "live" && <div className="flex items-start gap-3 rounded-2xl border border-[#c9dfd1] bg-[#edf5ef] p-4 text-sm leading-6 text-[#45645b]"><span className="mt-0.5 rounded-full bg-white p-1.5"><Plane className="h-4 w-4" /></span><div><strong className="block text-[#123a35]">Live flight search results</strong><span>Prices and availability can change. TripsForge is for viewing and comparing flights. No booking has been made.</span></div></div>}
+        {result.status === "provider_not_configured" && <div className="rounded-xl bg-[#fff0df] p-4 text-sm text-[#8b542d]">Flight search is temporarily unavailable in this preview. Please try again later.</div>}
         {result.status === "no_offers" && <div className="rounded-[1.6rem] border border-[#ead9c8] bg-[#fffaf3] p-5 sm:p-6">
           <div className="flex items-start gap-3"><span className="rounded-xl bg-[#fff0df] p-2 text-[#a9571d]"><AlertCircle className="h-5 w-5" /></span><div><h3 className="text-lg font-extrabold text-[#123a35]">We couldn't build a verified flight journey for this date</h3><p className="mt-1 text-sm leading-6 text-[#637e76]">We checked {result.originCode} to {result.destinationCode}, searched for connecting flights through major hubs, and checked nearby departure airports where supported. We could not verify a complete option for this date, so we will not invent a flight or price.</p></div></div>
           <div className="mt-4 rounded-xl bg-white/80 p-3 text-xs leading-5 text-[#71857e]"><strong className="block text-[#45645b]">What you can try</strong>Choose another date, search from a nearby airport, or check the route in separate stages. Any connection shown by TripsForge must be supported by actual flight results for both legs.</div>
@@ -137,9 +137,9 @@ export default function Flights() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">{isTop && <span className="rounded-full bg-[#fff0df] px-3 py-1 text-[11px] font-black uppercase tracking-wide text-[#a9571d]">{sort === "recommended" ? "Best overall" : sort === "cheapest" ? "Lowest price" : "Shortest journey"}</span>}<span className="rounded-full bg-[#e9eee7] px-3 py-1 text-[11px] font-bold text-[#45645b]">{stops === 0 ? "Nonstop" : `${stops} stop${stops > 1 ? "s" : ""}`}</span></div>
                     <h3 className="mt-3 text-lg font-extrabold text-[#123a35]">{offer.segments[0]?.carrier || "Airline details unavailable"}</h3>
-                    <p className="mt-1 text-xs text-[#87958f]">Via Google Flights · {offer.owner}</p>
+                    
                   </div>
-                  <div className="text-right"><p className="text-2xl font-black tracking-tight text-[#123a35] sm:text-3xl">{price}</p><p className="mt-1 text-[11px] text-[#87958f]">Total shown by provider</p></div>
+                  <div className="text-right"><p className="text-2xl font-black tracking-tight text-[#123a35] sm:text-3xl">{price}</p><p className="mt-1 text-[11px] text-[#87958f]">Displayed fare</p></div>
                 </div>
                 {offer.connectionNote && <div className="mt-4 rounded-xl border border-[#e9cda9] bg-[#fff6e9] p-3 text-xs leading-5 text-[#85551f]"><strong className="block text-sm">{offer.connectionNote.startsWith("Alternative departure airport:") ? "Alternative departure airport" : "Suggested connection"}</strong>{offer.connectionNote}</div>}
                 <div className="mt-5 grid grid-cols-2 gap-3 rounded-2xl bg-[#f3f5ef] p-4">
