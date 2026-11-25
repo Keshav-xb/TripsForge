@@ -4,6 +4,8 @@ import { searchPublicBuses } from "../publicBus.js";
 import type { TransportGateway } from "./gatewayDiscovery.js";
 import { normalizePublicBusResult, normalizeRailSearchResult, normalizeSerpApiFlightResult } from "./providerAdapters.js";
 import type { ProviderResult, NormalizedServiceLeg } from "./providerContract.js";
+import { buildNormalizedJourneyGraph } from "./normalizedJourneyGraph.js";
+import type { JourneyOption } from "./journeyGraph.js";
 
 type Point = { lat: number; lng: number };
 type GatewaySearchResult = {
@@ -14,6 +16,8 @@ type GatewaySearchResult = {
   status: "offers_found" | "no_service_found" | "provider_unavailable";
   serviceCount: number;
   services: Array<Record<string, unknown>>;
+  serviceOptions: JourneyOption[];
+  serviceGraphDiagnostics?: { invalid: number; impossibleConnection: number; unsupportedConnection: number };
   normalizedProviderResult?: ProviderResult<NormalizedServiceLeg>;
   access: {
     origin: { status: "route_found" | "unavailable"; distanceKm?: number; durationMinutes?: number };
@@ -22,6 +26,17 @@ type GatewaySearchResult = {
   connectionAssessment: "access_routes_found_timing_unverified" | "access_route_incomplete" | "service_not_found";
   caveat: string;
 };
+
+function buildGatewayServiceGraph(result?: ProviderResult<NormalizedServiceLeg>) {
+  if (!result || result.status !== "results" || result.items.length === 0) return { serviceOptions: [] as JourneyOption[] };
+  const first = result.items[0];
+  const firstOffer = result.items.filter(item => item.sourceReference === first.sourceReference);
+  const originNode = firstOffer[0]?.fromNodeId;
+  const destinationNode = firstOffer[firstOffer.length - 1]?.toNodeId;
+  if (!originNode || !destinationNode || originNode === destinationNode) return { serviceOptions: [] as JourneyOption[] };
+  const built = buildNormalizedJourneyGraph({ providerResults: [result], originNode, destinationNode, maxLegs: 4, maxOptions: 20 });
+  return { serviceOptions: built.graph.options, serviceGraphDiagnostics: built.graph.discarded };
+}
 
 async function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -133,7 +148,7 @@ export async function searchGatewayJourneys(input: {
       if (status !== "offers_found") {
         results.push({
           mode, originGateway: from, destinationGateway: to, serviceProvider: provider,
-          status, serviceCount: 0, services: [], normalizedProviderResult,
+          status, serviceCount: 0, services: [], serviceOptions: [], normalizedProviderResult,
           access: { origin: { status: "unavailable" }, destination: { status: "unavailable" } },
           connectionAssessment: "service_not_found",
           caveat: status === "no_service_found"
@@ -147,9 +162,10 @@ export async function searchGatewayJourneys(input: {
         roadAccess({ lat: to.lat, lng: to.lng }, input.destination),
       ]);
       const accessComplete = originAccess.status === "route_found" && destinationAccess.status === "route_found";
+      const serviceGraph = buildGatewayServiceGraph(normalizedProviderResult);
       results.push({
         mode, originGateway: from, destinationGateway: to, serviceProvider: provider,
-        status, serviceCount: services.length, services, normalizedProviderResult,
+        status, serviceCount: services.length, services, ...serviceGraph, normalizedProviderResult,
         access: { origin: originAccess, destination: destinationAccess },
         connectionAssessment: accessComplete ? "access_routes_found_timing_unverified" : "access_route_incomplete",
         caveat: accessComplete
