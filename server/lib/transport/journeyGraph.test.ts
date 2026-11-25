@@ -69,8 +69,28 @@ describe("buildJourneyOptions", () => {
       originNode: "A", destinationNode: "C", priority: "cheapest",
     });
     expect(result.options).toHaveLength(2);
+    expect(result.options[0].legs[0].id).toBe("known-price");
+    expect(result.options[1].legs[0].id).toBe("unknown-price");
     expect(result.options.find(option => option.legs[0].id === "unknown-price")?.price).toBeUndefined();
     expect(result.options.find(option => option.legs[0].id === "unknown-price")?.priceComparable).toBe(false);
+  });
+
+  it("rejects timezone-less timestamps for connection decisions", () => {
+    const result = buildJourneyOptions({
+      legs: [legs[0], { ...legs[1], departureAt: "2026-12-01T12:45:00" }],
+      originNode: "A", destinationNode: "C",
+    });
+    expect(result.options).toHaveLength(0);
+    expect(result.discarded.invalid).toBeGreaterThan(0);
+  });
+
+  it("rejects legs with missing endpoint labels", () => {
+    const result = buildJourneyOptions({
+      legs: [{ ...legs[0], fromLabel: " " }],
+      originNode: "A", destinationNode: "B",
+    });
+    expect(result.options).toHaveLength(0);
+    expect(result.discarded.invalid).toBe(1);
   });
 
   it("deduplicates provider leg identifiers", () => {
