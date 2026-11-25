@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCrossCountryRoute, isFlightDepartureOnDate, selectGateways } from "./gatewayJourneys";
+import { filterGatewaysToCountry, isCrossCountryRoute, isFlightDepartureOnDate, selectGateways } from "./gatewayJourneys";
 import type { TransportGateway } from "./gatewayDiscovery";
 
 const gateway = (id: string, mode: TransportGateway["mode"], distanceKm: number): TransportGateway => ({
@@ -7,14 +7,14 @@ const gateway = (id: string, mode: TransportGateway["mode"], distanceKm: number)
 });
 
 describe("gateway journey candidate selection", () => {
-  it("selects only the two nearest gateways for the requested mode", () => {
+  it("returns matching gateways ordered by proximity for the requested mode", () => {
     const items = [
       gateway("airport-far", "flight", 90),
       gateway("station-near", "train", 4),
       gateway("airport-near", "flight", 12),
       gateway("airport-mid", "flight", 30),
     ];
-    expect(selectGateways(items, "flight").map(item => item.id)).toEqual(["airport-near", "airport-mid"]);
+    expect(selectGateways(items, "flight").map(item => item.id)).toEqual(["airport-near", "airport-mid", "airport-far"]);
   });
 
   it("returns fewer than two when only one matching gateway exists", () => {
@@ -52,5 +52,22 @@ describe("gateway mode feasibility by country", () => {
 
   it("does not infer a country when labels are incomplete", () => {
     expect(isCrossCountryRoute("Jammu", "Delhi")).toBe(false);
+  });
+});
+
+
+describe("gateway country filtering", () => {
+  it("rejects cross-border and unknown-country gateways when endpoint country is known", () => {
+    const items = [
+      { ...gateway("jammu", "flight", 5), countryCode: "IN" },
+      { ...gateway("sialkot", "flight", 18), countryCode: "PK" },
+      gateway("unknown-country", "flight", 2),
+    ];
+    expect(filterGatewaysToCountry(items, "IN").map(item => item.id)).toEqual(["jammu"]);
+  });
+
+  it("does not apply a country filter when the endpoint country is unknown", () => {
+    const items = [gateway("unknown", "flight", 1)];
+    expect(filterGatewaysToCountry(items).map(item => item.id)).toEqual(["unknown"]);
   });
 });
