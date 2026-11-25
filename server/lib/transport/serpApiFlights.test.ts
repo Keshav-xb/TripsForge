@@ -224,6 +224,23 @@ describe("searchSerpApiFlights", () => {
     }
   });
 
+  it("resolves Manali and Kangra to their regional airport codes", async () => {
+    process.env.SERPAPI_API_KEY = "server-only-test-key";
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      expect(url.searchParams.get("departure_id")).toBe("IXJ");
+      expect(["KUU", "DHM"]).toContain(url.searchParams.get("arrival_id"));
+      return new Response(JSON.stringify({ best_flights: [], other_flights: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    await searchSerpApiFlights({
+      origin: "Jammu, Jammu and Kashmir, India",
+      destination: "Manali, Himachal Pradesh, India",
+      departureDate: "2026-12-20",
+      allowConnections: false,
+    });
+  });
+
   it("rejects unsupported city names and invalid dates", async () => {
     process.env.SERPAPI_API_KEY = "server-only-test-key";
     await expect(searchSerpApiFlights({
