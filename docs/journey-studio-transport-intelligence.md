@@ -115,3 +115,20 @@ The first adapter pass now maps existing provider responses into the shared cont
 - Provider errors, timeouts, unconfigured credentials, unsupported identity data and confirmed empty results remain distinct in the normalized outcome.
 
 This adapter pass is additive. The existing route cards remain unchanged, and the normalized outcomes are attached to gateway research results for inspection and subsequent graph integration. It does not yet authorize multi-hop connections. A leg with missing absolute timestamps can be displayed as provider evidence, but cannot pass schedule-based connection validation.
+
+
+## Timezone and service-day normalization
+
+The adapter layer now converts schedule wall-clock values only when a trustworthy service date and IANA timezone are available.
+
+- GTFS bus offers carry the feed service date, feed-scoped stop IDs, stop timezone overrides, and the agency timezone from \`agency.txt\`. GTFS times such as \`25:10:00\` are interpreted as the next calendar day while retaining the original service date.
+- Mobility Database GTFS offers retain their feed and stop identities and the same service-date/timezone metadata when the feed supplies it.
+- Indian RailCore timetable offers carry the requested travel date. Its Indian rail timetable clock values are interpreted in \`Asia/Kolkata\`; arrival instants are accepted only when the provider's arrival clock agrees with its reported duration.
+- Flight offers are split into individual provider-returned segments. Airport coordinates come from the scheduled-airport OurAirports registry, and the IANA timezone is resolved from those coordinates through TimeAPI.io. Timezone lookup is cached; lookup failure leaves timestamps absent, so the leg cannot be used for a schedule-validated transfer.
+- Multi-segment flight fares are not distributed across component legs. The complete itinerary fare remains in the existing provider offer, while normalized segment legs do not claim a per-flight fare.
+
+The shared local-time converter rejects invalid IANA zones, malformed times, nonexistent DST times, and ambiguous DST wall times. It does not use the server's timezone.
+
+## Transfer assessment
+
+A separate normalized-transfer validator now requires valid provider legs, exact canonical node equality, timezone-aware arrival/departure instants, and conservative mode-specific minimum transfer buffers. It rejects transfers below the buffer or beyond the 12-hour layover window. This assessment is tested independently; the normalized results are not yet wired into multi-hop Journey Studio option generation.
