@@ -14,6 +14,12 @@ function countryFromRouteLabel(label: string): string | undefined {
   return parts.length >= 2 ? parts[parts.length - 1].toLowerCase() : undefined;
 }
 
+export function isCrossCountryRoute(originLabel: string, destinationLabel: string): boolean {
+  const originCountry = countryFromRouteLabel(originLabel);
+  const destinationCountry = countryFromRouteLabel(destinationLabel);
+  return Boolean(originCountry && destinationCountry && originCountry !== destinationCountry);
+}
+
 /** True only when a provider's first flight segment departs on the selected local date. */
 export function isFlightDepartureOnDate(departure: string | undefined, travelDate: string): boolean {
   return Boolean(departure && (departure.startsWith(`${travelDate} `) || departure.startsWith(`${travelDate}T`)));
@@ -201,9 +207,7 @@ export async function searchGatewayJourneys(input: {
   const originGateways = originCountry ? input.gateways.origin.filter(item => !item.countryCode || item.countryCode === originCountry) : input.gateways.origin;
   const destinationGateways = destinationCountry ? input.gateways.destination.filter(item => !item.countryCode || item.countryCode === destinationCountry) : input.gateways.destination;
 
-  const originCountryLabel = countryFromRouteLabel(input.originLabel);
-  const destinationCountryLabel = countryFromRouteLabel(input.destinationLabel);
-  const crossCountryRoute = Boolean(originCountryLabel && destinationCountryLabel && originCountryLabel !== destinationCountryLabel);
+  const crossCountryRoute = isCrossCountryRoute(input.originLabel, input.destinationLabel);
 
   for (const mode of ["flight", "train", "bus"] as const) {
     // Local rail and public-bus feeds cannot form international service legs.
