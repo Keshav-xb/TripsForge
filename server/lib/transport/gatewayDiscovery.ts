@@ -77,7 +77,7 @@ export function normalizeGateways(
   return Array.from(unique.values()).sort((a, b) => a.distanceKm - b.distanceKm);
 }
 
-type AirportRegistryEntry = { lat: number; lng: number; iataCode: string; name: string; source?: "OurAirports" | "BuiltInAirportFallback" };
+type AirportRegistryEntry = { lat: number; lng: number; iataCode: string; name: string; countryCode?: string; source?: "OurAirports" | "BuiltInAirportFallback" };
 
 // Small infrastructure-only fallback for common Indian gateways. This is airport
 // metadata (coordinates and codes), never a timetable or assertion that flights operate.
@@ -120,7 +120,7 @@ async function getAirportRegistry(): Promise<AirportRegistryEntry[]> {
   const column = (name: string) => headers.indexOf(name);
   const latIndex = column("latitude_deg"), lngIndex = column("longitude_deg");
   const iataIndex = column("iata_code"), nameIndex = column("name");
-  const scheduledIndex = column("scheduled_service"), typeIndex = column("type");
+  const scheduledIndex = column("scheduled_service"), typeIndex = column("type"), countryIndex = column("iso_country");
   if ([latIndex, lngIndex, iataIndex, nameIndex, scheduledIndex, typeIndex].some(index => index < 0)) {
     throw new Error("AIRPORT_REGISTRY_SCHEMA_INVALID");
   }
@@ -132,7 +132,7 @@ async function getAirportRegistry(): Promise<AirportRegistryEntry[]> {
     if (!/^[A-Z]{3}$/.test(iataCode) || row[scheduledIndex] !== "yes"
       || !["large_airport", "medium_airport", "small_airport"].includes(row[typeIndex])
       || !Number.isFinite(lat) || !Number.isFinite(lng)) return [];
-    return [{ lat, lng, iataCode, name: row[nameIndex] ?? "Airport" }];
+    return [{ lat, lng, iataCode, name: row[nameIndex] ?? "Airport", ...(row[countryIndex]?.trim() ? { countryCode: row[countryIndex].trim().toUpperCase() } : {}), source: "OurAirports" as const }];
   });
   airportRegistryCache = { entries, expiresAt: Date.now() + 24 * 60 * 60_000 };
   return entries;
@@ -217,7 +217,7 @@ export async function discoverGateways(input: {
     .map(({ airport, distance }) => ({
       id: `airport-${airport.iataCode}`, name: airport.name, mode: "flight" as const,
       lat: airport.lat, lng: airport.lng, distanceKm: Math.round(distance * 10) / 10,
-      iataCode: airport.iataCode, source: airport.source ?? "OurAirports",
+      iataCode: airport.iataCode, countryCode: airport.countryCode ?? (airport.source === "BuiltInAirportFallback" ? "IN" : undefined), source: airport.source ?? "OurAirports",
     }));
   const merge = (mapped: TransportGateway[], registryItems: TransportGateway[]) => {
     const byId = new Map<string, TransportGateway>();
