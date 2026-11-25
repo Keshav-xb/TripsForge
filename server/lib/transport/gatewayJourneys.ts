@@ -8,6 +8,11 @@ import { buildNormalizedJourneyGraph } from "./normalizedJourneyGraph.js";
 import type { JourneyOption } from "./journeyGraph.js";
 
 type Point = { lat: number; lng: number };
+
+/** True only when a provider's first flight segment departs on the selected local date. */
+export function isFlightDepartureOnDate(departure: string | undefined, travelDate: string): boolean {
+  return Boolean(departure && (departure.startsWith(`${travelDate} `) || departure.startsWith(`${travelDate}T`)));
+}
 type GatewaySearchResult = {
   mode: "flight" | "train" | "bus";
   originGateway: TransportGateway;
@@ -110,7 +115,7 @@ export async function searchGatewayJourneys(input: {
             // Providers can return stale/cached offers for a different departure day.
             // Enforce the selected local departure date before exposing or graphing them.
             const dateScopedOffers = result.status === "offers_found"
-              ? result.offers.filter(offer => offer.segments[0]?.departure?.startsWith(input.travelDate))
+              ? result.offers.filter(offer => isFlightDepartureOnDate(offer.segments[0]?.departure, input.travelDate))
               : [];
             const dateScopedResult = result.status === "offers_found"
               ? { ...result, offers: dateScopedOffers }
