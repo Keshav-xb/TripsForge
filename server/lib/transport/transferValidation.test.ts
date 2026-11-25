@@ -54,8 +54,8 @@ describe("normalized transfer validation", () => {
 
   it("does not join different canonical nodes or missing timestamps", () => {
     const incoming = leg();
-    expect(assessNormalizedTransfer(incoming, leg({ id: "leg-2", fromNodeId: "airport:iata:OTHER" })).toMatchObject({ status: "unverified" });
-    expect(assessNormalizedTransfer(incoming, leg({ id: "leg-3", departureAt: undefined })).toMatchObject({ status: "unverified" }));
+    expect(assessNormalizedTransfer(incoming, leg({ id: "leg-2", fromNodeId: "airport:iata:OTHER" }))).toMatchObject({ status: "unverified" });
+    expect(assessNormalizedTransfer(incoming, leg({ id: "leg-3", departureAt: undefined }))).toMatchObject({ status: "unverified" }));
   });
 
   it("rejects layovers beyond the supported connection window", () => {
