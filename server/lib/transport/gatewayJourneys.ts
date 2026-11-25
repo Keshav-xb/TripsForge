@@ -73,7 +73,7 @@ async function roadAccess(from: Point, to: Point) {
 export function selectGateways(items: TransportGateway[], mode: TransportGateway["mode"]) {
   return items.filter(item => item.mode === mode)
     .sort((a, b) => a.distanceKm - b.distanceKm)
-    .slice(0, 8);
+    .slice(0, 4);
 }
 
 export async function searchGatewayJourneys(input: {
@@ -189,7 +189,7 @@ export async function searchGatewayJourneys(input: {
       .filter(to => from.id !== to.id)
       .map(to => ({ from, to, distance: from.distanceKm + to.distanceKm })))
       .sort((a, b) => a.distance - b.distance)
-      .slice(0, 8);
+      .slice(0, 3);
     for (const pair of pairs) addPair(mode, pair.from, pair.to);
   }
   await Promise.all(tasks);
