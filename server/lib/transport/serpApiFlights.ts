@@ -187,10 +187,10 @@ export async function searchSerpApiFlights(input: {
   // Route builder: use a globally distributed transfer-airport network for every origin/destination.
   // This network is not tied to a particular city pair. Search each candidate independently and
   // combine only provider-returned legs whose airport and timing data form a valid connection.
+  // Bounded global transfer network keeps provider requests controlled and never assumes a departure city.
   const hubs = [
-    "DEL", "BOM", "DXB", "DOH", "AUH", "SIN", "IST", "FRA",
-    "LHR", "AMS", "HKG", "ICN", "NRT", "BKK", "JFK", "ORD",
-    "YYZ", "GRU", "JNB", "NBO", "ADD", "CAI", "SYD", "KUL",
+    "DEL", "DXB", "DOH", "IST", "FRA", "LHR",
+    "SIN", "HKG", "ICN", "JFK", "GRU", "YYZ",
   ].filter(code => code !== originCode && code !== destinationCode);
   const recovered: SerpApiFlightOffer[] = [];
   const mapItineraryLegs = (item: GoogleFlightItinerary) => (item.flights ?? []).map(leg => ({
