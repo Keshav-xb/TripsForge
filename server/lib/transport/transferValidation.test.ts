@@ -14,7 +14,7 @@ function leg(overrides: Partial<NormalizedServiceLeg> = {}): NormalizedServiceLe
     departureAt: "2026-12-20T06:00:00.000Z",
     arrivalAt: "2026-12-20T08:00:00.000Z",
     evidence: "live_offer",
-    retrievedAt: "2026-12-20T05:00:00.000Z",
+    retrievedAt: "2025-01-01T05:00:00.000Z",
     ...overrides,
   };
 }
