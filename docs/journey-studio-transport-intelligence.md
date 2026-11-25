@@ -103,3 +103,32 @@ For each route, record expected reachable gateways and provider coverage before 
 - Public GTFS coverage is not comprehensive for private/intercity services.
 - Gateway pair results currently lack sufficient timezone-aware schedule normalization for end-to-end feasibility.
 - The existing client journey builder intentionally limits graph paths to one leg.
+
+
+## Provider adapter normalization implementation
+
+The first adapter pass now maps existing provider responses into the shared contract:
+
+- SerpApi flight offers use IATA airport node IDs and preserve provider fare/currency. SerpApi local wall-clock strings are not converted into UTC or assigned guessed offsets, so these flight legs remain ineligible for time-based transfer validation until the source supplies timezone-aware timestamps.
+- RailCore results use the provider's resolved station codes as canonical rail node IDs. Timetable departure/arrival clock strings are not promoted to absolute timestamps without a station timezone and service-date rollover handling.
+- Reclaim GTFS bus results use feed-scoped stop IDs (feed ID + stop ID) so identical stop IDs from different feeds cannot collide. GTFS clock strings and fares are not invented into absolute times or prices.
+- Provider errors, timeouts, unconfigured credentials, unsupported identity data and confirmed empty results remain distinct in the normalized outcome.
+
+This adapter pass is additive. The existing route cards remain unchanged, and the normalized outcomes are attached to gateway research results for inspection and subsequent graph integration. It does not yet authorize multi-hop connections. A leg with missing absolute timestamps can be displayed as provider evidence, but cannot pass schedule-based connection validation.
+
+
+## Timezone and service-day normalization
+
+The adapter layer now converts schedule wall-clock values only when a trustworthy service date and IANA timezone are available.
+
+- GTFS bus offers carry the feed service date, feed-scoped stop IDs, stop timezone overrides, and the agency timezone from \`agency.txt\`. GTFS times such as \`25:10:00\` are interpreted as the next calendar day while retaining the original service date.
+- Mobility Database GTFS offers retain their feed and stop identities and the same service-date/timezone metadata when the feed supplies it.
+- Indian RailCore timetable offers carry the requested travel date. Its Indian rail timetable clock values are interpreted in \`Asia/Kolkata\`; arrival instants are accepted only when the provider's arrival clock agrees with its reported duration.
+- Flight offers are split into individual provider-returned segments. Airport coordinates come from the scheduled-airport OurAirports registry, and the IANA timezone is resolved from those coordinates through TimeAPI.io. Timezone lookup is cached; lookup failure leaves timestamps absent, so the leg cannot be used for a schedule-validated transfer.
+- Multi-segment flight fares are not distributed across component legs. The complete itinerary fare remains in the existing provider offer, while normalized segment legs do not claim a per-flight fare.
+
+The shared local-time converter rejects invalid IANA zones, malformed times, nonexistent DST times, and ambiguous DST wall times. It does not use the server's timezone.
+
+## Transfer assessment
+
+A separate normalized-transfer validator now requires valid provider legs, exact canonical node equality, timezone-aware arrival/departure instants, and conservative mode-specific minimum transfer buffers. It rejects transfers below the buffer or beyond the 12-hour layover window. This assessment is tested independently; the normalized results are not yet wired into multi-hop Journey Studio option generation.

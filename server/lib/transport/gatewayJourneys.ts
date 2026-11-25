@@ -2,6 +2,8 @@ import { searchSerpApiFlights } from "./serpApiFlights.js";
 import { searchIndianTrains } from "./railAvailability.js";
 import { searchPublicBuses } from "../publicBus.js";
 import type { TransportGateway } from "./gatewayDiscovery.js";
+import { normalizePublicBusResult, normalizeRailSearchResult, normalizeSerpApiFlightResult } from "./providerAdapters.js";
+import type { ProviderResult, NormalizedServiceLeg } from "./providerContract.js";
 
 type Point = { lat: number; lng: number };
 type GatewaySearchResult = {
@@ -12,6 +14,7 @@ type GatewaySearchResult = {
   status: "offers_found" | "no_service_found" | "provider_unavailable";
   serviceCount: number;
   services: Array<Record<string, unknown>>;
+  normalizedProviderResult?: ProviderResult<NormalizedServiceLeg>;
   access: {
     origin: { status: "route_found" | "unavailable"; distanceKm?: number; durationMinutes?: number };
     destination: { status: "route_found" | "unavailable"; distanceKm?: number; durationMinutes?: number };
@@ -75,15 +78,21 @@ export async function searchGatewayJourneys(input: {
       let provider = mode === "flight" ? "SerpApi" : mode === "train" ? "RailCore" : "Public GTFS";
       let status: GatewaySearchResult["status"] = "provider_unavailable";
       let services: Array<Record<string, unknown>> = [];
+      let normalizedProviderResult: ProviderResult<NormalizedServiceLeg> | undefined;
       try {
         if (mode === "flight") {
           if (!from.iataCode || !to.iataCode || from.iataCode === to.iataCode) {
-            status = "no_service_found";
+            status = "provider_unavailable";
+            normalizedProviderResult = {
+              provider: "SerpApi", retrievedAt: new Date().toISOString(), evidence: "live_offer",
+              status: "unsupported", reason: "Both gateway endpoints must have verified IATA codes before a flight provider query can be made.",
+            };
           } else {
             const result = await withTimeout(searchSerpApiFlights({
               origin: from.iataCode, destination: to.iataCode, departureDate: input.travelDate,
               adults: input.adults ?? 1, currency: input.currency ?? "INR", allowConnections: false,
             }), 8000);
+            normalizedProviderResult = await normalizeSerpApiFlightResult(result);
             status = result.status === "offers_found" ? "offers_found"
               : result.status === "no_offers" ? "no_service_found" : "provider_unavailable";
             if (result.status === "offers_found") services = result.offers.slice(0, 5).map(offer => ({
@@ -93,6 +102,7 @@ export async function searchGatewayJourneys(input: {
           }
         } else if (mode === "train") {
           const result = await withTimeout(searchIndianTrains({ origin: from.name, destination: to.name, travelDate: input.travelDate }), 8000);
+          normalizedProviderResult = normalizeRailSearchResult(result, { origin: from.name, destination: to.name });
           status = result.status === "offers_found" ? "offers_found"
             : result.status === "no_service_found" ? "no_service_found" : "provider_unavailable";
           if (result.status === "offers_found") services = result.trains.slice(0, 5).map(train => ({
@@ -103,6 +113,7 @@ export async function searchGatewayJourneys(input: {
         } else {
           const result = await withTimeout(searchPublicBuses({ origin: from.name, destination: to.name, travelDate: input.travelDate }), 8000);
           provider = result.provider;
+          normalizedProviderResult = normalizePublicBusResult(result);
           status = result.status === "offers_found" ? "offers_found"
             : result.status === "no_service_found" ? "no_service_found" : "provider_unavailable";
           if (result.status === "offers_found") services = result.offers.slice(0, 5).map(offer => ({
@@ -110,13 +121,19 @@ export async function searchGatewayJourneys(input: {
             arrivalTime: offer.arrivalTime, fromStop: offer.fromStop, toStop: offer.toStop,
           }));
         }
-      } catch {
+      } catch (error) {
         status = "provider_unavailable";
+        const evidence = mode === "flight" ? "live_offer" as const : "published_schedule" as const;
+        const retrievedAt = new Date().toISOString();
+        const errorCode = error instanceof Error ? error.message : "UNKNOWN_PROVIDER_ERROR";
+        normalizedProviderResult = errorCode === "PROVIDER_TIMEOUT"
+          ? { provider, retrievedAt, evidence, status: "timeout", retryable: true }
+          : { provider, retrievedAt, evidence, status: "provider_error", retryable: true, errorCode };
       }
       if (status !== "offers_found") {
         results.push({
           mode, originGateway: from, destinationGateway: to, serviceProvider: provider,
-          status, serviceCount: 0, services: [],
+          status, serviceCount: 0, services: [], normalizedProviderResult,
           access: { origin: { status: "unavailable" }, destination: { status: "unavailable" } },
           connectionAssessment: "service_not_found",
           caveat: status === "no_service_found"
@@ -132,7 +149,7 @@ export async function searchGatewayJourneys(input: {
       const accessComplete = originAccess.status === "route_found" && destinationAccess.status === "route_found";
       results.push({
         mode, originGateway: from, destinationGateway: to, serviceProvider: provider,
-        status, serviceCount: services.length, services,
+        status, serviceCount: services.length, services, normalizedProviderResult,
         access: { origin: originAccess, destination: destinationAccess },
         connectionAssessment: accessComplete ? "access_routes_found_timing_unverified" : "access_route_incomplete",
         caveat: accessComplete

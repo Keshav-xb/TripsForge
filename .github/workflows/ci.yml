@@ -1,9 +1,10 @@
 name: CI
+# Run typecheck, tests and production build for transport adapter changes.
 
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, "feature/**"]
 
 permissions:
   contents: read

@@ -9,8 +9,8 @@ export type RailTrainOffer = {
 };
 
 export type RailSearchResult =
-  | { status: "offers_found"; provider: "RailCore"; retrievedAt: string; trains: RailTrainOffer[]; disclaimer: string }
-  | { status: "no_service_found"; provider: "RailCore"; retrievedAt: string; trains: []; disclaimer: string }
+  | { status: "offers_found"; provider: "RailCore"; retrievedAt: string; travelDate: string; originStationCode: string; destinationStationCode: string; trains: RailTrainOffer[]; disclaimer: string }
+  | { status: "no_service_found"; provider: "RailCore"; retrievedAt: string; originStationCode?: string; destinationStationCode?: string; trains: []; disclaimer: string }
   | { status: "provider_not_configured"; provider: "RailCore"; trains: []; message: string }
   | { status: "lookup_unavailable"; provider: "RailCore"; trains: []; message: string };
 
@@ -85,7 +85,7 @@ export async function searchIndianTrains(input: {
       signal: AbortSignal.timeout(9000),
     });
     if (response.status === 404) {
-      return { status: "no_service_found", provider: "RailCore", retrievedAt: new Date().toISOString(), trains: [], disclaimer };
+      return { status: "no_service_found", provider: "RailCore", retrievedAt: new Date().toISOString(), originStationCode: fromCode, destinationStationCode: toCode, trains: [], disclaimer };
     }
     if (!response.ok) {
       return {
@@ -116,8 +116,8 @@ export async function searchIndianTrains(input: {
       }];
     });
     return trains.length
-      ? { status: "offers_found", provider: "RailCore", retrievedAt: new Date().toISOString(), trains, disclaimer }
-      : { status: "no_service_found", provider: "RailCore", retrievedAt: new Date().toISOString(), trains: [], disclaimer };
+      ? { status: "offers_found", provider: "RailCore", retrievedAt: new Date().toISOString(), travelDate: input.travelDate, originStationCode: fromCode, destinationStationCode: toCode, trains, disclaimer }
+      : { status: "no_service_found", provider: "RailCore", retrievedAt: new Date().toISOString(), originStationCode: fromCode, destinationStationCode: toCode, trains: [], disclaimer };
   } catch (error) {
     const message = error instanceof Error && error.message === "RAIL_STATION_NOT_FOUND"
       ? "A matching railway station could not be resolved for one of the selected cities."
