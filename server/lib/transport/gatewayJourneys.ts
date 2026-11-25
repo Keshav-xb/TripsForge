@@ -82,7 +82,11 @@ export async function searchGatewayJourneys(input: {
       try {
         if (mode === "flight") {
           if (!from.iataCode || !to.iataCode || from.iataCode === to.iataCode) {
-            status = "no_service_found";
+            status = "provider_unavailable";
+            normalizedProviderResult = {
+              provider: "SerpApi", retrievedAt: new Date().toISOString(), evidence: "live_offer",
+              status: "unsupported", reason: "Both gateway endpoints must have verified IATA codes before a flight provider query can be made.",
+            };
           } else {
             const result = await withTimeout(searchSerpApiFlights({
               origin: from.iataCode, destination: to.iataCode, departureDate: input.travelDate,
