@@ -4,6 +4,7 @@ import { validateNormalizedLeg } from "./providerContract";
 import type { SerpApiFlightSearchResult } from "./serpApiFlights";
 import type { RailSearchResult } from "./railAvailability";
 import type { BusResult } from "../publicBus";
+import { localServiceTimeToIso } from "./localServiceTime";
 
 describe("transport provider adapter normalization", () => {
   it("normalizes a flight offer to airport IATA node identities without inventing timezone offsets", () => {
@@ -59,11 +60,14 @@ describe("transport provider adapter normalization", () => {
       status: "offers_found",
       provider: "RailCore",
       retrievedAt: "2026-11-25T09:00:00+05:30",
+      travelDate: "2026-12-20",
       originStationCode: "JAT",
       destinationStationCode: "NDLS",
       trains: [{
         trainNumber: "12345",
         trainName: "Test Express",
+        departureTime: "08:00",
+        arrivalTime: "18:00",
         durationMinutes: 600,
         classes: ["3A"],
         runningDays: ["Daily"],
@@ -76,7 +80,8 @@ describe("transport provider adapter normalization", () => {
     expect(normalized.items[0].fromNodeId).toBe("rail:railcore:JAT");
     expect(normalized.items[0].toNodeId).toBe("rail:railcore:NDLS");
     expect(normalized.items[0].durationMinutes).toBe(600);
-    expect(normalized.items[0].departureAt).toBeUndefined();
+    expect(normalized.items[0].departureAt).toBe("2026-12-20T02:30:00.000Z");
+    expect(normalized.items[0].arrivalAt).toBe("2026-12-20T12:30:00.000Z");
     expect(validateNormalizedLeg(normalized.items[0])).toEqual({ valid: true });
   });
 
@@ -98,6 +103,9 @@ describe("transport provider adapter normalization", () => {
         feedId: "feed-xyz",
         fromStopId: "stop-a",
         toStopId: "stop-b",
+        serviceDate: "2026-12-20",
+        fromTimezone: "Asia/Kolkata",
+        toTimezone: "Asia/Kolkata",
       }],
       disclaimer: "Schedule only",
       sourceLicence: "Open",
@@ -108,7 +116,9 @@ describe("transport provider adapter normalization", () => {
     expect(normalized.items[0].fromNodeId).toBe("bus:gtfs:feed-xyz:stop-a");
     expect(normalized.items[0].toNodeId).toBe("bus:gtfs:feed-xyz:stop-b");
     expect(normalized.items[0].price).toBeUndefined();
-    expect(normalized.items[0].departureAt).toBeUndefined();
+    expect(normalized.items[0].departureAt).toBe("2026-12-20T02:30:00.000Z");
+    expect(normalized.items[0].arrivalAt).toBe("2026-12-20T03:30:00.000Z");
+    expect(normalized.items[0].durationMinutes).toBe(60);
     expect(validateNormalizedLeg(normalized.items[0])).toEqual({ valid: true });
   });
 
