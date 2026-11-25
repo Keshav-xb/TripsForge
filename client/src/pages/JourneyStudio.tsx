@@ -173,6 +173,9 @@ export default function JourneyStudio() {
         limitations: Array.isArray(result.limitations) ? result.limitations : [],
         trainAvailability: {
           ...result.trainAvailability,
+          status: result.trainAvailability?.status ?? "lookup_unavailable",
+          provider: result.trainAvailability?.provider ?? "unknown",
+          message: result.trainAvailability?.message ?? "The train provider returned an incomplete response.",
           trains: Array.isArray(result.trainAvailability?.trains) ? result.trainAvailability.trains : [],
         },
       };
@@ -184,7 +187,7 @@ export default function JourneyStudio() {
       void fetch(`/api/trpc/route.gatewayJourneys?input=${encodeURIComponent(JSON.stringify({ json: {
         origin: draft.startLocationPoint, destination: draft.destinationLocation,
         originLabel: draft.startLocation, destinationLabel: draft.destination,
-        travelDate: input.travelDate, adults: 1, currency: "INR", radiusKm: 150
+        travelDate: input.travelDate, adults: 1, currency: "INR", radiusKm: 300
       } }))}`)
         .then(async response => {
           const raw = await response.text();
@@ -198,7 +201,12 @@ export default function JourneyStudio() {
         .then(data => {
           if (activeRunId !== researchRunId.current) return;
           setGatewayJourneyResearch(data);
-          setGatewayDiscovery({ radiusKm: data.gatewayRadiusKm, ...data.gateways });
+          setGatewayDiscovery({
+            radiusKm: Number.isFinite(data.gatewayRadiusKm) ? data.gatewayRadiusKm : 300,
+            origin: Array.isArray(data.gateways?.origin) ? data.gateways.origin : [],
+            destination: Array.isArray(data.gateways?.destination) ? data.gateways.destination : [],
+            limitations: Array.isArray(data.gateways?.limitations) ? data.gateways.limitations : [],
+          });
           setGatewayResearchState("complete");
         })
         .catch(error => {
@@ -256,9 +264,9 @@ export default function JourneyStudio() {
         ? { mode: "Trains", status: "available", headline: `${safeResearch.trainAvailability.trains.length} train services available`, detail: safeResearch.trainAvailability.disclaimer ?? "Published train timetable results. Verify running status and seat availability before travel." }
         : safeResearch.trainAvailability.status === "provider_not_configured"
           ? { mode: "Trains", status: "not_configured", headline: "Train search not configured", detail: safeResearch.trainAvailability.message ?? "The timetable provider credentials are not configured. No availability conclusion can be made." }
-          : result.trainAvailability.status === "lookup_unavailable"
-            ? { mode: "Trains", status: "unavailable", headline: "Train provider unavailable", detail: result.trainAvailability.message ?? "The timetable provider could not verify this route. This does not mean trains are unavailable." }
-            : { mode: "Trains", status: "no_verified_options", headline: "No matching timetable returned", detail: result.trainAvailability.message ?? "No matching train timetable was returned for this route and date. This does not prove that no train service exists." };
+          : safeResearch.trainAvailability.status === "lookup_unavailable"
+            ? { mode: "Trains", status: "unavailable", headline: "Train provider unavailable", detail: safeResearch.trainAvailability.message ?? "The timetable provider could not verify this route. This does not mean trains are unavailable." }
+            : { mode: "Trains", status: "no_verified_options", headline: "No matching timetable returned", detail: safeResearch.trainAvailability.message ?? "No matching train timetable was returned for this route and date. This does not prove that no train service exists." };
       setModeComparison([roadMode, busMode, flightMode, trainMode]);
       const intelligenceResponse = await fetch(`/api/trpc/route.intelligence?input=${encodeURIComponent(JSON.stringify({ json: { research: safeResearch } }))}`);
       const intelligenceText = await intelligenceResponse.text();
