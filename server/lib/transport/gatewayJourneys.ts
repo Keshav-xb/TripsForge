@@ -92,7 +92,7 @@ export async function searchGatewayJourneys(input: {
               origin: from.iataCode, destination: to.iataCode, departureDate: input.travelDate,
               adults: input.adults ?? 1, currency: input.currency ?? "INR", allowConnections: false,
             }), 8000);
-            normalizedProviderResult = normalizeSerpApiFlightResult(result);
+            normalizedProviderResult = await normalizeSerpApiFlightResult(result);
             status = result.status === "offers_found" ? "offers_found"
               : result.status === "no_offers" ? "no_service_found" : "provider_unavailable";
             if (result.status === "offers_found") services = result.offers.slice(0, 5).map(offer => ({
