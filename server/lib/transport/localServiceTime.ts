@@ -62,10 +62,10 @@ export function localServiceTimeToIso(
   }
 
   const candidates = new Set<number>();
-  for (const offset of offsets) {
+  for (const offset of Array.from(offsets)) {
     const candidate = target.getTime() - offset;
     if (matchesWallTime(candidate)) candidates.add(candidate);
   }
   if (candidates.size !== 1) return undefined;
-  return new Date([...candidates][0]).toISOString();
+  return new Date(Array.from(candidates)[0]).toISOString();
 }
