@@ -167,7 +167,16 @@ export default function JourneyStudio() {
         const suffix = reference && reference !== "not supplied" ? ` · Reference: ${reference}` : "";
         throw new Error((payload.error?.json?.message || `Route research failed (HTTP ${response.status}).`) + suffix);
       }
-      setRouteResearch(result);
+      const safeResearch = {
+        ...result,
+        modes: Array.isArray(result.modes) ? result.modes : [],
+        limitations: Array.isArray(result.limitations) ? result.limitations : [],
+        trainAvailability: {
+          ...result.trainAvailability,
+          trains: Array.isArray(result.trainAvailability?.trains) ? result.trainAvailability.trains : [],
+        },
+      };
+      setRouteResearch(safeResearch);
       setGatewayDiscovery(null);
       // Gateway research is visible and reports failures instead of silently disappearing.
       setGatewayResearchState("searching");
@@ -238,20 +247,20 @@ export default function JourneyStudio() {
       ]);
       if (activeRunId !== researchRunId.current) return;
       setJourneySources({ flights: flightMode.data, buses: busMode.data });
-      setJourneyOptions(createJourneyOptions({ research: result, flights: flightMode.data, buses: busMode.data, priority: journeyPriority }));
-      const roadMode = result.road?.status === "route_found"
-        ? { mode: "Car", status: "estimated", headline: `${result.road.distanceKm} km · ${Math.floor((result.road.durationMinutes ?? 0) / 60)}h ${(result.road.durationMinutes ?? 0) % 60}m`, detail: "Driving route estimate from OSRM. Time can change with traffic, weather, road conditions and stops." }
+      setJourneyOptions(createJourneyOptions({ research: safeResearch, flights: flightMode.data, buses: busMode.data, priority: journeyPriority }));
+      const roadMode = safeResearch.road?.status === "route_found"
+        ? { mode: "Car", status: "estimated", headline: `${safeResearch.road.distanceKm} km · ${Math.floor((safeResearch.road.durationMinutes ?? 0) / 60)}h ${(safeResearch.road.durationMinutes ?? 0) % 60}m`, detail: "Driving route estimate from OSRM. Time can change with traffic, weather, road conditions and stops." }
         : { mode: "Car", status: "unavailable", headline: "Road estimate unavailable", detail: "No reliable driving route was returned for these selected points." };
-      const trainFound = result.trainAvailability.status === "offers_found" && result.trainAvailability.trains.length > 0;
+      const trainFound = safeResearch.trainAvailability.status === "offers_found" && safeResearch.trainAvailability.trains.length > 0;
       const trainMode = trainFound
-        ? { mode: "Trains", status: "available", headline: `${result.trainAvailability.trains.length} train services available`, detail: result.trainAvailability.disclaimer ?? "Published train timetable results. Verify running status and seat availability before travel." }
-        : result.trainAvailability.status === "provider_not_configured"
-          ? { mode: "Trains", status: "not_configured", headline: "Train search not configured", detail: result.trainAvailability.message ?? "The timetable provider credentials are not configured. No availability conclusion can be made." }
+        ? { mode: "Trains", status: "available", headline: `${safeResearch.trainAvailability.trains.length} train services available`, detail: safeResearch.trainAvailability.disclaimer ?? "Published train timetable results. Verify running status and seat availability before travel." }
+        : safeResearch.trainAvailability.status === "provider_not_configured"
+          ? { mode: "Trains", status: "not_configured", headline: "Train search not configured", detail: safeResearch.trainAvailability.message ?? "The timetable provider credentials are not configured. No availability conclusion can be made." }
           : result.trainAvailability.status === "lookup_unavailable"
             ? { mode: "Trains", status: "unavailable", headline: "Train provider unavailable", detail: result.trainAvailability.message ?? "The timetable provider could not verify this route. This does not mean trains are unavailable." }
             : { mode: "Trains", status: "no_verified_options", headline: "No matching timetable returned", detail: result.trainAvailability.message ?? "No matching train timetable was returned for this route and date. This does not prove that no train service exists." };
       setModeComparison([roadMode, busMode, flightMode, trainMode]);
-      const intelligenceResponse = await fetch(`/api/trpc/route.intelligence?input=${encodeURIComponent(JSON.stringify({ json: { research: result } }))}`);
+      const intelligenceResponse = await fetch(`/api/trpc/route.intelligence?input=${encodeURIComponent(JSON.stringify({ json: { research: safeResearch } }))}`);
       const intelligenceText = await intelligenceResponse.text();
       if (!intelligenceResponse.ok) throw new Error("The evidence summary could not be generated.");
       const intelligencePayload = JSON.parse(intelligenceText) as { result?: { data?: { json?: typeof intelligenceReport } } };
@@ -460,9 +469,9 @@ export default function JourneyStudio() {
                       </section>})}
                     </div>
                     {gatewayDiscovery && <section className="mt-6 rounded-2xl border border-[#123a35]/10 bg-[#f7f9f5] p-4 sm:p-5">
-                      <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Network-wide discovery</p><h3 className="mt-1 text-lg font-black">Nearby transport gateways</h3><p className="mt-1 text-xs text-[#71857e]">Searching up to {gatewayDiscovery.radiusKm} km around both trip endpoints, including gateways across regional boundaries.</p></div><span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-[#45645b]">{gatewayDiscovery.origin.length + gatewayDiscovery.destination.length} mapped candidates</span></div>
+                      <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.15em] text-[#e6651b]">Network-wide discovery</p><h3 className="mt-1 text-lg font-black">Nearby transport gateways</h3><p className="mt-1 text-xs text-[#71857e]">Searching up to {gatewayDiscovery.radiusKm} km around both trip endpoints, including gateways across regional boundaries.</p></div><span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-[#45645b]">{(gatewayDiscovery.origin?.length ?? 0) + (gatewayDiscovery.destination?.length ?? 0)} mapped candidates</span></div>
                       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        {([{key:"origin",title:"Around departure"},{key:"destination",title:"Around destination"}] as const).map(group=><div key={group.key} className="rounded-xl border border-[#123a35]/10 bg-white p-3"><h4 className="text-xs font-extrabold">{group.title}</h4>{gatewayDiscovery[group.key].length ? <div className="mt-2 space-y-2">{gatewayDiscovery[group.key].slice(0,12).map(item=><div key={item.id} className="flex items-start justify-between gap-2 border-t border-[#123a35]/5 pt-2"><div className="min-w-0"><p className="truncate text-xs font-semibold">{item.name}</p><p className="text-[10px] capitalize text-[#87958f]">{item.mode}{item.iataCode ? " · " + item.iataCode : ""}{item.stationCode ? " · " + item.stationCode : ""}</p></div><span className="shrink-0 text-[10px] text-[#71857e]">{item.distanceKm} km</span></div>)}</div> : <p className="mt-2 text-xs text-[#87958f]">No mapped gateway candidates returned in this search radius.</p>}</div>)}
+                        {([{key:"origin",title:"Around departure"},{key:"destination",title:"Around destination"}] as const).map(group=><div key={group.key} className="rounded-xl border border-[#123a35]/10 bg-white p-3"><h4 className="text-xs font-extrabold">{group.title}</h4>{(gatewayDiscovery[group.key]?.length ?? 0) ? <div className="mt-2 space-y-2">{(gatewayDiscovery[group.key] ?? []).slice(0,12).map(item=><div key={item.id} className="flex items-start justify-between gap-2 border-t border-[#123a35]/5 pt-2"><div className="min-w-0"><p className="truncate text-xs font-semibold">{item.name}</p><p className="text-[10px] capitalize text-[#87958f]">{item.mode}{item.iataCode ? " · " + item.iataCode : ""}{item.stationCode ? " · " + item.stationCode : ""}</p></div><span className="shrink-0 text-[10px] text-[#71857e]">{item.distanceKm} km</span></div>)}</div> : <p className="mt-2 text-xs text-[#87958f]">No mapped gateway candidates returned in this search radius.</p>}</div>)}
                       </div>
                       <p className="mt-3 text-[10px] leading-5 text-[#87958f]">These are geographic candidates, not confirmed services. TripsForge must verify schedules and road transfers before including them in a complete journey.</p>
                     </section>}
@@ -494,10 +503,10 @@ export default function JourneyStudio() {
                   </section>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl bg-[#f3f6f1] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Road network</p><p className="mt-1 text-lg font-black">{routeResearch.road?.status==="route_found"?routeResearch.road.distanceKm+" km":routeResearch.road?.status==="no_route_returned"?"No route returned":"Lookup unavailable"}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{routeResearch.road?.status==="route_found"?"Estimated drive: "+Math.floor((routeResearch.road.durationMinutes??0)/60)+"h "+(routeResearch.road.durationMinutes??0)%60+"m":routeResearch.road?.reason??"Road routing could not confirm a route."}</p><p className="mt-2 text-[10px] text-[#87958f]">{routeResearch.road?.provider??"OSRM / OpenStreetMap"}</p></div>
-                    <div className="rounded-xl bg-[#f3f6f1] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Train timetable</p><p className="mt-1 text-lg font-black">{routeResearch.trainAvailability.status==="offers_found"?routeResearch.trainAvailability.trains.length+" services":routeResearch.trainAvailability.status.replaceAll("_"," ")}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{routeResearch.trainAvailability.message??routeResearch.trainAvailability.disclaimer??"No train timetable details returned."}</p></div>
+                    <div className="rounded-xl bg-[#f3f6f1] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Train timetable</p><p className="mt-1 text-lg font-black">{routeResearch.trainAvailability.status==="offers_found"?(routeResearch.trainAvailability.trains?.length ?? 0)+" services":routeResearch.trainAvailability.status.replaceAll("_"," ")}</p><p className="mt-1 text-xs leading-5 text-[#71857e]">{routeResearch.trainAvailability.message??routeResearch.trainAvailability.disclaimer??"No train timetable details returned."}</p></div>
                   </div>
                   <details className="group rounded-xl border border-[#123a35]/10 bg-[#f8faf6] p-3"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-bold text-[#45645b]"><span>Research diagnostics · technical evidence</span><span className="text-[#87958f] transition group-open:rotate-180">⌄</span></summary><div className="mt-3 divide-y divide-[#123a35]/10 border-t border-[#123a35]/10">{routeResearch.modes.map(item=><div key={item.mode} className="flex items-start justify-between gap-3 py-3"><div className="min-w-0"><p className="text-xs font-bold capitalize">{item.mode}</p><p className="mt-1 text-[11px] leading-5 text-[#71857e]">{item.status==="not_checked"?"Gateway discovery is handled separately. A mapped terminal does not confirm a scheduled service.":item.evidence}</p></div><span className="shrink-0 rounded-md bg-[#eef3ed] px-2 py-1 text-[9px] font-bold uppercase text-[#45645b]">{item.status.replaceAll("_"," ")}</span></div>)}</div></details>
-                  {intelligenceReport&&<div className="rounded-xl border border-[#dce5dc] bg-white p-4"><p className="text-[10px] font-black uppercase tracking-wider text-[#e6651b]">TripsForge assessment · {intelligenceReport.confidence} confidence</p><p className="mt-2 text-sm font-semibold leading-6 text-[#123a35]">{intelligenceReport.summary}</p>{intelligenceReport.recommendedNextSteps.length>0&&<div className="mt-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Recommended next steps</p><ul className="mt-2 space-y-2">{intelligenceReport.recommendedNextSteps.map((step,index)=><li key={index} className="flex gap-2 text-xs leading-5 text-[#637e76]"><span className="font-bold text-[#e6651b]">{index+1}.</span>{step}</li>)}</ul></div>}</div>}
+                  {intelligenceReport&&<div className="rounded-xl border border-[#dce5dc] bg-white p-4"><p className="text-[10px] font-black uppercase tracking-wider text-[#e6651b]">TripsForge assessment · {intelligenceReport.confidence} confidence</p><p className="mt-2 text-sm font-semibold leading-6 text-[#123a35]">{intelligenceReport.summary}</p>{(intelligenceReport.recommendedNextSteps?.length ?? 0)>0&&<div className="mt-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">Recommended next steps</p><ul className="mt-2 space-y-2">{intelligenceReport.recommendedNextSteps.map((step,index)=><li key={index} className="flex gap-2 text-xs leading-5 text-[#637e76]"><span className="font-bold text-[#e6651b]">{index+1}.</span>{step}</li>)}</ul></div>}</div>}
                   {routeResearch.limitations.length>0&&<div><p className="text-[10px] font-bold uppercase tracking-wider text-[#87958f]">What this research cannot confirm</p><ul className="mt-2 space-y-1.5">{routeResearch.limitations.map((item,index)=><li key={index} className="text-[11px] leading-5 text-[#87958f]">• {item}</li>)}</ul></div>}
                 </div>}
               </div>
