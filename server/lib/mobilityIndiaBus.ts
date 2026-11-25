@@ -3,8 +3,8 @@ import { discoverMobilityDatabaseBusCandidates, type BusFeedCandidate } from "./
 import { registerBusSearchProvider, type BusSearchInput } from "./busSearch.js";
 
 type Row = Record<string, string>;
-type Tables = { stops: Row[]; routes: Row[]; trips: Row[]; stopTimes: Row[]; calendars: Row[]; calendarDates: Row[] };
-type Offer = { route: string; headsign: string; departureTime: string; arrivalTime: string; intermediateStops: number; fromStop: string; toStop: string };
+type Tables = { stops: Row[]; routes: Row[]; trips: Row[]; stopTimes: Row[]; calendars: Row[]; calendarDates: Row[]; agencies: Row[] };
+type Offer = { route: string; headsign: string; departureTime: string; arrivalTime: string; intermediateStops: number; fromStop: string; toStop: string; feedId: string; fromStopId: string; toStopId: string; serviceDate: string; fromTimezone?: string; toTimezone?: string };
 const cache = new Map<string, { expiresAt: number; tables: Tables }>();
 const TTL = 30 * 60_000;
 const DISCLAIMER = "Published GTFS public-transport schedule only. This is not private bus inventory and does not provide fares, seat availability, live tracking or ticket booking. Verify service with the operator before travel.";
@@ -33,7 +33,7 @@ function unzip(buffer: Buffer): Map<string, string> {
   if (end < 0) throw new Error("GTFS_ZIP_DIRECTORY_NOT_FOUND");
   const count = buffer.readUInt16LE(end + 10);
   let offset = buffer.readUInt32LE(end + 16);
-  const wanted = new Set(["stops.txt", "routes.txt", "trips.txt", "stop_times.txt", "calendar.txt", "calendar_dates.txt"]);
+  const wanted = new Set(["stops.txt", "routes.txt", "trips.txt", "stop_times.txt", "calendar.txt", "calendar_dates.txt", "agency.txt"]);
   const files = new Map<string, string>();
   for (let n = 0; n < count; n++) {
     if (buffer.readUInt32LE(offset) !== 0x02014b50) throw new Error("GTFS_ZIP_INVALID_DIRECTORY");
@@ -59,7 +59,7 @@ async function load(feed: BusFeedCandidate): Promise<Tables> {
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.length > 35 * 1024 * 1024) throw new Error("GTFS_FEED_TOO_LARGE");
   const files = unzip(bytes), rows = (name: string) => csv(files.get(name) ?? "");
-  const tables = { stops: rows("stops.txt"), routes: rows("routes.txt"), trips: rows("trips.txt"), stopTimes: rows("stop_times.txt"), calendars: rows("calendar.txt"), calendarDates: rows("calendar_dates.txt") };
+  const tables = { stops: rows("stops.txt"), routes: rows("routes.txt"), trips: rows("trips.txt"), stopTimes: rows("stop_times.txt"), calendars: rows("calendar.txt"), calendarDates: rows("calendar_dates.txt"), agencies: rows("agency.txt") };
   if (!tables.stops.length || !tables.routes.length || !tables.trips.length || !tables.stopTimes.length) throw new Error("GTFS_REQUIRED_TABLES_MISSING");
   if (!tables.routes.some(route => route.route_type === "3")) throw new Error("GTFS_FEED_HAS_NO_BUS_ROUTES");
   cache.set(feed.id, { tables, expiresAt: Date.now() + TTL });
@@ -111,7 +111,9 @@ async function search(input: BusSearchInput) {
       const toIndex = times.findIndex((stopTime: Row) => stopTime.stop_id === to.stop_id);
       if (fromIndex < 0 || toIndex <= fromIndex) return;
       const first = times[fromIndex], last = times[toIndex], route = busRoutes.get(trip.route_id)!;
-      offers.push({ route: route.route_short_name || route.route_long_name || "Public bus", headsign: trip.trip_headsign || route.route_long_name || "Scheduled public bus", departureTime: first.departure_time || first.arrival_time, arrivalTime: last.arrival_time || last.departure_time, intermediateStops: Math.max(0, toIndex - fromIndex - 1), fromStop: from.stop_name, toStop: to.stop_name });
+      const agency = t.agencies.find(item => item.agency_id && item.agency_id === route.agency_id) ?? (t.agencies.length === 1 ? t.agencies[0] : undefined);
+      const agencyTimezone = agency?.agency_timezone;
+      offers.push({ route: route.route_short_name || route.route_long_name || "Public bus", headsign: trip.trip_headsign || route.route_long_name || "Scheduled public bus", departureTime: first.departure_time || first.arrival_time, arrivalTime: last.arrival_time || last.departure_time, intermediateStops: Math.max(0, toIndex - fromIndex - 1), fromStop: from.stop_name, toStop: to.stop_name, feedId: feed.id, fromStopId: first.stop_id, toStopId: last.stop_id, serviceDate: input.travelDate, ...(from.stop_timezone || agencyTimezone ? { fromTimezone: from.stop_timezone || agencyTimezone } : {}), ...(to.stop_timezone || agencyTimezone ? { toTimezone: to.stop_timezone || agencyTimezone } : {}) });
     });
     const unique = Array.from(new Map(offers.map((offer: Offer) => [offer.route + "|" + offer.departureTime + "|" + offer.arrivalTime, offer])).values()).sort((left: Offer, right: Offer) => left.departureTime.localeCompare(right.departureTime)).slice(0, 30);
     return unique.length ? { status: "offers_found" as const, provider: feed.provider || feed.name || "Mobility Database GTFS", retrievedAt: new Date().toISOString(), feed: feed.name, state: feed.subdivisionName, offers: unique, disclaimer: DISCLAIMER, sourceLicence: feed.licenseUrl || "Licence not supplied by catalog; verify before commercial use." } : null;
