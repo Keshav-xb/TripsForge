@@ -3,6 +3,7 @@ import type { SerpApiFlightSearchResult } from "./serpApiFlights.js";
 import type { RailSearchResult } from "./railAvailability.js";
 import type { BusResult } from "../publicBus.js";
 import { localServiceTimeToIso } from "./localServiceTime.js";
+import { resolveAirportTimezone } from "./airportTimezone.js";
 
 
 function timeMatchesAt(localTime: string, instant: number, timezone: string): boolean {
@@ -32,9 +33,29 @@ function offsetTime(value?: string): string | undefined {
   return Number.isFinite(parsed) ? value : undefined;
 }
 
-export function normalizeSerpApiFlightResult(
+function parseFlightLocalTime(value?: string): { date: string; time: string } | undefined {
+  const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}:\d{2}(?::\d{2})?)$/.exec(value ?? "");
+  return match ? { date: match[1], time: match[2] } : undefined;
+}
+
+function airportCodeFromLabel(label: string, fallback?: string): string | undefined {
+  const match = /\(([A-Z]{3})\)/.exec(label);
+  const code = match?.[1] ?? fallback;
+  return code && /^[A-Z]{3}$/.test(code) ? code : undefined;
+}
+
+function segmentDurationMinutes(value?: string): number | undefined {
+  if (!value) return undefined;
+  const hours = /(\d+)\s*h/i.exec(value)?.[1];
+  const minutes = /(\d+)\s*m/i.exec(value)?.[1];
+  const total = Number(hours ?? 0) * 60 + Number(minutes ?? 0);
+  return total > 0 ? total : undefined;
+}
+
+export async function normalizeSerpApiFlightResult(
   result: SerpApiFlightSearchResult,
-): ProviderResult<NormalizedServiceLeg> {
+  timezoneResolver: (iataCode: string) => Promise<string | undefined> = resolveAirportTimezone,
+): Promise<ProviderResult<NormalizedServiceLeg>> {
   const retrievedAt = result.status === "offers_found" || result.status === "no_offers"
     ? result.checkedAt : new Date().toISOString();
   const base = { provider: "SerpApi", retrievedAt, evidence: "live_offer" as const };
@@ -44,29 +65,61 @@ export function normalizeSerpApiFlightResult(
     case "no_offers":
       return { ...base, status: "empty", message: "The provider returned no matching flight offers for this search." };
     case "offers_found": {
-      const items = result.offers.map(offer => {
-        const amount = currencyAmount(offer.amount, offer.currency);
-        const departureAt = offsetTime(offer.segments[0]?.departure);
-        const arrivalAt = offsetTime(offer.segments[offer.segments.length - 1]?.arrival);
-        const durationMinutes = offer.totalDurationMinutes;
+      const airportCodes = new Set<string>();
+      for (const offer of result.offers) {
+        for (const segment of offer.segments) {
+          const fromCode = airportCodeFromLabel(segment.from, result.originCode);
+          const toCode = airportCodeFromLabel(segment.to, result.destinationCode);
+          if (fromCode) airportCodes.add(fromCode);
+          if (toCode) airportCodes.add(toCode);
+        }
+      }
+      const timezones = new Map<string, string | undefined>(await Promise.all(
+        Array.from(airportCodes).map(async code => [code, await timezoneResolver(code)] as const),
+      ));
+      const items = result.offers.flatMap(offer => offer.segments.flatMap((segment, index) => {
+        const fromCode = airportCodeFromLabel(segment.from, index === 0 ? result.originCode : undefined);
+        const toCode = airportCodeFromLabel(segment.to, index === offer.segments.length - 1 ? result.destinationCode : undefined);
+        if (!fromCode || !toCode || fromCode === toCode) return [];
+        const departureLocal = parseFlightLocalTime(segment.departure);
+        const arrivalLocal = parseFlightLocalTime(segment.arrival);
+        const fromTimezone = timezones.get(fromCode);
+        const toTimezone = timezones.get(toCode);
+        const departureAt = departureLocal && fromTimezone
+          ? localServiceTimeToIso(departureLocal.date, departureLocal.time, fromTimezone)
+          : undefined;
+        const arrivalAt = arrivalLocal && toTimezone
+          ? localServiceTimeToIso(arrivalLocal.date, arrivalLocal.time, toTimezone)
+          : undefined;
+        const computedDuration = departureAt && arrivalAt
+          ? (Date.parse(arrivalAt) - Date.parse(departureAt)) / 60_000
+          : undefined;
+        const durationMinutes = Number.isFinite(computedDuration) && computedDuration! > 0
+          ? computedDuration
+          : segmentDurationMinutes(segment.duration)
+            ?? (offer.segments.length === 1 ? offer.totalDurationMinutes : undefined);
+        // A multi-segment fare belongs to the complete itinerary. Never allocate it
+        // across individual flights, because that would create fabricated segment fares.
+        const amount = offer.segments.length === 1 ? currencyAmount(offer.amount, offer.currency) : {};
         const leg: NormalizedServiceLeg = {
-          id: offer.id,
+          id: \`\${offer.id}:\${segment.flightNumber ?? index}\`,
           provider: "SerpApi",
           mode: "flight",
-          fromNodeId: `airport:iata:${result.originCode}`,
-          toNodeId: `airport:iata:${result.destinationCode}`,
-          fromLabel: result.originCode,
-          toLabel: result.destinationCode,
+          fromNodeId: \`airport:iata:\${fromCode}\`,
+          toNodeId: \`airport:iata:\${toCode}\`,
+          fromLabel: segment.from,
+          toLabel: segment.to,
           ...(departureAt ? { departureAt } : {}),
           ...(arrivalAt ? { arrivalAt } : {}),
           ...(Number.isFinite(durationMinutes) && durationMinutes! > 0 ? { durationMinutes } : {}),
           ...amount,
           evidence: "live_offer",
           retrievedAt,
-          sourceReference: offer.segments.map(segment => segment.flightNumber).filter(Boolean).join(",") || offer.id,
+          sourceReference: offer.id,
         };
-        return leg;
-      });
+        return [leg];
+      }));
+      if (!items.length) return { ...base, status: "malformed_response", reason: "Flight offers did not contain valid segment airport identities." };
       return { ...base, status: "results", items };
     }
   }
