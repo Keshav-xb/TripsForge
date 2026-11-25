@@ -9,6 +9,11 @@ import type { JourneyOption } from "./journeyGraph.js";
 
 type Point = { lat: number; lng: number };
 
+function countryFromRouteLabel(label: string): string | undefined {
+  const parts = label.split(",").map(part => part.trim()).filter(Boolean);
+  return parts.length >= 2 ? parts[parts.length - 1].toLowerCase() : undefined;
+}
+
 /** True only when a provider's first flight segment departs on the selected local date. */
 export function isFlightDepartureOnDate(departure: string | undefined, travelDate: string): boolean {
   return Boolean(departure && (departure.startsWith(`${travelDate} `) || departure.startsWith(`${travelDate}T`)));
@@ -196,7 +201,14 @@ export async function searchGatewayJourneys(input: {
   const originGateways = originCountry ? input.gateways.origin.filter(item => !item.countryCode || item.countryCode === originCountry) : input.gateways.origin;
   const destinationGateways = destinationCountry ? input.gateways.destination.filter(item => !item.countryCode || item.countryCode === destinationCountry) : input.gateways.destination;
 
+  const originCountryLabel = countryFromRouteLabel(input.originLabel);
+  const destinationCountryLabel = countryFromRouteLabel(input.destinationLabel);
+  const crossCountryRoute = Boolean(originCountryLabel && destinationCountryLabel && originCountryLabel !== destinationCountryLabel);
+
   for (const mode of ["flight", "train", "bus"] as const) {
+    // Local rail and public-bus feeds cannot form international service legs.
+    // Never query or expose them as candidates for cross-country journeys.
+    if (crossCountryRoute && (mode === "train" || mode === "bus")) continue;
     const origins = selectGateways(originGateways, mode);
     const destinations = selectGateways(destinationGateways, mode);
     const pairs = origins.flatMap(from => destinations
