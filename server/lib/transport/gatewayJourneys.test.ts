@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFlightDepartureOnDate, selectGateways } from "./gatewayJourneys";
+import { isCrossCountryRoute, isFlightDepartureOnDate, selectGateways } from "./gatewayJourneys";
 import type { TransportGateway } from "./gatewayDiscovery";
 
 const gateway = (id: string, mode: TransportGateway["mode"], distanceKm: number): TransportGateway => ({
@@ -37,5 +37,20 @@ describe("gateway flight departure date guard", () => {
     expect(isFlightDepartureOnDate("2026-12-25 17:35", "2026-11-27")).toBe(false);
     expect(isFlightDepartureOnDate("2026-11-28 00:15", "2026-11-27")).toBe(false);
     expect(isFlightDepartureOnDate(undefined, "2026-11-27")).toBe(false);
+  });
+});
+
+
+describe("gateway mode feasibility by country", () => {
+  it("identifies international routes from resolved location labels", () => {
+    expect(isCrossCountryRoute("Jammu, Jammu and Kashmir, India", "Miami, Florida, United States")).toBe(true);
+  });
+
+  it("keeps local transport eligible for domestic routes", () => {
+    expect(isCrossCountryRoute("Jammu, Jammu and Kashmir, India", "Delhi, India")).toBe(false);
+  });
+
+  it("does not infer a country when labels are incomplete", () => {
+    expect(isCrossCountryRoute("Jammu", "Delhi")).toBe(false);
   });
 });
