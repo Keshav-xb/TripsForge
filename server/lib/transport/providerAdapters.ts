@@ -36,8 +36,8 @@ export function normalizeSerpApiFlightResult(
           id: offer.id,
           provider: "SerpApi",
           mode: "flight",
-          fromNodeId: \`airport:iata:\${result.originCode}\`,
-          toNodeId: \`airport:iata:\${result.destinationCode}\`,
+          fromNodeId: `airport:iata:${result.originCode}`,
+          toNodeId: `airport:iata:${result.destinationCode}`,
           fromLabel: result.originCode,
           toLabel: result.destinationCode,
           ...(departureAt ? { departureAt } : {}),
@@ -68,11 +68,11 @@ export function normalizeRailSearchResult(
     return { ...base, status: "unsupported", reason: "The rail provider did not return stable station codes; results cannot be joined safely into a transfer graph." };
   }
   const items = result.trains.map(train => ({
-    id: \`railcore:\${train.trainNumber}:\${result.originStationCode}:\${result.destinationStationCode}\`,
+    id: `railcore:${train.trainNumber}:${result.originStationCode}:${result.destinationStationCode}`,
     provider: "RailCore",
     mode: "train" as const,
-    fromNodeId: \`rail:railcore:\${result.originStationCode}\`,
-    toNodeId: \`rail:railcore:\${result.destinationStationCode}\`,
+    fromNodeId: `rail:railcore:${result.originStationCode}`,
+    toNodeId: `rail:railcore:${result.destinationStationCode}`,
     fromLabel: labels.origin,
     toLabel: labels.destination,
     ...(Number.isFinite(train.durationMinutes) && train.durationMinutes! > 0 ? { durationMinutes: train.durationMinutes } : {}),
@@ -93,11 +93,11 @@ export function normalizePublicBusResult(
   const items = result.offers.flatMap(offer => {
     if (!offer.feedId || !offer.fromStopId || !offer.toStopId || offer.fromStopId === offer.toStopId) return [];
     return [{
-      id: \`gtfs:\${offer.feedId}:\${offer.route}:\${offer.departureTime}:\${offer.fromStopId}:\${offer.toStopId}\`,
+      id: `gtfs:${offer.feedId}:${offer.route}:${offer.departureTime}:${offer.fromStopId}:${offer.toStopId}`,
       provider: result.provider,
       mode: "bus" as const,
-      fromNodeId: \`bus:gtfs:\${offer.feedId}:\${offer.fromStopId}\`,
-      toNodeId: \`bus:gtfs:\${offer.feedId}:\${offer.toStopId}\`,
+      fromNodeId: `bus:gtfs:${offer.feedId}:${offer.fromStopId}`,
+      toNodeId: `bus:gtfs:${offer.feedId}:${offer.toStopId}`,
       fromLabel: offer.fromStop,
       toLabel: offer.toStop,
       evidence: "published_schedule" as const,
