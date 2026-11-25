@@ -56,7 +56,7 @@ describe("searchSerpApiFlights", () => {
     }) as typeof fetch;
 
     const result = await searchSerpApiFlights({
-      origin: "Jammu, India", destination: "Delhi", departureDate: "2026-12-20", adults: 1, currency: "INR",
+      origin: "Jammu, India", destination: "Delhi", departureDate: "2026-12-20", adults: 1, currency: "INR", allowConnections: false,
     });
     expect(result.status).toBe("offers_found");
     if (result.status === "offers_found") {
@@ -159,36 +159,22 @@ describe("searchSerpApiFlights", () => {
     expect(calls).toContain("YYZ-FRA");
     expect(calls).toContain("FRA-SIN");
   });
-  it("returns a clearly labelled nearby-airport option when the requested origin has no flight", async () => {
+  it("does not silently substitute a city-specific nearby departure airport", async () => {
     process.env.SERPAPI_API_KEY = "server-only-test-key";
+    const departures = new Set<string>();
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
-      const from = url.searchParams.get("departure_id");
-      const to = url.searchParams.get("arrival_id");
-      if (from === "SXR" && to === "DEL") {
-        return new Response(JSON.stringify({ best_flights: [{
-          price: 4200,
-          flights: [{
-            departure_airport: { name: "Sheikh ul Alam Airport", id: "SXR", time: "2026-12-20 09:00" },
-            arrival_airport: { name: "Indira Gandhi International Airport", id: "DEL", time: "2026-12-20 10:30" },
-            airline: "Example Air", flight_number: "EA303", duration: 90,
-          }],
-        }] }), { status: 200 });
-      }
+      departures.add(url.searchParams.get("departure_id") ?? "");
       return new Response(JSON.stringify({ best_flights: [], other_flights: [] }), { status: 200 });
     }) as typeof fetch;
 
     const result = await searchSerpApiFlights({
-      origin: "Jammu", destination: "Delhi", departureDate: "2026-12-20", adults: 1, currency: "INR",
+      origin: "Jammu", destination: "Delhi", departureDate: "2026-12-20",
+      adults: 1, currency: "INR", allowConnections: false,
     });
-    expect(result.status).toBe("offers_found");
-    if (result.status === "offers_found") {
-      expect(result.offers[0].segments[0].from).toContain("SXR");
-      expect(result.offers[0].connectionNote).toContain("Alternative departure airport: Srinagar");
-      expect(result.offers[0].connectionNote).toContain("does not depart from Jammu");
-    }
+    expect(result.status).toBe("no_offers");
+    expect(Array.from(departures)).toEqual(["IXJ"]);
   });
-
 
   it("resolves Meghalaya to Guwahati as its practical regional gateway airport", async () => {
     process.env.SERPAPI_API_KEY = "server-only-test-key";
@@ -215,6 +201,7 @@ describe("searchSerpApiFlights", () => {
       departureDate: "2026-12-21",
       adults: 2,
       currency: "INR",
+      allowConnections: false,
     });
     expect(result.status).toBe("offers_found");
     if (result.status === "offers_found") {
