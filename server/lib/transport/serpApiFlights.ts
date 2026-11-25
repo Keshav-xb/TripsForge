@@ -211,7 +211,8 @@ export async function searchSerpApiFlights(input: {
     const response = await serpApiRequest(query, apiKey);
     return { hub, options: [...(response.best_flights ?? []), ...(response.other_flights ?? [])]
       .filter(item => item.price !== undefined && item.flights?.length
-        && item.flights[item.flights.length - 1]?.arrival_airport?.id === hub).slice(0, 3) };
+        && item.flights[0]?.departure_airport?.id === originCode
+        && item.flights[item.flights.length - 1]?.arrival_airport?.id === hub).slice(0, 2) };
   }));
 
   for (const { hub, options } of firstLegResults) {
