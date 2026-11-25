@@ -6,7 +6,7 @@ import type { RailSearchResult } from "./railAvailability";
 import type { BusResult } from "../publicBus";
 
 describe("transport provider adapter normalization", () => {
-  it("normalizes a flight offer to airport IATA node identities without inventing timezone offsets", () => {
+  it("normalizes a flight offer to airport IATA node identities with resolved timezone", async () => {
     const result: SerpApiFlightSearchResult = {
       status: "offers_found",
       provider: "SerpApi",
@@ -44,7 +44,7 @@ describe("transport provider adapter normalization", () => {
     expect(validateNormalizedLeg(normalized.items[0])).toEqual({ valid: true });
   });
 
-  it("keeps an unconfigured flight provider distinct from an empty search", () => {
+  it("keeps an unconfigured flight provider distinct from an empty search", async () => {
     const result: SerpApiFlightSearchResult = {
       status: "provider_not_configured",
       provider: "SerpApi",
