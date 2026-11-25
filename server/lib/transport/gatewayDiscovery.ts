@@ -221,3 +221,16 @@ export async function discoverGateways(input: {
     ],
   };
 }
+
+
+/** Resolve coordinates only from the scheduled-airport registry, never from city-name guesses. */
+export async function resolveAirportCoordinates(iataCode: string): Promise<{ lat: number; lng: number } | undefined> {
+  const code = iataCode.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(code)) return undefined;
+  try {
+    const airport = (await getAirportRegistry()).find(item => item.iataCode === code);
+    return airport ? { lat: airport.lat, lng: airport.lng } : undefined;
+  } catch {
+    return undefined;
+  }
+}
