@@ -175,9 +175,16 @@ export async function searchGatewayJourneys(input: {
     })());
   };
 
+  // Keep gateway suggestions inside the traveler-selected country when known.
+  // A border-adjacent airport must not be selected solely because it is nearby.
+  const originCountry = /\bIndia\b/i.test(input.originLabel) ? "IN" : undefined;
+  const destinationCountry = /\bIndia\b/i.test(input.destinationLabel) ? "IN" : undefined;
+  const originGateways = originCountry ? input.gateways.origin.filter(item => !item.countryCode || item.countryCode === originCountry) : input.gateways.origin;
+  const destinationGateways = destinationCountry ? input.gateways.destination.filter(item => !item.countryCode || item.countryCode === destinationCountry) : input.gateways.destination;
+
   for (const mode of ["flight", "train", "bus"] as const) {
-    const origins = selectGateways(input.gateways.origin, mode);
-    const destinations = selectGateways(input.gateways.destination, mode);
+    const origins = selectGateways(originGateways, mode);
+    const destinations = selectGateways(destinationGateways, mode);
     const pairs = origins.flatMap(from => destinations
       .filter(to => from.id !== to.id)
       .map(to => ({ from, to, distance: from.distanceKm + to.distanceKm })))
