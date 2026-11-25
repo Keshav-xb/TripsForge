@@ -61,7 +61,7 @@ describe("buildNormalizedJourneyGraph", () => {
   });
 
   it("excludes stale legs and static network nodes from service routing", () => {
-    const stale = leg({ id: "stale", retrievedAt: "2026-11-20T12:00:00.000Z" });
+    const stale = leg({ id: "stale", validUntil: "2026-11-20T12:00:00.000Z" });
     const infrastructure = leg({ id: "infra", evidence: "static_network" });
 
     const result = buildNormalizedJourneyGraph({
