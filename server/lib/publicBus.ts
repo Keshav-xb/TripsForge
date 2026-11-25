@@ -34,8 +34,7 @@ function csvRows(text: string): Array<Record<string, string>> {
       else field += c;
     } else if (c === '"') quoted = true;
     else if (c === ",") { row.push(field); field = ""; }
-    else if (c === "
-") { row.push(field.replace(/\r$/, "")); if (row.some(v => v !== "")) rows.push(row); row = []; field = ""; }
+    else if (c === "\n") { row.push(field.replace(/\r$/, "")); if (row.some(v => v !== "")) rows.push(row); row = []; field = ""; }
     else field += c;
   }
   if (field || row.length) { row.push(field.replace(/\r$/, "")); rows.push(row); }
