@@ -148,3 +148,48 @@ export function isLegFresh(leg: Pick<NormalizedServiceLeg, "retrievedAt" | "vali
   const validUntil = parseOffsetTimestamp(leg.validUntil);
   return validUntil !== undefined && validUntil > now;
 }
+
+
+const PROVIDER_EVIDENCE: TransportEvidence[] = ["live_offer", "published_schedule", "route_estimate", "static_network"];
+
+/**
+ * Validates an untrusted provider envelope without converting malformed data
+ * into an empty-result state. Returns undefined when the envelope is invalid.
+ */
+export function validateProviderResult<T>(
+  value: unknown,
+  validateItem: (item: unknown) => item is T,
+): ProviderResult<T> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const result = value as Record<string, unknown>;
+  if (typeof result.provider !== "string" || !result.provider.trim()
+    || typeof result.retrievedAt !== "string" || !parseOffsetTimestamp(result.retrievedAt)
+    || typeof result.evidence !== "string" || !PROVIDER_EVIDENCE.includes(result.evidence as TransportEvidence)
+    || (result.requestId !== undefined && typeof result.requestId !== "string")) return undefined;
+
+  switch (result.status) {
+    case "results":
+      if (!Array.isArray(result.items) || !result.items.every(validateItem)) return undefined;
+      return result as ProviderResult<T>;
+    case "empty":
+      if (result.message !== undefined && typeof result.message !== "string") return undefined;
+      return result as ProviderResult<T>;
+    case "unsupported":
+    case "malformed_response":
+      return typeof result.reason === "string" && result.reason.trim() ? result as ProviderResult<T> : undefined;
+    case "not_configured":
+      return result.reason === undefined || typeof result.reason === "string" ? result as ProviderResult<T> : undefined;
+    case "rate_limited":
+      return result.retryAfterSeconds === undefined
+        || (typeof result.retryAfterSeconds === "number" && Number.isFinite(result.retryAfterSeconds) && result.retryAfterSeconds >= 0)
+        ? result as ProviderResult<T> : undefined;
+    case "timeout":
+      return result.retryable === true ? result as ProviderResult<T> : undefined;
+    case "provider_error":
+      return typeof result.retryable === "boolean"
+        && (result.errorCode === undefined || typeof result.errorCode === "string")
+        ? result as ProviderResult<T> : undefined;
+    default:
+      return undefined;
+  }
+}
