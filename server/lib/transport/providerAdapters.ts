@@ -2,6 +2,23 @@ import type { ProviderResult, NormalizedServiceLeg } from "./providerContract.js
 import type { SerpApiFlightSearchResult } from "./serpApiFlights.js";
 import type { RailSearchResult } from "./railAvailability.js";
 import type { BusResult } from "../publicBus.js";
+import { localServiceTimeToIso } from "./localServiceTime.js";
+
+
+function timeMatchesAt(localTime: string, instant: number, timezone: string): boolean {
+  const match = /^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/.exec(localTime);
+  if (!match) return false;
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: timezone, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+    }).formatToParts(new Date(instant));
+    const values = Object.fromEntries(parts.filter(part => part.type !== "literal").map(part => [part.type, part.value]));
+    return Number(values.hour) === Number(match[1]) && Number(values.minute) === Number(match[2])
+      && Number(values.second) === Number(match[3] ?? 0);
+  } catch {
+    return false;
+  }
+}
 
 function currencyAmount(amount?: string, currency?: string): Pick<NormalizedServiceLeg, "price" | "currency"> | {} {
   const price = amount === undefined ? undefined : Number(amount);
@@ -67,7 +84,17 @@ export function normalizeRailSearchResult(
   if (!result.originStationCode || !result.destinationStationCode) {
     return { ...base, status: "unsupported", reason: "The rail provider did not return stable station codes; results cannot be joined safely into a transfer graph." };
   }
-  const items = result.trains.map(train => ({
+  const items = result.trains.map(train => {
+    // RailCore covers Indian rail services; its published station clock times are IST.
+    const departureAt = train.departureTime
+      ? localServiceTimeToIso(result.travelDate, train.departureTime, "Asia/Kolkata")
+      : undefined;
+    let arrivalAt: string | undefined;
+    if (departureAt && train.arrivalTime && Number.isFinite(train.durationMinutes) && train.durationMinutes! > 0) {
+      const expectedArrival = Date.parse(departureAt) + train.durationMinutes! * 60_000;
+      if (timeMatchesAt(train.arrivalTime, expectedArrival, "Asia/Kolkata")) arrivalAt = new Date(expectedArrival).toISOString();
+    }
+    return ({
     id: `railcore:${train.trainNumber}:${result.originStationCode}:${result.destinationStationCode}`,
     provider: "RailCore",
     mode: "train" as const,
@@ -75,11 +102,14 @@ export function normalizeRailSearchResult(
     toNodeId: `rail:railcore:${result.destinationStationCode}`,
     fromLabel: labels.origin,
     toLabel: labels.destination,
+    ...(departureAt ? { departureAt } : {}),
+    ...(arrivalAt ? { arrivalAt } : {}),
     ...(Number.isFinite(train.durationMinutes) && train.durationMinutes! > 0 ? { durationMinutes: train.durationMinutes } : {}),
     evidence: "published_schedule" as const,
     retrievedAt,
     sourceReference: train.trainNumber,
-  }));
+  });
+  });
   return { ...base, status: "results", items };
 }
 
@@ -102,6 +132,15 @@ export function normalizePublicBusResult(
       toLabel: offer.toStop,
       evidence: "published_schedule" as const,
       retrievedAt,
+      ...(offer.serviceDate && offer.fromTimezone ? { departureAt: localServiceTimeToIso(offer.serviceDate, offer.departureTime, offer.fromTimezone) } : {}),
+      ...(offer.serviceDate && offer.toTimezone ? { arrivalAt: localServiceTimeToIso(offer.serviceDate, offer.arrivalTime, offer.toTimezone) } : {}),
+      ...(offer.serviceDate && offer.fromTimezone && offer.toTimezone
+        ? (() => {
+          const departure = localServiceTimeToIso(offer.serviceDate, offer.departureTime, offer.fromTimezone!);
+          const arrival = localServiceTimeToIso(offer.serviceDate, offer.arrivalTime, offer.toTimezone!);
+          const minutes = departure && arrival ? (Date.parse(arrival) - Date.parse(departure)) / 60_000 : undefined;
+          return Number.isFinite(minutes) && minutes! > 0 ? { durationMinutes: minutes } : {};
+        })() : {}),
       sourceReference: offer.route,
     }];
   });
