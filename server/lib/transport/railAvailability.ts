@@ -9,7 +9,7 @@ export type RailTrainOffer = {
 };
 
 export type RailSearchResult =
-  | { status: "offers_found"; provider: "RailCore"; retrievedAt: string; originStationCode: string; destinationStationCode: string; trains: RailTrainOffer[]; disclaimer: string }
+  | { status: "offers_found"; provider: "RailCore"; retrievedAt: string; travelDate: string; originStationCode: string; destinationStationCode: string; trains: RailTrainOffer[]; disclaimer: string }
   | { status: "no_service_found"; provider: "RailCore"; retrievedAt: string; originStationCode?: string; destinationStationCode?: string; trains: []; disclaimer: string }
   | { status: "provider_not_configured"; provider: "RailCore"; trains: []; message: string }
   | { status: "lookup_unavailable"; provider: "RailCore"; trains: []; message: string };
@@ -116,7 +116,7 @@ export async function searchIndianTrains(input: {
       }];
     });
     return trains.length
-      ? { status: "offers_found", provider: "RailCore", retrievedAt: new Date().toISOString(), originStationCode: fromCode, destinationStationCode: toCode, trains, disclaimer }
+      ? { status: "offers_found", provider: "RailCore", retrievedAt: new Date().toISOString(), travelDate: input.travelDate, originStationCode: fromCode, destinationStationCode: toCode, trains, disclaimer }
       : { status: "no_service_found", provider: "RailCore", retrievedAt: new Date().toISOString(), originStationCode: fromCode, destinationStationCode: toCode, trains: [], disclaimer };
   } catch (error) {
     const message = error instanceof Error && error.message === "RAIL_STATION_NOT_FOUND"
