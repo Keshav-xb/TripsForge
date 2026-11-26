@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { ArrowRight, CalendarDays, Compass, MapPin, Minus, Plus, Sparkles, Users, Wallet, Plane, TrainFront, BusFront, CarFront, ArrowUpRight } from "lucide-react";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import WebResearchPanel from "@/components/WebResearchPanel";
 import { MapView, type MapMarker } from "@/components/Map";
 import LocationSearch from "@/components/LocationSearch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -558,6 +559,7 @@ export default function JourneyStudio() {
                 </div>}
               </div>
             </div>
+            <WebResearchPanel origin={draft.startLocation} destination={draft.destination} travelDate={transportLegs.find(leg => leg.travelDate)?.travelDate || draft.startDate} />
             <div id="trip-budget" className="scroll-mt-6 rounded-2xl border border-[#123a35]/10 bg-[#f5f7f2] p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div><h2 className="font-display text-2xl">Trip budget</h2><p className="mt-1 text-sm text-[#71857e]">Enter a cost per unit. Totals recalculate when prices, traveller counts, rooms or dates change.</p></div>
