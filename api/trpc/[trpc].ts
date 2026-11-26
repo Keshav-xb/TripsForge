@@ -1,3 +1,4 @@
+import { searchWeb } from "../lib/webIntelligence";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../../server/lib/transport/routeResearch.js";
 import { buildTravelIntelligence } from "../../server/lib/transport/travelIntelligence.js";
@@ -172,6 +173,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
   try {
     const { input } = requestData(req);
+    if (path === "web.research") {
+      const result = await searchWeb(input.query, input.maxResults);
+      return send(req, res, 200, trpcData(result));
+    }
     if (path === "location.search") {
       const url = new URL("https://photon.komoot.io/api/");
       url.searchParams.set("q", String(input.query ?? ""));
