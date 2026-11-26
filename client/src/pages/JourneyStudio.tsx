@@ -309,6 +309,25 @@ export default function JourneyStudio() {
     });
     document.getElementById("transport-plan")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+  const addGatewayOptionToJourney = (candidate: any, option: any) => {
+    const originAccess = candidate?.access?.origin?.status === "route_found";
+    const destinationAccess = candidate?.access?.destination?.status === "route_found";
+    if (!originAccess || !destinationAccess || !Array.isArray(option?.legs) || option.legs.length === 0) return;
+    const date = draft.startDate;
+    const newLegs: TransportLeg[] = [
+      { ...createEmptyTransportLeg(draft.startLocation, String(candidate.originGateway?.name ?? "Origin gateway")), mode: "car", travelDate: date, unitCost: 0 },
+      ...option.legs.map((leg: any) => {
+        const mode: TransportMode = ["flight", "train", "bus", "car", "ferry"].includes(String(leg.mode)) ? leg.mode : "other";
+        return { ...createEmptyTransportLeg(String(leg.fromLabel ?? candidate.originGateway?.name ?? ""), String(leg.toLabel ?? candidate.destinationGateway?.name ?? "")), mode, travelDate: date, unitCost: 0 };
+      }),
+      { ...createEmptyTransportLeg(String(candidate.destinationGateway?.name ?? "Destination gateway"), draft.destination), mode: "car", travelDate: date, unitCost: 0 },
+    ];
+    setTransportLegs(current => {
+      const empty = current.findIndex(leg => leg.enabled && leg.mode === "unverified" && !leg.origin.trim() && !leg.destination.trim());
+      return empty >= 0 ? [...current.slice(0, empty), ...newLegs, ...current.slice(empty + 1)] : [...current, ...newLegs];
+    });
+    document.getElementById("transport-plan")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const [infants, setInfants] = useState(0);
   const [rooms, setRooms] = useState(1);
   const [budgetItems, setBudgetItems] = useState<BudgetCostItem[]>(() => budgetDefaults.map(item => ({
@@ -516,7 +535,7 @@ export default function JourneyStudio() {
                         return <article key={candidate.originGateway?.id + "-" + candidate.destinationGateway?.id + "-" + candidate.mode + "-" + index} className="rounded-xl border border-[#123a35]/10 bg-white p-4">
                           <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-extrabold">{candidate.mode === "flight" ? "Flight" : candidate.mode === "train" ? "Rail" : "Public bus"} · {candidate.originGateway?.name} → {candidate.destinationGateway?.name}</p><span className="rounded-full bg-[#eef3ed] px-2.5 py-1 text-[9px] font-bold uppercase text-[#45645b]">{String(candidate.status ?? "unknown").replaceAll("_"," ")}</span></div>
                           <div className="mt-2 grid gap-2 text-xs text-[#71857e] sm:grid-cols-2"><p>Start: {accessText(access.origin)}</p><p>Finish: {accessText(access.destination)}</p></div>
-                          {options.length > 0 ? <div className="mt-3 space-y-2">{options.slice(0,2).map((option:any,optionIndex:number)=><div key={option.id ?? optionIndex} className="rounded-lg bg-[#f7f9f5] p-3"><p className="text-xs font-bold">{option.legs?.map((leg:any)=>`${leg.mode} ${leg.fromLabel} → ${leg.toLabel}`).join(" · ") || "Provider itinerary"}</p><p className="mt-1 text-[10px] text-[#71857e]">{option.durationMinutes !== undefined ? `${Math.floor(option.durationMinutes/60)}h ${option.durationMinutes%60}m service time` : "Service duration unavailable"} · {option.price !== undefined && option.currency ? new Intl.NumberFormat(undefined,{style:"currency",currency:option.currency,maximumFractionDigits:0}).format(option.price) : "Fare not comparable"}</p></div>)}</div> : <p className="mt-3 text-xs text-[#71857e]">{services.length ? `${services.length} provider service(s) returned. Connection timing could not be validated.` : candidate.caveat || "No selectable provider service returned for this gateway pair."}</p>}
+                          {options.length > 0 ? <div className="mt-3 space-y-2">{options.slice(0,2).map((option:any,optionIndex:number)=><div key={option.id ?? optionIndex} className="rounded-lg bg-[#f7f9f5] p-3"><p className="text-xs font-bold">{option.legs?.map((leg:any)=>`${leg.mode} ${leg.fromLabel} → ${leg.toLabel}`).join(" · ") || "Provider itinerary"}</p><p className="mt-1 text-[10px] text-[#71857e]">{option.durationMinutes !== undefined ? `${Math.floor(option.durationMinutes/60)}h ${option.durationMinutes%60}m service time` : "Service duration unavailable"} · {option.price !== undefined && option.currency ? new Intl.NumberFormat(undefined,{style:"currency",currency:option.currency,maximumFractionDigits:0}).format(option.price) : "Fare not comparable"}</p>{candidate.access?.origin?.status === "route_found" && candidate.access?.destination?.status === "route_found" && <button type="button" onClick={()=>addGatewayOptionToJourney(candidate,option)} className="mt-3 inline-flex min-h-9 items-center rounded-lg bg-[#123a35] px-3 py-2 text-[10px] font-bold text-white">Add gateway itinerary to segments <ArrowRight className="ml-2 h-3 w-3"/></button>}</div>)}</div> : <p className="mt-3 text-xs text-[#71857e]">{services.length ? `${services.length} provider service(s) returned. Connection timing could not be validated.` : candidate.caveat || "No selectable provider service returned for this gateway pair."}</p>}
                           <p className="mt-3 text-[10px] leading-5 text-[#87958f]">{candidate.caveat || "Candidate only. Confirm terminal identity, service times, transfers and operator availability before relying on this route."}</p>
                         </article>;
                       })}</div> : <p className="mt-4 rounded-lg bg-white p-3 text-xs leading-5 text-[#71857e]">No gateway services were returned for the searched pairs. This is not proof that indirect transport does not exist.</p>}
