@@ -291,7 +291,16 @@ export default function JourneyStudio() {
       const report = intelligencePayload.result?.data?.json;
       if (activeRunId === researchRunId.current && report) setIntelligenceReport(report);
     } catch (error) {
-      if (activeRunId === researchRunId.current) setResearchError(error instanceof Error ? error.message : "Route research failed. Please try again.");
+      if (activeRunId === researchRunId.current) {
+        const message = error instanceof Error ? error.message : "Route research failed. Please try again.";
+        setResearchError(message);
+        // If the primary route request fails, gateway lookup was never started.
+        // Clear the loading state instead of leaving the transport panel spinning forever.
+        if (gatewayResearchState === "searching" && !gatewayJourneyResearch) {
+          setGatewayResearchState("unavailable");
+          setGatewayResearchError("Gateway search could not start because route research failed. Correct the route or retry.");
+        }
+      }
     } finally {
       if (activeRunId === researchRunId.current) setResearching(false);
     }
