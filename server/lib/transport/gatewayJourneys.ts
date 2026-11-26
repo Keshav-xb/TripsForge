@@ -240,7 +240,7 @@ export async function searchGatewayJourneys(input: {
     searchedGatewayPairs: tasks.length,
     candidates: results,
     limitations: [
-      "Only the two nearest mapped gateways per mode at each endpoint are searched in this beta.",
+      "Up to four mapped gateways per mode are selected at each endpoint, then at most three gateway pairs per mode are queried in this beta.",
       "Mapped infrastructure is not proof of a scheduled service; only provider-returned services are listed.",
       "Road access estimates do not verify departure-time compatibility, terminal transfers, traffic, check-in cutoffs or road conditions.",
       "A candidate is not a guaranteed end-to-end connection. Exact schedule and transfer validation is a required next step.",
