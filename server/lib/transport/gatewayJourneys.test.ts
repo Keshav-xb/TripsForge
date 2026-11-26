@@ -17,6 +17,17 @@ describe("gateway journey candidate selection", () => {
     expect(selectGateways(items, "flight").map(item => item.id)).toEqual(["airport-near", "airport-mid", "airport-far"]);
   });
 
+  it("caps gateway selection at the four nearest matching gateways", () => {
+    const items = [
+      gateway("g5", "flight", 50),
+      gateway("g3", "flight", 30),
+      gateway("g1", "flight", 10),
+      gateway("g4", "flight", 40),
+      gateway("g2", "flight", 20),
+    ];
+    expect(selectGateways(items, "flight").map(item => item.id)).toEqual(["g1", "g2", "g3", "g4"]);
+  });
+
   it("returns fewer than two when only one matching gateway exists", () => {
     expect(selectGateways([gateway("one", "train", 3)], "train").map(item => item.id)).toEqual(["one"]);
   });
