@@ -142,6 +142,7 @@ export default function JourneyStudio() {
       return;
     }
     const activeRunId = ++researchRunId.current;
+    let gatewayLookupStarted = false;
     setResearching(true);
     setResearchError("");
     setRouteResearch(null);
@@ -200,6 +201,7 @@ export default function JourneyStudio() {
       // Gateway research is visible and reports failures instead of silently disappearing.
       setGatewayResearchState("searching");
       setGatewayResearchError("");
+      gatewayLookupStarted = true;
       void fetch(`/api/trpc/route.gatewayJourneys?input=${encodeURIComponent(JSON.stringify({ json: {
         origin: draft.startLocationPoint, destination: draft.destinationLocation,
         originLabel: draft.startLocation, destinationLabel: draft.destination,
@@ -296,7 +298,7 @@ export default function JourneyStudio() {
         setResearchError(message);
         // If the primary route request fails, gateway lookup was never started.
         // Clear the loading state instead of leaving the transport panel spinning forever.
-        if (gatewayResearchState === "searching" && !gatewayJourneyResearch) {
+        if (!gatewayLookupStarted) {
           setGatewayResearchState("unavailable");
           setGatewayResearchError("Gateway search could not start because route research failed. Correct the route or retry.");
         }
