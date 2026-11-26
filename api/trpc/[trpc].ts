@@ -84,7 +84,6 @@ function send(req: IncomingMessage, res: ServerResponse, status: number, value: 
   const batched = new URL(req.url ?? "", "https://tripsforge.local").searchParams.get("batch") === "1";
   res.statusCode = status;
   res.setHeader("content-type", "application/json");
-  const routeResearchRequest = new URL(req.url ?? "", "https://tripsforge.local").pathname.endsWith("/route.research");
   res.setHeader("cache-control", "no-store");
   res.setHeader("access-control-allow-origin", "*");
   res.setHeader("access-control-allow-methods", "GET, OPTIONS");
