@@ -21,6 +21,7 @@ describe("web intelligence search", () => {
   it("normalizes provider results and excludes unsafe URL schemes", async () => {
     process.env.TAVILY_API_KEY = "test-key";
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      answer: "Plan a stopover and check road conditions.",
       results: [
         { title: "Airline timetable", url: "https://www.example.com/flights", content: "Published timetable", raw_content: "# Timetable", score: 0.91, published_date: "2026-11-18" },
         { title: "Unsafe", url: "javascript:alert(1)", content: "Ignore this" },
@@ -33,7 +34,9 @@ describe("web intelligence search", () => {
     expect(result.results).toHaveLength(1);
     expect(result.results[0].sourceDomain).toBe("example.com");
     expect(result.results[0].pageContent).toContain("Timetable");
+    expect(result.answer).toContain("check road conditions");
     expect(fetchMock).toHaveBeenCalledOnce();
+    expect(String(fetchMock.mock.calls[0][1]?.body)).toContain("\\"include_answer\\":true");
   });
 
   it("surfaces provider rate limiting instead of returning empty results", async () => {
