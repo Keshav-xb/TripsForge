@@ -1,4 +1,4 @@
-import { searchWeb } from "../lib/webIntelligence";
+import { searchWeb } from "../lib/webIntelligence.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { buildRouteResearch, type InfrastructureEvidence, type TransportResearchMode } from "../../server/lib/transport/routeResearch.js";
 import { buildTravelIntelligence } from "../../server/lib/transport/travelIntelligence.js";
