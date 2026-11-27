@@ -36,7 +36,7 @@ describe("web intelligence search", () => {
     expect(result.results[0].pageContent).toContain("Timetable");
     expect(result.answer).toContain("check road conditions");
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(String(fetchMock.mock.calls[0][1]?.body)).toContain("\\"include_answer\\":true");
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ include_answer: true });
   });
 
   it("surfaces provider rate limiting instead of returning empty results", async () => {
