@@ -29,7 +29,7 @@ Call `GET /api/trpc/web.research?input=...` using the same tRPC input envelope u
 - `results_found`: the provider returned one or more source records.
 - `no_results`: the provider completed the search but returned no usable sources.
 
-Each source includes its title, URL, domain, provider snippet, optional extracted page content, relevance score, and provider publication date when supplied. The response includes a retrieval timestamp and limitations.
+The response includes Tavily's synthesized answer, a retrieval timestamp, and source records with title, URL, domain, provider snippet, optional extracted page content, relevance score, and publication date when supplied. The UI presents the answer as the primary travel brief and sources as secondary evidence.
 
 ## Trust and product rules
 
@@ -42,4 +42,4 @@ Each source includes its title, URL, domain, provider snippet, optional extracte
 
 ## Current limitation
 
-This is the backend research foundation, not a finished chat agent. The next integration step is to add a TripsForge research UI and a travel-specific synthesis layer that compares source claims, detects conflicts, and labels facts by freshness. Tavily requires a server-side key; free quotas and pricing depend on the provider's current terms and are not guaranteed by this code.
+Tavily supplies the synthesized answer; TripsForge does not yet independently compare source claims or guarantee completeness. Treat the brief as research context, not a confirmed itinerary or booking. Tavily requires a server-side key; free quotas and pricing depend on the provider's current terms and are not guaranteed by this code.

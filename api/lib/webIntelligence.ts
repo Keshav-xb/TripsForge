@@ -20,6 +20,7 @@ export type WebResearchResponse =
       status: "results_found" | "no_results";
       provider: "Tavily";
       query: string;
+      answer: string | null;
       retrievedAt: string;
       results: WebResearchResult[];
       limitations: string[];
@@ -73,7 +74,7 @@ export async function searchWeb(queryValue: unknown, maxResultsValue: unknown): 
       search_depth: "basic",
       topic: "general",
       max_results: maxResults,
-      include_answer: false,
+      include_answer: true,
       include_raw_content: "markdown",
       include_images: false,
     }),
@@ -85,7 +86,7 @@ export async function searchWeb(queryValue: unknown, maxResultsValue: unknown): 
     throw new Error(`WEB_RESEARCH_PROVIDER_HTTP_${response.status}`);
   }
 
-  const payload = await response.json() as { results?: TavilyResult[] };
+  const payload = await response.json() as { answer?: string | null; results?: TavilyResult[] };
   const results = (payload.results ?? []).flatMap(item => {
     const url = String(item.url ?? "");
     const sourceDomain = safeDomain(url);
@@ -107,6 +108,7 @@ export async function searchWeb(queryValue: unknown, maxResultsValue: unknown): 
     status: results.length ? "results_found" : "no_results",
     provider: "Tavily",
     query,
+    answer: String(payload.answer ?? "").trim() || null,
     retrievedAt: new Date().toISOString(),
     results,
     limitations: [
