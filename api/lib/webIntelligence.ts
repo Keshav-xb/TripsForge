@@ -108,6 +108,7 @@ export async function searchWeb(queryValue: unknown, maxResultsValue: unknown): 
     status: results.length ? "results_found" : "no_results",
     provider: "Tavily",
     query,
+    answer: String(payload.answer ?? "").trim() || null,
     retrievedAt: new Date().toISOString(),
     results,
     limitations: [
